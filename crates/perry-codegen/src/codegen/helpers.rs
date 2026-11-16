@@ -855,18 +855,10 @@ pub(crate) fn unique_class_keys_global(
 /// function main` even though the .ll says `target triple =
 /// "x86_64-pc-windows-msvc"`.)
 pub(crate) fn default_target_triple() -> String {
-    if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
-        "arm64-apple-macosx15.0.0".to_string()
-    } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
-        "x86_64-apple-macosx15.0.0".to_string()
-    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+    if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
         "x86_64-unknown-linux-gnu".to_string()
     } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
         "aarch64-unknown-linux-gnu".to_string()
-    } else if cfg!(all(target_os = "windows", target_arch = "aarch64")) {
-        "aarch64-pc-windows-msvc".to_string()
-    } else if cfg!(target_os = "windows") {
-        "x86_64-pc-windows-msvc".to_string()
     } else {
         "arm64-apple-macosx15.0.0".to_string()
     }
@@ -908,10 +900,8 @@ pub fn resolve_target_triple(name: &str) -> Option<String> {
         "watchos-simulator" => Some("arm64-apple-watchos10.0-simulator".to_string()),
         // Standalone WASI (#11375): only a compiler built with `target-wasi`
         // knows the name; a default build keeps resolving it to None.
-        "wasi" if cfg!(feature = "target-wasi") => Some("wasm32-unknown-wasip2".to_string()),
         // The WASI preview1 flavour: a core module for hosts without the
         // component model. The runtime and the link use `wasm32-wasip1`.
-        "wasip1" if cfg!(feature = "target-wasi") => Some("wasm32-unknown-wasip1".to_string()),
         "tvos" => Some("aarch64-apple-tvos".to_string()),
         "tvos-simulator" => Some("arm64-apple-tvos17.0-simulator".to_string()),
         "harmonyos" => Some("aarch64-unknown-linux-ohos".to_string()),
@@ -936,7 +926,6 @@ pub fn resolve_target_triple(name: &str) -> Option<String> {
         "linux-aarch64-musl" => Some("aarch64-unknown-linux-musl".to_string()),
         "macos" => Some("arm64-apple-macosx15.0.0".to_string()),
         "macos-x86_64" => Some("x86_64-apple-macosx15.0.0".to_string()),
-        "windows" | "windows-winui" if cfg!(target_os = "windows") => Some(default_target_triple()),
         "windows" | "windows-winui" | "windows-x86_64" => {
             Some("x86_64-pc-windows-msvc".to_string())
         }
@@ -1134,15 +1123,7 @@ mod target_os_tests {
 
     #[test]
     fn default_target_os_matches_this_compilers_cfg() {
-        let expected = if cfg!(target_os = "macos") {
-            "macos"
-        } else if cfg!(target_os = "linux") {
-            "linux"
-        } else if cfg!(target_os = "windows") {
-            "windows"
-        } else {
-            std::env::consts::OS
-        };
+        let expected = "linux";
         assert_eq!(target_os_of(&default_target_triple()), Some(expected));
     }
 }

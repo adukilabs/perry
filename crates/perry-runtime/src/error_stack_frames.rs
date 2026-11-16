@@ -619,11 +619,7 @@ fn demangle_nm_symbol(name: &str) -> String {
     // before Rust's `_R...` / `_ZN...` mangling. `nm -C` implementations that
     // know Rust already return a readable name; `try_demangle` rejects that
     // and we preserve it unchanged.
-    let candidate = if cfg!(target_vendor = "apple") {
-        name.strip_prefix('_').unwrap_or(name)
-    } else {
-        name
-    };
+    let candidate = name;
     rustc_demangle::try_demangle(candidate)
         .map(|symbol| symbol.to_string())
         .unwrap_or_else(|_| name.to_string())

@@ -126,11 +126,7 @@ createRequire 4 true
         .join("../..")
         .canonicalize()
         .unwrap();
-    let executable = root.join(if cfg!(windows) {
-        "app.exe"
-    } else {
-        "app-native"
-    });
+    let executable = root.join("app-native");
     successful(
         Command::new(compiler)
             .current_dir(&root)

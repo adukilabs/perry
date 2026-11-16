@@ -72,11 +72,7 @@ fn inherited_unix_fds() -> Vec<i32> {
         let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
         flags >= 0 && flags & libc::FD_CLOEXEC == 0
     };
-    let dir = if cfg!(any(target_os = "linux", target_os = "android")) {
-        "/proc/self/fd"
-    } else {
-        "/dev/fd"
-    };
+    let dir = "/proc/self/fd";
     // The directory listing holds its own (close-on-exec) descriptor while
     // it is read; collect first, test the flags after it is closed.
     let listed: Option<Vec<i32>> = std::fs::read_dir(dir).ok().map(|entries| {
@@ -1156,17 +1152,7 @@ pub extern "C" fn js_fs_lchown_sync(path_value: f64, uid_value: f64, gid_value: 
 /// `fs.lchmodSync` property with value `undefined`, so attempted calls throw a
 /// plain TypeError before argument validation.
 pub(crate) fn lchmod_is_callable_on_this_platform() -> bool {
-    cfg!(all(
-        unix,
-        any(
-            target_os = "macos",
-            target_os = "ios",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd",
-            target_os = "dragonfly"
-        )
-    ))
+    false
 }
 
 fn throw_plain_type_error(message: &str) -> ! {

@@ -545,16 +545,7 @@ pub fn state_dir_for(
     home: Option<&str>,
     local_appdata: Option<&str>,
 ) -> Option<std::path::PathBuf> {
-    let base = if cfg!(windows) {
-        std::path::PathBuf::from(local_appdata?)
-    } else if cfg!(target_os = "macos") {
-        // `~/Library/Caches` rather than XDG: on macOS that is where a cache
-        // belongs, and a program that writes `~/.cache` there looks like it was
-        // ported without being looked at.
-        std::path::PathBuf::from(home?)
-            .join("Library")
-            .join("Caches")
-    } else if let Some(xdg) = xdg_cache.filter(|s| !s.is_empty()) {
+    let base = if let Some(xdg) = xdg_cache.filter(|s| !s.is_empty()) {
         std::path::PathBuf::from(xdg)
     } else {
         std::path::PathBuf::from(home?).join(".cache")

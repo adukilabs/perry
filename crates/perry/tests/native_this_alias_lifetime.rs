@@ -47,7 +47,7 @@ fn a_churn_of_aliased_responses_is_collected() {
     let entry = dir.path().join("main.ts");
     let binary = dir
         .path()
-        .join(if cfg!(windows) { "main.exe" } else { "main" });
+        .join("main");
     std::fs::write(&entry, CHURN).unwrap();
     let compile = Command::new(env!("CARGO_BIN_EXE_perry"))
         .current_dir(dir.path())

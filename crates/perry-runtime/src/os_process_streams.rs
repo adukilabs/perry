@@ -548,10 +548,6 @@ fn stdin_deliver_data(bytes: &[u8]) {
 
 
 fn ensure_stdin_reader() {
-    if cfg!(target_os = "wasi") {
-        stdin_reader_claim_start();
-        return;
-    }
     // A previous reader may have exited (EOF, error, or explicit detach), which
     // resets `STDIN_READER_STARTED` to false so a later `resume()`/`on(...)`
     // can spin up a fresh reader. The claim is atomic with a live reader's

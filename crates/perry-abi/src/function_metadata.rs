@@ -57,7 +57,7 @@ pub struct FunctionRecordBounds {
 }
 unsafe impl Sync for FunctionRecordBounds {}
 /// Bytes per record in this target's records section.
-pub const FUNCTION_RECORD_BYTES: usize = if cfg!(target_vendor = "apple") { 8 } else { 4 };
+pub const FUNCTION_RECORD_BYTES: usize = { 4 };
 
 /// Indexing never derives identity from a code or owner address.
 #[repr(C)]

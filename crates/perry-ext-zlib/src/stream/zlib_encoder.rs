@@ -49,13 +49,7 @@ impl Encoder {
         let mut pending = [0; 10];
         let (check, header_len) = match codec {
             Codec::Gzip => {
-                let os = if cfg!(target_os = "macos") {
-                    19
-                } else if cfg!(target_os = "windows") {
-                    10
-                } else {
-                    3
-                };
+                let os = 3;
                 // XFL as zlib writes it: 2 for level 9, 4 for levels 0 and 1.
                 let xfl = if level_value == 9 {
                     2

@@ -37,9 +37,6 @@ pub(super) fn start_stdin_reader() {
     }
 
     // Threads never run on wasi: no reader, so no stdin messages.
-    if cfg!(target_os = "wasi") {
-        return;
-    }
     // Spawn a thread to read lines from stdin
     // We use a regular thread (not tokio) because stdin reading is blocking
     std::thread::spawn(move || {

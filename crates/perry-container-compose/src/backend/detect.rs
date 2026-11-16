@@ -124,23 +124,7 @@ pub async fn probe_all_candidates() -> Vec<BackendProbeResult> {
 /// (precedence over this list — disables auto-detection entirely).
 /// Programmatic override via `js_container_setBackend(name)` (TS-side).
 pub fn platform_candidates() -> &'static [&'static str] {
-    if cfg!(target_os = "macos") || cfg!(target_os = "ios") {
-        &[
-            "apple/container",
-            "orbstack",
-            "colima",
-            "rancher-desktop",
-            "lima",
-            "podman",
-            "nerdctl",
-            "docker",
-        ]
-    } else if cfg!(target_os = "linux") {
-        &["podman", "nerdctl", "docker"]
-    } else {
-        // Windows and other platforms
-        &["podman", "nerdctl", "docker"]
-    }
+    &["podman", "nerdctl", "docker"]
 }
 
 async fn probe_candidate(name: &str) -> std::result::Result<Box<dyn ContainerBackend>, String> {
@@ -189,22 +173,6 @@ async fn probe_candidate(name: &str) -> std::result::Result<Box<dyn ContainerBac
         }
         "podman" => {
             let bin = which_bin("podman")?;
-            if cfg!(target_os = "macos") {
-                let out = Command::new(&bin)
-                    .args(["machine", "list", "--format", "json"])
-                    .output()
-                    .await
-                    .map_err(|_| "podman machine list failed")?;
-                let json: serde_json::Value =
-                    serde_json::from_slice(&out.stdout).map_err(|_| "invalid podman output")?;
-                if !json
-                    .as_array()
-                    .map(|a| a.iter().any(|m| m["Running"].as_bool().unwrap_or(false)))
-                    .unwrap_or(false)
-                {
-                    return Err("no podman machine running".into());
-                }
-            }
             Ok(Box::new(CliBackend::new(bin, Box::new(DockerProtocol))))
         }
         "orbstack" => {

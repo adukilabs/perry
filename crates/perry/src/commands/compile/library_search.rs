@@ -107,7 +107,7 @@ fn lib_name_variants(lib_name: &str, target: Option<&str>) -> Vec<String> {
             | Some("visionos")
             | Some("visionos-simulator")
             | Some("macos")
-    ) || (target.is_none() && cfg!(target_os = "macos"));
+    );
 
     if std::path::Path::new(lib_name).extension().is_some() {
         // A wrapper may hard-code the Unix static-lib filename (e.g.
@@ -178,11 +178,7 @@ pub(super) fn find_llvm_tool(tool_name: &str) -> Option<PathBuf> {
                 let vv_str = String::from_utf8_lossy(&vv.stdout);
                 if let Some(host_line) = vv_str.lines().find(|l| l.starts_with("host:")) {
                     let host_triple = host_line.trim_start_matches("host:").trim();
-                    let exe_suffix = if cfg!(target_os = "windows") {
-                        ".exe"
-                    } else {
-                        ""
-                    };
+                    let exe_suffix = "";
                     let tool_path = PathBuf::from(&sysroot)
                         .join("lib")
                         .join("rustlib")
@@ -198,11 +194,7 @@ pub(super) fn find_llvm_tool(tool_name: &str) -> Option<PathBuf> {
     }
 
     // 3. PATH lookup
-    let which_cmd = if cfg!(target_os = "windows") {
-        "where"
-    } else {
-        "which"
-    };
+    let which_cmd = "which";
     if let Ok(output) = Command::new(which_cmd).arg(tool_name).output() {
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -1193,11 +1185,7 @@ pub(super) fn find_ui_library(target: Option<&str>) -> Option<PathBuf> {
         Some("windows-winui") => "perry_ui_windows_winui.lib",
         target if is_windows_target(target) => "perry_ui_windows.lib",
         _ => {
-            if cfg!(target_os = "linux") {
-                "libperry_ui_gtk4.a"
-            } else {
-                "libperry_ui_macos.a"
-            }
+            "libperry_ui_gtk4.a"
         }
     };
     locate_optional_archive(lib_name, target, "this perry/ui program")
@@ -1292,13 +1280,7 @@ pub(super) fn android_cross_env(ndk_home: &Path, target: Option<&str>) -> Vec<(S
     // NDK ships per-host prebuilt toolchains. Tag must match the build
     // machine, NOT the target — Windows-host builds were falling through
     // to `linux-x86_64` and erroring out before this fix landed.
-    let host_tag = if cfg!(target_os = "macos") {
-        "darwin-x86_64"
-    } else if cfg!(target_os = "windows") {
-        "windows-x86_64"
-    } else {
-        "linux-x86_64"
-    };
+    let host_tag = "linux-x86_64";
 
     let bin = ndk_home
         .join("toolchains")
@@ -1307,11 +1289,7 @@ pub(super) fn android_cross_env(ndk_home: &Path, target: Option<&str>) -> Vec<(S
         .join(host_tag)
         .join("bin");
     // On Windows the NDK's wrapper scripts are `.cmd` files.
-    let ext = if cfg!(target_os = "windows") {
-        ".cmd"
-    } else {
-        ""
-    };
+    let ext = "";
     let clang = bin.join(format!("{}-clang{}", clang_target, ext));
     let clangpp = bin.join(format!("{}-clang++{}", clang_target, ext));
     // NDK r27+ removed the per-target `aarch64-linux-android-ar` wrapper that
@@ -1320,11 +1298,7 @@ pub(super) fn android_cross_env(ndk_home: &Path, target: Option<&str>) -> Vec<(S
     // dependencies (e.g. mimalloc) fail to build with
     // `failed to find tool "aarch64-linux-android-ar"`. `llvm-ar` has no `.cmd`
     // wrapper on Windows — it's the bare executable (+`.exe`).
-    let ar_ext = if cfg!(target_os = "windows") {
-        ".exe"
-    } else {
-        ""
-    };
+    let ar_ext = "";
     let llvm_ar = bin.join(format!("llvm-ar{}", ar_ext));
 
     let triple_upper = triple.to_uppercase().replace('-', "_");

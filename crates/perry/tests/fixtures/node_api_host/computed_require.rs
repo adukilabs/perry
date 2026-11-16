@@ -96,7 +96,7 @@ if (process.env.PERRY_TEST_DLOPEN) {{
             String::from_utf8_lossy(&oracle.stdout),
             "computed-addon 8523 42 true true true\n"
         );
-        let executable = install.join(if cfg!(windows) { "app.exe" } else { "app" });
+        let executable = install.join("app");
         let output = compile_app(&source, &entry, &executable);
         assert!(
             output.status.success(),

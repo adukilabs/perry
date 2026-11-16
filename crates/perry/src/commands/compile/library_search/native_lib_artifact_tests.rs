@@ -44,11 +44,7 @@ fn locates_artifact_from_bare_crate_name() {
     let target_dir = tmp.path().join("target");
     let release_dir = target_dir.join("release");
     fs::create_dir_all(&release_dir).expect("mkdir release");
-    let lib_name = if cfg!(target_os = "windows") {
-        "perry_ext_foo.lib"
-    } else {
-        "libperry_ext_foo.a"
-    };
+    let lib_name = "libperry_ext_foo.a";
     let lib_path = release_dir.join(lib_name);
     fs::write(&lib_path, b"fake archive").expect("write lib");
 

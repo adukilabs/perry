@@ -91,7 +91,7 @@ pub(crate) fn detect() -> InstallChannel {
 /// the update path of every command, so it must not spawn a process, and it
 /// must not fail noisily in a sandbox that has no `dpkg` on `PATH`.
 fn dpkg_owns_perry() -> bool {
-    cfg!(target_os = "linux") && Path::new("/var/lib/dpkg/info/perry.list").exists()
+    Path::new("/var/lib/dpkg/info/perry.list").exists()
 }
 
 /// The classification itself, with the filesystem answer passed in so the

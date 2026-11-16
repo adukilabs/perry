@@ -87,7 +87,7 @@ console.log('startup continued');
     .unwrap();
     let executable = dir
         .path()
-        .join(if cfg!(windows) { "main.exe" } else { "main" });
+        .join("main");
     let mut compile = Command::new(&perry);
     compile
         .current_dir(dir.path())

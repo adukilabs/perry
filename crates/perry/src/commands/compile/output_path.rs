@@ -81,7 +81,7 @@ fn is_apple_target(target: Option<&str>) -> bool {
                 | "visionos"
                 | "visionos-simulator"
         )
-    ) || (target.is_none() && cfg!(target_os = "macos"))
+    )
 }
 
 #[cfg(test)]

@@ -61,13 +61,7 @@ fn check_clang() -> CheckResult {
             classify_clang(&path, version_output.as_deref())
         }
         None => {
-            let hint = if cfg!(windows) {
-                "not found - install with `winget install LLVM.LLVM` (or choco/scoop install llvm) or set PERRY_LLVM_CLANG"
-            } else if cfg!(target_os = "macos") {
-                "not found - install with `brew install llvm` or `xcode-select --install`, or set PERRY_LLVM_CLANG"
-            } else {
-                "not found - install via your package manager (apt/dnf/pacman install clang) or set PERRY_LLVM_CLANG"
-            };
+            let hint = "not found - install via your package manager (apt/dnf/pacman install clang) or set PERRY_LLVM_CLANG";
             CheckResult {
                 name: "clang (LLVM codegen)".to_string(),
                 status: CheckStatus::Error,
@@ -150,11 +144,7 @@ fn check_runtime_library() -> CheckResult {
     // Delegate to the same search machinery `perry compile` uses, so the
     // doctor view stays in sync with the linker's actual lookup paths
     // (env-var overrides, WinGet Packages dir, brew/usr-local, etc).
-    let lib_name = if cfg!(target_os = "windows") {
-        "perry_runtime.lib"
-    } else {
-        "libperry_runtime.a"
-    };
+    let lib_name = "libperry_runtime.a";
     if let Some(path) = crate::commands::compile::find_library(lib_name, None) {
         let library_status = crate::commands::compile::runtime_library_status(&path);
         return match &library_status {

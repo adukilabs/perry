@@ -39,11 +39,7 @@ fn target_debug_dir() -> PathBuf {
     let target = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| workspace_root().join("target"));
-    if cfg!(windows) {
-        target.join("x86_64-pc-windows-msvc").join("debug")
-    } else {
-        target.join("debug")
-    }
+    target.join("debug")
 }
 
 fn assert_success(label: &str, output: &Output) {
@@ -65,9 +61,6 @@ fn ensure_runtime_archive() {
             .arg("build")
             .arg("-p")
             .arg("perry-runtime-static");
-        if cfg!(windows) {
-            command.arg("--target").arg("x86_64-pc-windows-msvc");
-        }
         let output = command.output().expect("build static runtime archive");
         assert_success("static runtime build", &output);
         // The GC effects sidecar beside the archives just built: perry reads it

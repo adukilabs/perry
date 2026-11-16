@@ -7753,7 +7753,7 @@ pub fn run_with_parse_cache(
             Some("harmonyos") | Some("harmonyos-simulator")
         );
         let is_linux = matches!(target.as_deref(), Some(t) if t.starts_with("linux"))
-            || (!cfg!(target_os = "macos") && !cfg!(target_os = "windows") && target.is_none());
+            || (target.is_none());
         let is_windows = is_windows_target(target.as_deref());
         // Symbol prefix depends on object format:
         // Mach-O targets (macOS, iOS, watchOS, tvOS): nm shows `_` prefix
@@ -7773,13 +7773,9 @@ pub fn run_with_parse_cache(
                 | Some("watchos-simulator")
                 | Some("tvos")
                 | Some("tvos-simulator")
-        ) || (!is_windows
-            && !is_linux
-            && !is_android
-            && !is_harmonyos
-            && cfg!(target_os = "macos"));
+        );
         // Find the nm tool: use llvm-nm when cross-compiling (host nm can't read foreign object formats)
-        let needs_llvm_nm = is_windows || (is_macho && !cfg!(target_os = "macos"));
+        let needs_llvm_nm = is_windows || (is_macho);
         let nm_cmd = if needs_llvm_nm {
             find_llvm_tool("llvm-nm")
                 .map(|p| p.to_string_lossy().to_string())
@@ -8251,7 +8247,7 @@ pub fn run_with_parse_cache(
         Some("harmonyos") | Some("harmonyos-simulator")
     );
     let is_linux = matches!(target.as_deref(), Some(t) if t.starts_with("linux"))
-        || (target.is_none() && cfg!(target_os = "linux"));
+        || (target.is_none());
     let _is_windows = is_windows_target(target.as_deref());
     // is_watchos / is_tvos are defined below (near the per-platform link step).
     // The is_cross_* bindings used to live here, but they're now derived

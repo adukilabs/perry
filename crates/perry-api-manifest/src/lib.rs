@@ -300,7 +300,7 @@ fn is_platform_unavailable_named_export(module: &str, name: &str) -> bool {
             name,
             "O_DIRECT" | "O_NOATIME" | "RTLD_DEEPBIND" | "SIGPOLL" | "SIGPWR" | "SIGSTKFLT"
         );
-    linux_only && !cfg!(target_os = "linux")
+    false
 }
 
 /// True for Node.js built-in module specifiers that should use Node's public

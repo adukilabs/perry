@@ -56,8 +56,8 @@ pub(super) fn verify_dylib_target_linkable(target: Option<&str>) -> Result<()> {
         "windows" | "windows-winui" | "windows-x86_64" | "windows-aarch64" | "windows-arm64" => {
             true
         }
-        t if t.starts_with("linux") => cfg!(target_os = "linux"),
-        t if apple_dylib_cross_target(t).is_some() => cfg!(target_os = "macos"),
+        t if t.starts_with("linux") => true,
+        t if apple_dylib_cross_target(t).is_some() => false,
         _ => false,
     };
     if !host_ok {

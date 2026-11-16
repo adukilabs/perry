@@ -782,9 +782,6 @@ pub extern "C" fn js_atomics_wait_async(
     // The waiter below is a background thread, and WASI cannot spawn
     // one. Fail loudly before any waiter is enqueued rather than panic in the
     // spawn.
-    if cfg!(target_os = "wasi") {
-        throw_type_error(b"Atomics.waitAsync is not supported on WASI");
-    }
     let addr = view.slot_addr(idx);
     let handle = if addr == 0 {
         None

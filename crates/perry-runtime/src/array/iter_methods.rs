@@ -1059,8 +1059,7 @@ pub extern "C" fn js_array_some_captureless(
     // over-applied there as the native loop below does (a body declaring one
     // parameter traps when called with three). Closure dispatch applies the
     // declared arity, so wasm takes the generic path for every receiver.
-    if cfg!(target_os = "wasi")
-        || super::header::receiver_may_be_registered_exotic(arr)
+    if super::header::receiver_may_be_registered_exotic(arr)
             && crate::typedarray_hook_slots::lookup_typed_array_kind(arr as usize).is_some()
         || super::header::receiver_may_be_registered_exotic(arr)
             && crate::buffer::is_registered_buffer(arr as usize)

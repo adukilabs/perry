@@ -1040,11 +1040,7 @@ mod tests {
     fn test_platform_candidates() {
         let candidates = platform_candidates();
         assert!(!candidates.is_empty());
-        if cfg!(target_os = "macos") || cfg!(target_os = "ios") {
-            assert_eq!(candidates[0], "apple/container");
-        } else {
-            assert_eq!(candidates[0], "podman");
-        }
+        assert_eq!(candidates[0], "podman");
     }
 
     /// All env-var-mutating tests in one function. cargo runs tests

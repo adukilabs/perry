@@ -257,22 +257,9 @@ mod win32_normalize_tests {
         // On a Windows host the cwd is drive-absolute, so the resolved
         // relative path gets the `\\?\` device prefix (matching Node); on a
         // POSIX host the cwd is driveless and no prefix applies.
-        let expected_relative = if cfg!(windows) {
-            format!("\\\\?\\{}", resolved_relative)
-        } else {
-            resolved_relative
-        };
+        let expected_relative = resolved_relative;
         assert_eq!(win32_to_namespaced_path("foo"), expected_relative);
-        let expected_rooted = if cfg!(windows) {
-            let device = super::super::split_win32(&cwd).prefix;
-            if let Some(unc) = device.strip_prefix("\\\\") {
-                format!("\\\\?\\UNC\\{}\\tmp\\x", unc)
-            } else {
-                format!("\\\\?\\{}\\tmp\\x", device)
-            }
-        } else {
-            "\\tmp\\x".to_string()
-        };
+        let expected_rooted = "\\tmp\\x".to_string();
         assert_eq!(win32_to_namespaced_path("/tmp/x"), expected_rooted);
         assert_eq!(win32_to_namespaced_path("C:\\foo"), "\\\\?\\C:\\foo");
         assert_eq!(

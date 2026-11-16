@@ -187,7 +187,7 @@ pub extern "C" fn js_import_meta_resolve(specifier: f64, parent: f64, fallback: 
         path.strip_prefix(r"\\?\").unwrap_or(&path).to_owned()
     };
     string_value(
-        &crate::module_require::file_url_text::path_to_file_url_string(&path, cfg!(windows)),
+        &crate::module_require::file_url_text::path_to_file_url_string(&path, false),
     )
 }
 

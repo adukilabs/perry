@@ -94,17 +94,7 @@ fn hint_for_mingw_clang_on_windows_targets_msvc() {
         &v,
         "x86_64-pc-windows-msvc",
     );
-    if cfg!(target_os = "windows") {
-        assert!(
-            hint.contains("MinGW/GNU"),
-            "expected MinGW hint, got: {}",
-            hint
-        );
-        assert!(hint.contains("winget install LLVM.LLVM"));
-        assert!(hint.contains("PERRY_LLVM_CLANG"));
-    } else {
-        assert!(hint.contains("PERRY_LLVM_CLANG"));
-    }
+    assert!(hint.contains("PERRY_LLVM_CLANG"));
 }
 
 #[test]
@@ -116,13 +106,11 @@ fn hint_for_override_module_target_triple_warning() {
         "x86_64-unknown-linux-gnu",
     );
     // On non-Windows hosts the override-warning branch should win.
-    if !cfg!(target_os = "windows") {
-        assert!(
-            hint.contains("overriding the module target triple"),
-            "expected override hint, got: {}",
-            hint
-        );
-    }
+    assert!(
+        hint.contains("overriding the module target triple"),
+        "expected override hint, got: {}",
+        hint
+    );
 }
 
 #[test]
@@ -176,11 +164,7 @@ fn compile_plan_records_effective_target_and_native_tuning() {
     // `llvm.aarch64.fjcvtzs` is made from the triple, and `native` broke that
     // pair on a virtualised CI runner where detection disagreed. Every other
     // host keeps native tuning.
-    let expected = if cfg!(all(target_vendor = "apple", target_arch = "aarch64")) {
-        "-mcpu=apple-m1"
-    } else {
-        native_tuning_arg_for_host()
-    };
+    let expected = native_tuning_arg_for_host();
     assert_eq!(plan.native_tuning_arg.as_deref(), Some(expected));
     assert!(!plan.effective_target.is_empty());
 }

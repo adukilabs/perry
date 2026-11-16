@@ -60,12 +60,7 @@ fn orphan_dispatch_compiles_with_bytes_owned_by_another_unit() {
         assert!(units.iter().flat_map(|unit| unit.lines()).all(|line| {
             !line.contains(&dispatch) || line.starts_with(&format!("{dispatch} ="))
         }));
-        if cfg!(target_os = "macos") {
-            assert!(units[0].contains(&format!("{bytes} = linkonce_odr")));
-            assert!(bytes_line.contains("linkonce_odr"));
-        } else {
-            assert!(units[0].contains(&format!("{bytes} = external constant [8 x i8]")));
-            assert!(!bytes_line.contains("external constant"));
-        }
+        assert!(units[0].contains(&format!("{bytes} = external constant [8 x i8]")));
+        assert!(!bytes_line.contains("external constant"));
     }
 }

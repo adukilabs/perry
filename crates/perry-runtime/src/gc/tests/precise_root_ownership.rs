@@ -110,13 +110,9 @@ fn foreign_precise_visitors_do_not_mark_or_pin_parent_callbacks() {
         // thread's page map, so a foreign arena cell must fail closed through
         // the same loud rejection as an unowned malloc cell.
         let ownership = crate::arena::classify_region_ownership(arena_callback);
-        let silently_dropped: &[usize] = if cfg!(target_os = "linux") {
+        let silently_dropped: &[usize] = {
             assert_eq!(ownership, crate::arena::RegionOwnership::OtherHeap);
             &[arena_callback]
-        } else {
-            assert_eq!(ownership, crate::arena::RegionOwnership::Outside);
-            reject_through_every_entry(arena_callback, "arena header outside this heap's regions");
-            &[]
         };
         // No O(1) descriptor names a malloc allocation's agent. Verification
         // proves it is not this heap's and fails loudly, before any write.

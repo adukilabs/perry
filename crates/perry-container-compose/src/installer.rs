@@ -91,30 +91,12 @@ impl BackendInstaller {
     }
 
     fn platform_options(&self) -> Vec<InstallOption> {
-        if cfg!(target_os = "macos") {
-            vec![
-                InstallOption {
-                    name: "apple/container",
-                    description: "Apple's native container runtime (recommended)",
-                    install_command: "brew install container",
-                    docs_url: "https://github.com/apple/container",
-                },
-                InstallOption {
-                    name: "podman",
-                    description: "Daemonless, rootless OCI runtime",
-                    install_command:
-                        "brew install podman && podman machine init && podman machine start",
-                    docs_url: "https://podman.io",
-                },
-            ]
-        } else {
-            vec![InstallOption {
-                name: "podman",
-                description: "Daemonless, rootless OCI runtime (recommended)",
-                install_command: "sudo apt-get install -y podman",
-                docs_url: "https://podman.io/getting-started/installation",
-            }]
-        }
+        vec![InstallOption {
+            name: "podman",
+            description: "Daemonless, rootless OCI runtime (recommended)",
+            install_command: "sudo apt-get install -y podman",
+            docs_url: "https://podman.io/getting-started/installation",
+        }]
     }
 
     async fn execute_install(&self, command: &str) -> Result<()> {

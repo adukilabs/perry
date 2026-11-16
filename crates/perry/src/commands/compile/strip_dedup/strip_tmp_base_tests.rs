@@ -7,7 +7,7 @@ use super::*;
 /// pid 1 is never assigned, so it would *correctly* read as dead.)
 #[test]
 fn sweep_removes_dead_pid_dirs_and_keeps_live_ones() {
-    const ALWAYS_LIVE_PID: u32 = if cfg!(windows) { 4 } else { 1 };
+    const ALWAYS_LIVE_PID: u32 = { 1 };
     let tmp = std::env::temp_dir();
     let dead = tmp.join(format!("perry_strip_{}", u32::MAX));
     let live = tmp.join(format!("perry_strip_{ALWAYS_LIVE_PID}"));

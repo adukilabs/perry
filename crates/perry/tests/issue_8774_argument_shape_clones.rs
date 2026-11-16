@@ -47,27 +47,15 @@ fn target_debug_dir() -> PathBuf {
     let target = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| workspace_root().join("target"));
-    if cfg!(windows) {
-        target.join("x86_64-pc-windows-msvc").join("debug")
-    } else {
-        target.join("debug")
-    }
+    target.join("debug")
 }
 
 fn ensure_runtime_archive() {
     static BUILD_RUNTIME: Once = Once::new();
     BUILD_RUNTIME.call_once(|| {
         let runtime_dir = target_debug_dir();
-        let runtime_name = if cfg!(windows) {
-            "perry_runtime.lib"
-        } else {
-            "libperry_runtime.a"
-        };
-        let stdlib_name = if cfg!(windows) {
-            "perry_stdlib.lib"
-        } else {
-            "libperry_stdlib.a"
-        };
+        let runtime_name = "libperry_runtime.a";
+        let stdlib_name = "libperry_stdlib.a";
         if runtime_dir.join(runtime_name).is_file() && runtime_dir.join(stdlib_name).is_file() {
             return;
         }
@@ -80,9 +68,6 @@ fn ensure_runtime_archive() {
             .arg("perry-runtime-static")
             .arg("-p")
             .arg("perry-stdlib-static");
-        if cfg!(windows) {
-            command.arg("--target").arg("x86_64-pc-windows-msvc");
-        }
         let build = command.output().expect("build static runtime archives");
         assert_success("static runtime build", &build);
     });

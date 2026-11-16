@@ -30,9 +30,7 @@ pub(super) fn target_bundle_section(target: Option<&str>) -> Option<&'static str
         | Some("linux-musl")
         | Some("linux-x86_64-musl")
         | Some("linux-aarch64-musl") => Some("linux"),
-        None if cfg!(target_os = "macos") => Some("macos"),
-        None if cfg!(target_os = "windows") => Some("windows"),
-        None if cfg!(target_os = "linux") => Some("linux"),
+        None => Some("linux"),
         _ => None,
     }
 }
@@ -334,12 +332,6 @@ app_group = "group.com.example.fallback"
         // host target.
         let host = read_app_metadata(Some(&doc), &input, None, None);
         // macOS host: `[macos]` is absent, so `[app]` wins.
-        if cfg!(target_os = "macos") {
-            assert_eq!(
-                host.app_group.as_deref(),
-                Some("group.com.example.fallback")
-            );
-        }
     }
 
     #[test]

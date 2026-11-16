@@ -27,7 +27,7 @@ fn dynamic_process_exit_code_matches_node() {
         std::fs::write(&entry, source).unwrap();
         let oracle = Command::new("node").arg(&entry).output().unwrap();
         assert_eq!(oracle.status.code(), Some(expected_status), "Node {name}");
-        let suffix = if cfg!(windows) { ".exe" } else { "" };
+        let suffix = "";
         let executable = dir.path().join(format!("{name}-native{suffix}"));
         let compile = Command::new(&compiler)
             .env("PERRY_RUNTIME_DIR", &runtime)

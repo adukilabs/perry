@@ -641,13 +641,7 @@ pub(super) fn response_file_contents(args: &[String], msvc: bool) -> String {
 /// a second round of command-line quoting (plus the batch-escaping restrictions
 /// from the CVE-2024-24576 fix) over an already-long link line.
 pub(super) fn ndk_clang_path(ndk_home: &str) -> String {
-    let host_tag = if cfg!(target_os = "macos") {
-        "darwin-x86_64"
-    } else if cfg!(target_os = "windows") {
-        "windows-x86_64"
-    } else {
-        "linux-x86_64"
-    };
+    let host_tag = "linux-x86_64";
     format!(
         "{}/toolchains/llvm/prebuilt/{}/bin/clang{}",
         ndk_home,
@@ -703,7 +697,7 @@ fn rewrite_link_with_response_file(cmd: &Command, msvc: bool) -> Option<(Command
     new_cmd.arg(response_file_arg(
         &rsp.display().to_string(),
         msvc,
-        cfg!(target_os = "windows"),
+        false,
     ));
     // Preserve env overrides (e.g. MSVC LIB/PATH set by select_linker_command)
     // and the working directory the original command was configured with.

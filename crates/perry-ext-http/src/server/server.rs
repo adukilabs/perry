@@ -686,7 +686,7 @@ pub(super) unsafe fn listen_http_server(
         host,
         port,
         resolved,
-        rr_inject: cfg!(unix) && rr && resolved.is_some(),
+        rr_inject: rr && resolved.is_some(),
         address_type,
     };
 

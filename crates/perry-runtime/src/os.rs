@@ -84,11 +84,7 @@ pub extern "C" fn js_os_endianness() -> *mut StringHeader {
 /// Get the platform-specific null device path.
 #[no_mangle]
 pub extern "C" fn js_os_dev_null() -> *mut StringHeader {
-    let value = if cfg!(windows) {
-        "\\\\.\\nul"
-    } else {
-        "/dev/null"
-    };
+    let value = "/dev/null";
     let bytes = value.as_bytes();
     js_string_from_bytes(bytes.as_ptr(), bytes.len() as u32)
 }

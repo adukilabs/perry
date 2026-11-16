@@ -6,7 +6,7 @@ fn compile_and_run(source: &str) -> String {
     let entry = directory.path().join("main.ts");
     let binary = directory
         .path()
-        .join(if cfg!(windows) { "main.exe" } else { "main" });
+        .join("main");
     let source = source.replace(
         "\"__LITERAL_DATA_PATH__\"",
         &serde_json::to_string(&directory.path().join("literal-data")).unwrap(),

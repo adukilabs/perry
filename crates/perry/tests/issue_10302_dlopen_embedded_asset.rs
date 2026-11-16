@@ -42,11 +42,7 @@ fn lib_c_returning(value: i32) -> String {
 }
 
 fn lib_file_name() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "libperryembed.dylib"
-    } else {
-        "libperryembed.so"
-    }
+    "libperryembed.so"
 }
 
 /// Build the fixture with the system `cc` — the same toolchain the perry

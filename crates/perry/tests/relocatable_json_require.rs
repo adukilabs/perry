@@ -50,7 +50,7 @@ module.exports = {};
     let destination = tempfile::tempdir().unwrap();
     let executable = destination
         .path()
-        .join(if cfg!(windows) { "app.exe" } else { "app" });
+        .join("app");
     let compiler = PathBuf::from(env!("CARGO_BIN_EXE_perry"));
     let runtime = std::env::var_os("PERRY_RUNTIME_DIR")
         .map(PathBuf::from)

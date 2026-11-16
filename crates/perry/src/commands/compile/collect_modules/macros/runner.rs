@@ -35,11 +35,7 @@ pub(super) fn execute(
     let temporary = tempfile::Builder::new().prefix("perry-macro-").tempdir()?;
     let root = temporary.path();
     let source = root.join("runner.ts");
-    let output = root.join(if cfg!(windows) {
-        "runner.exe"
-    } else {
-        "runner"
-    });
+    let output = root.join("runner");
     let result = root.join("result.json");
     let log = root.join("runner.log");
     let run_log = root.join("execution.log");

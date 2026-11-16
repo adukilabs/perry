@@ -163,11 +163,7 @@ pub fn resolve_sfw() -> Option<PathBuf> {
             None
         };
     }
-    let pathext = if cfg!(windows) {
-        env::var_os("PATHEXT")
-    } else {
-        None
-    };
+    let pathext: Option<std::ffi::OsString> = None;
     for candidate in path_candidates("sfw", env::var_os("PATH").as_deref(), pathext.as_deref()) {
         if candidate.is_file() && probe(&candidate) {
             return Some(candidate);

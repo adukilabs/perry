@@ -529,38 +529,6 @@ pub(super) fn dispatch_path_subnamespace(
     // `("path.posix", …)` arms call the pinned `js_path_posix_*` family. On
     // non-Windows hosts the base family IS posix, so the static rewrite
     // stays byte-identical there.
-    if sub == "posix" && cfg!(windows) {
-        const RUNTIME_DISPATCHED: &[&str] = &[
-            "join",
-            "dirname",
-            "basename",
-            "extname",
-            "isAbsolute",
-            "normalize",
-            "parse",
-            "format",
-            "toNamespacedPath",
-            "_makeLong",
-            "relative",
-            "resolve",
-            "matchesGlob",
-        ];
-        if RUNTIME_DISPATCHED.contains(&method) {
-            // `path.posix.join()` with no args folds to "." like the static
-            // arm below (and like win32 join).
-            if method == "join" && args.is_empty() {
-                return Ok(Expr::String(".".to_string()));
-            }
-            return Ok(Expr::NativeMethodCall {
-                module: "path.posix".to_string(),
-                class_name: None,
-                object: None,
-                method: method.to_string(),
-                args,
-            });
-        }
-        return Err(args);
-    }
 
     // path.<sub>.join(...)
     if method == "join" {

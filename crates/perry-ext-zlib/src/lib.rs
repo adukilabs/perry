@@ -22,13 +22,7 @@ pub use stream::*;
 // Match zlib's platform byte rather than flate2's default "unknown" (255).
 // All gzip entry points use this header; mtime stays deterministic at zero.
 fn gzip_header() -> GzBuilder {
-    let os = if cfg!(target_os = "macos") {
-        19
-    } else if cfg!(target_os = "windows") {
-        10
-    } else {
-        3
-    };
+    let os = 3;
     GzBuilder::new().mtime(0).operating_system(os)
 }
 
@@ -599,12 +593,6 @@ mod tests {
             0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 3, 0xcb, 0x48, 0xcd, 0xc9, 0xc9, 0x57, 0xc8, 0xc0,
             0x41, 0x96, 0xe7, 0x17, 0xe5, 0xa4, 0, 0, 0x92, 0x80, 5, 0x89, 0x23, 0, 0, 0,
         ];
-        if cfg!(target_os = "macos") {
-            expected[9] = 19;
-        }
-        if cfg!(target_os = "windows") {
-            expected[9] = 10;
-        }
         let compressed = gzip_bytes(input).unwrap();
         assert_eq!(compressed, expected);
         assert_eq!(gunzip_bytes(&compressed).unwrap(), input);

@@ -26,15 +26,7 @@ fn perry_bin() -> PathBuf {
 }
 
 fn host_ui_archive_available() -> bool {
-    let archive_name = if cfg!(target_os = "linux") {
-        "libperry_ui_gtk4.a"
-    } else if cfg!(target_os = "macos") {
-        "libperry_ui_macos.a"
-    } else if cfg!(target_os = "windows") {
-        "perry_ui_windows.lib"
-    } else {
-        return false;
-    };
+    let archive_name = "libperry_ui_gtk4.a";
 
     let mut search_dirs = Vec::new();
     for env_var in ["PERRY_RUNTIME_DIR", "PERRY_LIB_DIR"] {

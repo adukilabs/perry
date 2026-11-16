@@ -35,7 +35,7 @@ fn check(cjs: bool, invocation: &str) {
     let entry = dir.path().join("main.ts");
     let binary = dir
         .path()
-        .join(if cfg!(windows) { "main.exe" } else { "main" });
+        .join("main");
     let main = if cjs {
         std::fs::write(dir.path().join("response.cjs"), &response).unwrap();
         "import Response from './response.cjs'; new (Response as any)({ method: 'GET' });"

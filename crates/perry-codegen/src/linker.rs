@@ -1134,26 +1134,9 @@ fn compile_input_to_object_in_with_retention(
     // Validate the toolchain before creating the potentially large `.ll`
     // scratch file. Unsupported clang releases should fail without leaving
     // an artifact that was never passed to the compiler.
-    let clang = find_clang().context(if cfg!(windows) {
-        "clang not found. Install LLVM with one of:\n\
-         \n\
-         \x20   winget install LLVM.LLVM       (Windows Package Manager)\n\
-         \x20   choco install llvm             (Chocolatey)\n\
-         \x20   scoop install llvm             (Scoop)\n\
-         \n\
-         or download the installer from https://github.com/llvm/llvm-project/releases\n\
-         (look for LLVM-<version>-win64.exe). After installation, open a new terminal\n\
-         so the updated PATH takes effect, or set PERRY_LLVM_CLANG to the full path of\n\
-         clang.exe. Run `perry doctor` to verify the install."
-    } else if cfg!(target_os = "macos") {
-        "clang not found. Install LLVM with `brew install llvm` or install Xcode \
-         command-line tools with `xcode-select --install`. Or set PERRY_LLVM_CLANG \
-         to the path of clang. Run `perry doctor` to verify the install."
-    } else {
-        "clang not found in PATH. Install LLVM/clang via your package manager \
+    let clang = find_clang().context("clang not found in PATH. Install LLVM/clang via your package manager \
          (e.g. `apt install clang`, `dnf install clang`, `pacman -S clang`) or set \
-         PERRY_LLVM_CLANG to the path of clang. Run `perry doctor` to verify the install."
-    })?;
+         PERRY_LLVM_CLANG to the path of clang. Run `perry doctor` to verify the install.")?;
     ensure_supported_clang(&clang)?;
 
     // #7131: content-address the `.ll` basename (clang embeds it into the
@@ -1605,7 +1588,7 @@ fn probe_clang_default_triple(clang: &Path, requested_triple: &str) {
     // Only warn when the host is Windows and clang's default is GNU/MinGW
     // but we're targeting msvc. Any other mismatch (e.g. cross-compile)
     // is intentional and not a sign of a broken install.
-    let host_is_windows = cfg!(target_os = "windows");
+    let host_is_windows = false;
     let want_msvc = requested_triple.contains("windows-msvc");
     let have_gnu = default.contains("windows-gnu")
         || default.contains("mingw")
@@ -1644,26 +1627,7 @@ fn build_clang_failure_hint(stderr: &str, clang_version: &str, requested_triple:
         .map(|t| t.contains("windows-gnu") || t.contains("mingw") || t.contains("w64-mingw"))
         .unwrap_or(false);
 
-    if cfg!(target_os = "windows") && mingw_clang {
-        lines.push(format!(
-            "Hint: the clang on PATH defaults to {} (a MinGW/GNU toolchain). \
-             Perry now pins -target to {} so the .o is msvc-flavored, but if your \
-             clang install lacks the msvc backend support, pick a clang built for msvc:",
-            clang_default_triple
-                .as_deref()
-                .unwrap_or("a non-msvc target"),
-            requested_triple
-        ));
-        lines.push("  - winget install LLVM.LLVM        (Windows Package Manager)".to_string());
-        lines.push("  - choco install llvm              (Chocolatey)".to_string());
-        lines.push(
-            "  - https://github.com/llvm/llvm-project/releases (LLVM-<ver>-win64.exe)".to_string(),
-        );
-        lines.push(
-            "Then either put it first on PATH, or set PERRY_LLVM_CLANG to its full path."
-                .to_string(),
-        );
-    } else if lower.contains("overriding the module target triple") {
+    if lower.contains("overriding the module target triple") {
         lines.push(format!(
             "Hint: clang ({}) is overriding the module target triple. \
              Perry passes -target {} explicitly; if you see this message after the fix, \

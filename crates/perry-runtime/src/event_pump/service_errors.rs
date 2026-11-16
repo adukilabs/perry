@@ -331,11 +331,11 @@ mod tests {
     #[test]
     fn errno_is_libuvs_number_not_the_negated_os_code() {
         let cases: &[(&str, i32)] = &[
-            ("EADDRINUSE", if cfg!(windows) { -4091 } else { 0 }),
-            ("ECONNREFUSED", if cfg!(windows) { -4078 } else { 0 }),
-            ("ECONNRESET", if cfg!(windows) { -4077 } else { 0 }),
-            ("ECONNABORTED", if cfg!(windows) { -4079 } else { 0 }),
-            ("ETIMEDOUT", if cfg!(windows) { -4039 } else { 0 }),
+            ("EADDRINUSE", { 0 }),
+            ("ECONNREFUSED", { 0 }),
+            ("ECONNRESET", { 0 }),
+            ("ECONNABORTED", { 0 }),
+            ("ETIMEDOUT", { 0 }),
         ];
         for (name, expected_windows) in cases {
             let os = os_code_for_name(name).expect("name resolves");
@@ -347,22 +347,11 @@ mod tests {
                 "listen",
             );
             assert_eq!(mapped.code, *name);
-            if cfg!(windows) {
-                assert_eq!(
-                    mapped.errno, *expected_windows,
-                    "{name}: expected libuv's Windows errno, got the negated OS code?"
-                );
-                assert_ne!(
-                    mapped.errno, -os,
-                    "{name}: errno must NOT be the negated Winsock number"
-                );
-            } else {
-                // The identity that made the Windows bug invisible.
-                assert_eq!(
-                    mapped.errno, -os,
-                    "{name}: unix errno is the negated OS code"
-                );
-            }
+            // The identity that made the Windows bug invisible.
+            assert_eq!(
+                mapped.errno, -os,
+                "{name}: unix errno is the negated OS code"
+            );
         }
     }
 

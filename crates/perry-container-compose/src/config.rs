@@ -36,7 +36,7 @@ impl ProjectConfig {
         }
 
         if let Ok(files_env) = env::var("COMPOSE_FILE") {
-            let sep = if cfg!(windows) { ";" } else { ":" };
+            let sep = ":";
             return files_env.split(sep).map(PathBuf::from).collect();
         }
 

@@ -477,18 +477,10 @@ pub(crate) unsafe fn selected_native_module_constant(
         "path" => match property {
             "default" if !is_cjs_default_object => cjs_default_export_value("path"),
             "sep" => {
-                if cfg!(windows) {
-                    Some(str_val("\\"))
-                } else {
-                    Some(str_val("/"))
-                }
+                Some(str_val("/"))
             }
             "delimiter" => {
-                if cfg!(windows) {
-                    Some(str_val(";"))
-                } else {
-                    Some(str_val(":"))
-                }
+                Some(str_val(":"))
             }
             "toNamespacedPath" | "_makeLong" => Some(bound_native_callable_export_value(
                 "path",
@@ -564,18 +556,10 @@ pub(crate) unsafe fn selected_native_module_constant(
         "os" => match property {
             "default" if !is_cjs_default_object => cjs_default_export_value("os"),
             "EOL" => {
-                if cfg!(windows) {
-                    Some(str_val("\r\n"))
-                } else {
-                    Some(str_val("\n"))
-                }
+                Some(str_val("\n"))
             }
             "devNull" => {
-                if cfg!(windows) {
-                    Some(str_val("\\\\.\\nul"))
-                } else {
-                    Some(str_val("/dev/null"))
-                }
+                Some(str_val("/dev/null"))
             }
             "constants" => Some(create_cached_sub_namespace(
                 "os.constants",

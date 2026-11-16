@@ -45,9 +45,6 @@ pub fn unit_workers() -> usize {
 /// Windows keeps the conservative `2` until its pagefile behavior under higher
 /// fan-out is measured — the platform the original cap was chosen for (#8017).
 pub fn default_unit_workers() -> usize {
-    if cfg!(target_os = "windows") {
-        return 2;
-    }
     let cpus = std::thread::available_parallelism()
         .map(|p| p.get())
         .unwrap_or(1);
@@ -62,9 +59,6 @@ const UNIT_WORKER_MEMORY: u64 = 2 << 30;
 
 /// Memory the host reports available to new allocations, when it says.
 fn available_memory_bytes() -> Option<u64> {
-    if !cfg!(target_os = "linux") {
-        return None;
-    }
     let meminfo = std::fs::read_to_string("/proc/meminfo").ok()?;
     meminfo.lines().find_map(|line| {
         let kib = line
@@ -78,9 +72,6 @@ fn available_memory_bytes() -> Option<u64> {
 /// Headroom under this process's cgroup v2 memory limit (`memory.max` minus
 /// `memory.current`), when the process runs under a finite one.
 fn cgroup_memory_headroom_bytes() -> Option<u64> {
-    if !cfg!(target_os = "linux") {
-        return None;
-    }
     let cgroup = std::fs::read_to_string("/proc/self/cgroup").ok()?;
     let relative = cgroup
         .lines()
@@ -484,9 +475,7 @@ pub fn reset_peak_resident() {
             malloc_trim(0);
         }
     }
-    if cfg!(target_os = "linux") {
-        let _ = std::fs::write("/proc/self/clear_refs", "5");
-    }
+    let _ = std::fs::write("/proc/self/clear_refs", "5");
 }
 
 /// `(VmRSS, VmHWM)` of this process in bytes, where the host reports them.

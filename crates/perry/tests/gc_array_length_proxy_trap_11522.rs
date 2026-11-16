@@ -136,15 +136,6 @@ fn proxy_length_trap_collection_relocates_caller_roots() {
         // The contract that turns AllocNoReentry callees into gc-leaf calls:
         // without it the misclassification was harmless.
         .env("PERRY_GC_SAFEPOINT_ONLY", "1");
-    if cfg!(target_os = "macos") {
-        let extra = match std::env::var("PERRY_EXTRA_LINK_ARGS") {
-            Ok(existing) if !existing.trim().is_empty() => {
-                format!("{existing} -framework CoreFoundation")
-            }
-            _ => "-framework CoreFoundation".to_string(),
-        };
-        compile_cmd.env("PERRY_EXTRA_LINK_ARGS", extra);
-    }
     let compile = compile_cmd.output().expect("run perry compile");
     assert!(
         compile.status.success(),

@@ -15,7 +15,7 @@ fn compile_and_run_with_stderr(source: &str) -> (String, String) {
     let entry = dir.path().join("main.ts");
     let binary = dir
         .path()
-        .join(if cfg!(windows) { "main.exe" } else { "main" });
+        .join("main");
     std::fs::write(&entry, source).unwrap();
     let mut compiler = Command::new(env!("CARGO_BIN_EXE_perry"));
     let output = compiler

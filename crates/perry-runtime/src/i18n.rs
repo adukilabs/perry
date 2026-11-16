@@ -160,12 +160,7 @@ pub extern "C" fn perry_i18n_init(
     // Write to Documents for retrieval via devicectl on the embedded Apple
     // targets; everywhere else only on explicit request. The unconditional
     // write polluted `~/Documents` on every desktop i18n binary startup.
-    let force_log = cfg!(any(
-        target_os = "ios",
-        target_os = "watchos",
-        target_os = "tvos",
-        target_os = "visionos"
-    ));
+    let force_log = false;
     if force_log || std::env::var_os("PERRY_I18N_DEBUG").is_some() {
         if let Ok(home) = std::env::var("HOME") {
             let _ = std::fs::write(format!("{}/Documents/i18n-debug.log", home), log.as_bytes());

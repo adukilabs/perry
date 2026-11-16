@@ -21,11 +21,7 @@ fn target_debug_dir() -> PathBuf {
     let target = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| workspace_root().join("target"));
-    if cfg!(windows) {
-        target.join("x86_64-pc-windows-msvc").join("debug")
-    } else {
-        target.join("debug")
-    }
+    target.join("debug")
 }
 
 fn ensure_runtime_archive() {

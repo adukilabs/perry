@@ -15,7 +15,7 @@ fn request_body_reaches_every_listener_order() {
     let entry = dir.path().join("main.ts");
     let binary = dir
         .path()
-        .join(if cfg!(windows) { "main.exe" } else { "main" });
+        .join("main");
     std::fs::write(&entry, SOURCE).unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_perry"))
         .current_dir(dir.path())

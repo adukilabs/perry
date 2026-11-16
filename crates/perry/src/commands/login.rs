@@ -97,21 +97,9 @@ pub fn run(args: LoginArgs, format: OutputFormat, _use_color: bool) -> Result<()
         println!();
     }
 
-    let open_result = if cfg!(target_os = "macos") {
-        std::process::Command::new("open")
-            .arg(&authorize_url)
-            .spawn()
-    } else if cfg!(target_os = "linux") {
-        std::process::Command::new("xdg-open")
-            .arg(&authorize_url)
-            .spawn()
-    } else if cfg!(target_os = "windows") {
-        std::process::Command::new("cmd")
-            .args(["/c", "start", &authorize_url])
-            .spawn()
-    } else {
-        Err(std::io::Error::other("unsupported platform"))
-    };
+    let open_result = std::process::Command::new("xdg-open")
+        .arg(&authorize_url)
+        .spawn();
 
     if open_result.is_err() {
         if let OutputFormat::Text = format {

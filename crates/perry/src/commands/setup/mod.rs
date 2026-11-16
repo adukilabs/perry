@@ -139,7 +139,7 @@ pub fn run(args: SetupArgs) -> Result<()> {
 /// Windows — its output is one absolute path per matching extension on
 /// PATH, so take the first line.
 pub(crate) fn find_xwin_exe() -> Option<PathBuf> {
-    let lookup = if cfg!(windows) { "where" } else { "which" };
+    let lookup = "which";
     let out = Command::new(lookup).arg("xwin").output().ok()?;
     if !out.status.success() {
         return None;

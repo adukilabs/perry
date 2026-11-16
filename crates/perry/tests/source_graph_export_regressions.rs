@@ -46,11 +46,7 @@ fn target_debug_dir() -> PathBuf {
     let target = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| workspace_root().join("target"));
-    if cfg!(windows) {
-        target.join("x86_64-pc-windows-msvc").join("debug")
-    } else {
-        target.join("debug")
-    }
+    target.join("debug")
 }
 
 fn ensure_runtime_archive() {
@@ -65,9 +61,6 @@ fn ensure_runtime_archive() {
             .arg("perry-runtime-static")
             .arg("-p")
             .arg("perry-stdlib-static");
-        if cfg!(windows) {
-            command.arg("--target").arg("x86_64-pc-windows-msvc");
-        }
         let build = command
             .output()
             .expect("run cargo build of static runtime archives");

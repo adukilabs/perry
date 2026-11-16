@@ -155,9 +155,6 @@ pub extern "C" fn js_path_join(
     a_ptr: *const StringHeader,
     b_ptr: *const StringHeader,
 ) -> *mut StringHeader {
-    if cfg!(windows) {
-        return js_path_win32_join(a_ptr, b_ptr);
-    }
     js_path_posix_join(a_ptr, b_ptr)
 }
 
@@ -477,10 +474,6 @@ fn win32_resolve_inner(path_str: &str) -> String {
 /// (`"//foo"` → `"//"`) both fall out of the algorithm.
 #[no_mangle]
 pub extern "C" fn js_path_dirname(path_ptr: *const StringHeader) -> *mut StringHeader {
-    if cfg!(windows) {
-        let path_str = string_from_header_or_throw(path_ptr);
-        return string_to_js(&win32_dirname_inner(&path_str));
-    }
     js_path_posix_dirname(path_ptr)
 }
 
@@ -493,10 +486,6 @@ pub(crate) fn js_path_posix_dirname(path_ptr: *const StringHeader) -> *mut Strin
 /// Get base name (file name) from path
 #[no_mangle]
 pub extern "C" fn js_path_basename(path_ptr: *const StringHeader) -> *mut StringHeader {
-    if cfg!(windows) {
-        let path_str = string_from_header_or_throw(path_ptr);
-        return string_to_js(&win32_basename_inner(&path_str));
-    }
     js_path_posix_basename(path_ptr)
 }
 
@@ -509,11 +498,6 @@ pub(crate) fn js_path_posix_basename(path_ptr: *const StringHeader) -> *mut Stri
 /// Get file extension from path (including the dot)
 #[no_mangle]
 pub extern "C" fn js_path_extname(path_ptr: *const StringHeader) -> *mut StringHeader {
-    if cfg!(windows) {
-        let path_str = string_from_header_or_throw(path_ptr);
-        let (ext, _) = split_extension(&win32_basename_inner(&path_str));
-        return string_to_js(&ext);
-    }
     js_path_posix_extname(path_ptr)
 }
 
@@ -535,14 +519,6 @@ pub(crate) fn js_path_posix_extname(path_ptr: *const StringHeader) -> *mut Strin
 /// Check if path is absolute
 #[no_mangle]
 pub extern "C" fn js_path_is_absolute(path_ptr: *const StringHeader) -> i32 {
-    if cfg!(windows) {
-        let path_str = string_from_header_or_throw(path_ptr);
-        return if !path_str.is_empty() && split_win32(&path_str).is_absolute {
-            1
-        } else {
-            0
-        };
-    }
     js_path_posix_is_absolute(path_ptr)
 }
 
@@ -561,10 +537,6 @@ pub(crate) fn js_path_posix_is_absolute(path_ptr: *const StringHeader) -> i32 {
 /// Resolve path to absolute path
 #[no_mangle]
 pub extern "C" fn js_path_resolve(path_ptr: *const StringHeader) -> *mut StringHeader {
-    if cfg!(windows) {
-        let path_str = string_from_header_or_throw(path_ptr);
-        return string_to_js(&win32_resolve_inner(&path_str));
-    }
     js_path_posix_resolve(path_ptr)
 }
 
@@ -740,10 +712,6 @@ fn posix_dirname_inner(path: &str) -> String {
 
 #[no_mangle]
 pub extern "C" fn js_path_normalize(path_ptr: *const StringHeader) -> *mut StringHeader {
-    if cfg!(windows) {
-        let path_str = string_from_header_or_throw(path_ptr);
-        return string_to_js(&normalize_win32_str(&path_str));
-    }
     js_path_posix_normalize(path_ptr)
 }
 
@@ -777,9 +745,6 @@ fn require_relative_arg(value: f64, arg_name: &str) -> *const StringHeader {
 /// underlying string-only helper is invoked (#2995).
 #[no_mangle]
 pub extern "C" fn js_path_relative_checked(from_f64: f64, to_f64: f64) -> *mut StringHeader {
-    if cfg!(windows) {
-        return js_path_win32_relative_checked(from_f64, to_f64);
-    }
     let from = require_relative_arg(from_f64, "from");
     let to = require_relative_arg(to_f64, "to");
     js_path_posix_relative(from, to)
@@ -810,9 +775,6 @@ pub extern "C" fn js_path_relative(
     from_ptr: *const StringHeader,
     to_ptr: *const StringHeader,
 ) -> *mut StringHeader {
-    if cfg!(windows) {
-        return js_path_win32_relative(from_ptr, to_ptr);
-    }
     js_path_posix_relative(from_ptr, to_ptr)
 }
 
@@ -844,9 +806,6 @@ pub extern "C" fn js_path_basename_ext(
     path_ptr: *const StringHeader,
     ext_ptr: *const StringHeader,
 ) -> *mut StringHeader {
-    if cfg!(windows) {
-        return js_path_win32_basename_ext(path_ptr, ext_ptr);
-    }
     js_path_posix_basename_ext(path_ptr, ext_ptr)
 }
 
@@ -866,9 +825,6 @@ pub(crate) fn js_path_posix_basename_ext(
 /// Returns a `{ root, dir, base, ext, name }` object describing the path.
 #[no_mangle]
 pub extern "C" fn js_path_parse(path_ptr: *const StringHeader) -> *mut crate::object::ObjectHeader {
-    if cfg!(windows) {
-        return js_path_win32_parse(path_ptr);
-    }
     js_path_posix_parse(path_ptr)
 }
 
@@ -1000,9 +956,6 @@ fn format_descriptor(obj_f64: f64, sep: char) -> String {
 /// Build a path from a `{ dir, base, root, name, ext }` descriptor.
 #[no_mangle]
 pub extern "C" fn js_path_format(obj_f64: f64) -> *mut StringHeader {
-    if cfg!(windows) {
-        return js_path_win32_format(obj_f64);
-    }
     js_path_posix_format(obj_f64)
 }
 
@@ -1013,12 +966,12 @@ pub(crate) fn js_path_posix_format(obj_f64: f64) -> *mut StringHeader {
 
 #[no_mangle]
 pub extern "C" fn js_path_sep_get() -> *mut StringHeader {
-    string_to_js(if cfg!(windows) { "\\" } else { "/" })
+    string_to_js("/")
 }
 
 #[no_mangle]
 pub extern "C" fn js_path_delimiter_get() -> *mut StringHeader {
-    string_to_js(if cfg!(windows) { ";" } else { ":" })
+    string_to_js(":")
 }
 
 /// Internal helper for `path.resolve(a, b)` — like `js_path_join` but with
@@ -1030,9 +983,6 @@ pub extern "C" fn js_path_resolve_join(
     a_ptr: *const StringHeader,
     b_ptr: *const StringHeader,
 ) -> *mut StringHeader {
-    if cfg!(windows) {
-        return js_path_win32_resolve_join(a_ptr, b_ptr);
-    }
     js_path_posix_resolve_join(a_ptr, b_ptr)
 }
 
@@ -1064,11 +1014,7 @@ pub(crate) fn js_path_posix_resolve_join(
 pub extern "C" fn js_path_to_namespaced_path(path_ptr: *const StringHeader) -> *mut StringHeader {
     unsafe {
         let s = string_from_header(path_ptr).unwrap_or_default();
-        if cfg!(windows) {
-            string_to_js(&win32_to_namespaced_path(&s))
-        } else {
-            string_to_js(&s)
-        }
+        string_to_js(&s)
     }
 }
 
@@ -1091,7 +1037,7 @@ fn string_value_to_namespaced_path(value: f64, win32: bool) -> f64 {
 
 #[no_mangle]
 pub extern "C" fn js_path_to_namespaced_path_value(value: f64) -> f64 {
-    string_value_to_namespaced_path(value, cfg!(windows))
+    string_value_to_namespaced_path(value, false)
 }
 
 /// Pinned `path.posix.toNamespacedPath(value)` — always the POSIX no-op.
@@ -1331,9 +1277,6 @@ pub extern "C" fn js_path_matches_glob(
     path_ptr: *const StringHeader,
     pattern_ptr: *const StringHeader,
 ) -> i32 {
-    if cfg!(windows) {
-        return js_path_win32_matches_glob(path_ptr, pattern_ptr);
-    }
     js_path_posix_matches_glob(path_ptr, pattern_ptr)
 }
 
@@ -1570,9 +1513,6 @@ fn current_dir_as_win32() -> Option<String> {
 }
 
 fn resolve_win32_for_namespace(path_str: &str) -> String {
-    if cfg!(windows) {
-        return win32_resolve_inner(path_str);
-    }
     let normalized = normalize_win32_str(path_str);
     let split = split_win32(&normalized);
     if split.is_absolute {

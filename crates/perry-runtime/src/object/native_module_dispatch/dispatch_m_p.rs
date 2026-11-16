@@ -499,13 +499,13 @@ pub(crate) unsafe fn nm_dispatch_path(ctx: &NmCtx, module_name: &str, method_nam
         // themselves platform-dispatching; the closure-based arms select the
         // family with `cfg!(windows)`.
         ("path", "dirname") => str_to_f64(crate::path::js_path_dirname(require_path_str_ptr(0))),
-        ("path", "basename") => path_basename_value(cfg!(windows)),
+        ("path", "basename") => path_basename_value(false),
         ("path", "extname") => str_to_f64(crate::path::js_path_extname(require_path_str_ptr(0))),
         ("path", "normalize") => {
             str_to_f64(crate::path::js_path_normalize(require_path_str_ptr(0)))
         }
-        ("path", "resolve") => path_resolve_value(cfg!(windows)),
-        ("path", "join") => path_join_value(cfg!(windows)),
+        ("path", "resolve") => path_resolve_value(false),
+        ("path", "join") => path_join_value(false),
         ("path", "relative") => str_to_f64(crate::path::js_path_relative(
             require_path_str_ptr(0),
             require_path_str_ptr(1),

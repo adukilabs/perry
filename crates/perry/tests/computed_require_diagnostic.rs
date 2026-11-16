@@ -26,7 +26,7 @@ fn computed_require_warning_names_source_and_static_dependency_workaround() {
         .join("../..")
         .canonicalize()
         .unwrap();
-    let binary = root.join(if cfg!(windows) { "app.exe" } else { "app" });
+    let binary = root.join("app");
     let compile = Command::new(compiler)
         .env("PERRY_RUNTIME_DIR", runtime)
         .env("PERRY_WORKSPACE_ROOT", workspace)

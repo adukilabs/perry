@@ -10,7 +10,7 @@ fn bun_pty_compiled_interactive_roundtrip() {
     let entry = dir.path().join("main.ts");
     let output = dir
         .path()
-        .join(if cfg!(windows) { "main.exe" } else { "main" });
+        .join("main");
     std::fs::write(&entry, r#"
 import { spawn } from "bun-pty";
 const windows = process.platform === "win32";

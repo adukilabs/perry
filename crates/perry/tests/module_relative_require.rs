@@ -85,7 +85,7 @@ console.log(shadowed((value: string) => 'shadow:' + value));
         let node = success(Command::new("node").arg(&entry).current_dir(cwd));
         assert_eq!(node.stdout, expected);
     }
-    let binary = root.join(if cfg!(windows) { "app.exe" } else { "app" });
+    let binary = root.join("app");
     success(
         Command::new(env!("CARGO_BIN_EXE_perry"))
             .current_dir(&root)

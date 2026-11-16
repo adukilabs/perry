@@ -81,18 +81,7 @@ pub(super) fn wrap_cargo_command(ctx: &CompilationContext, package_name: &str) -
     // macOS sandbox-exec is the only currently-supported backend.
     // Other hosts fall through to the legacy unsandboxed path with
     // a one-time note (issued from the driver level, not here).
-    if !cfg!(target_os = "macos") {
-        return Command::new("cargo");
-    }
-    match write_macos_buildrs_profile(ctx, package_name) {
-        Ok(profile_path) => {
-            let cargo_path = which_cargo();
-            let mut cmd = Command::new("sandbox-exec");
-            cmd.arg("-f").arg(profile_path).arg(cargo_path);
-            cmd
-        }
-        Err(_) => Command::new("cargo"),
-    }
+    return Command::new("cargo");
 }
 
 /// Is the build.rs sandbox enabled for this build?

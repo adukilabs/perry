@@ -258,7 +258,7 @@ console.log("node-api-cache", direct.exports === addon)
     .expect("write Perry entry");
     compile_addon(root, &package);
 
-    let executable = root.join(if cfg!(windows) { "app.exe" } else { "app" });
+    let executable = root.join("app");
     let compile = compile_app(root, &entry, &executable);
     assert!(
         compile.status.success(),
@@ -301,11 +301,7 @@ module.exports = addon
 "#,
     )
     .expect("write no-addon size control");
-    let control_executable = root.join(if cfg!(windows) {
-        "control.exe"
-    } else {
-        "control"
-    });
+    let control_executable = root.join("control");
     let control_compile = compile_app(root, &control_entry, &control_executable);
     assert!(
         control_compile.status.success(),
@@ -527,11 +523,7 @@ module.exports = addon
     let denied = compile_app(
         root,
         &entry,
-        &root.join(if cfg!(windows) {
-            "denied.exe"
-        } else {
-            "denied"
-        }),
+        &root.join("denied"),
     );
     assert!(
         !denied.status.success(),
@@ -1283,7 +1275,7 @@ console.log("bun-root-node-api", first.add(19, 23), second.answer, third === fir
     )
     .expect("write import.meta.require entry");
 
-    let executable = build.join(if cfg!(windows) { "app.exe" } else { "app" });
+    let executable = build.join("app");
     let compile = compile_bunfs_app(&extracted, &entry, &executable);
     assert!(
         compile.status.success(),
@@ -1366,11 +1358,7 @@ fn dynamic_import_meta_require_addon_path_is_rejected_with_declaration_help() {
         "const load = import.meta.require; load(process.env.ADDON_PATH);\n",
     )
     .expect("write dynamic addon entry");
-    let output = dir.path().join(if cfg!(windows) {
-        "dynamic.exe"
-    } else {
-        "dynamic"
-    });
+    let output = dir.path().join("dynamic");
     let compile = compile_app(dir.path(), &entry, &output);
     assert!(
         !compile.status.success(),
@@ -1452,11 +1440,7 @@ snappy.compress(input).then((asyncCompressed) => {
     )
     .expect("write napi-rs entry");
 
-    let executable = root.join(if cfg!(windows) {
-        "napi_rs.exe"
-    } else {
-        "napi_rs"
-    });
+    let executable = root.join("napi_rs");
     let compile = compile_app(root, &entry, &executable);
     assert!(
         compile.status.success(),
@@ -1629,11 +1613,7 @@ watcher.writeSnapshot(root, snapshot, {{ backend: "brute-force" }}).then(() => {
         script(&root.join("tree-perry"), &root.join("perry.snapshot")),
     )
     .expect("write Perry watcher differential entry");
-    let executable = root.join(if cfg!(windows) {
-        "watcher-perry.exe"
-    } else {
-        "watcher-perry"
-    });
+    let executable = root.join("watcher-perry");
     let compile = compile_app(root, &perry_entry, &executable);
     assert!(
         compile.status.success(),

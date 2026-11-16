@@ -144,11 +144,7 @@ fn run_package(pkg: &ScannedPackage, project_root: &Path) -> Result<()> {
             continue;
         }
 
-        let (shell, flag) = if cfg!(windows) {
-            ("cmd", "/C")
-        } else {
-            ("sh", "-c")
-        };
+        let (shell, flag) = ("sh", "-c");
 
         let status = Command::new(shell)
             .arg(flag)
@@ -185,7 +181,7 @@ fn run_package(pkg: &ScannedPackage, project_root: &Path) -> Result<()> {
 fn augment_path(project_root: &Path, pkg_dir: &Path) -> std::ffi::OsString {
     let pkg_bin = pkg_dir.join("node_modules").join(".bin");
     let root_bin = project_root.join("node_modules").join(".bin");
-    let sep = if cfg!(windows) { ";" } else { ":" };
+    let sep = ":";
     let mut out = std::ffi::OsString::new();
     if pkg_bin.is_dir() {
         out.push(pkg_bin.as_os_str());

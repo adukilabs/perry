@@ -209,7 +209,7 @@ pub fn iter_well_known() -> impl Iterator<Item = &'static WellKnownBinding> {
 pub fn ext_staticlib_filename(lib_stem: &str, target_triple: Option<&str>) -> String {
     let is_windows = match target_triple {
         Some(t) => t.contains("windows"),
-        None => cfg!(target_os = "windows"),
+        None => false,
     };
     if is_windows {
         format!("{}.lib", lib_stem)

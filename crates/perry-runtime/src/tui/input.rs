@@ -110,9 +110,6 @@ mod termios_impl {
 pub fn enable_raw_mode() {
     let _ = termios_impl::enable();
     // WASI cannot spawn the reader thread: no terminal input.
-    if cfg!(target_os = "wasi") {
-        return;
-    }
     READING.store(true, Ordering::Release);
     if READER_STARTED
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)

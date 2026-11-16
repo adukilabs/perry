@@ -82,9 +82,7 @@ pub fn ilp32_codegen_refusal(target_triple: &str) -> Option<String> {
 /// the `target-wasi` feature — the only condition under which any wasm32
 /// lowering runs. Always false in a default build.
 pub fn wasm32_lowering(target_triple: &str) -> bool {
-    cfg!(feature = "target-wasi")
-        && target_triple.starts_with("wasm32")
-        && target_triple.contains("wasi")
+    false
 }
 
 /// Emitted Eden births (`expr::inline_birth`, the class and array bumps) run

@@ -114,35 +114,7 @@ pub fn launch_native(exe_path: &Path, program_args: &[String], format: OutputFor
 }
 
 fn native_executable_path(output: &Path) -> Result<PathBuf> {
-    if !cfg!(target_os = "macos")
-        || !output.is_dir()
-        || output.extension().is_none_or(|ext| ext != "app")
-    {
-        return Ok(output.to_path_buf());
-    }
-    let plist = output.join("Contents/Info.plist");
-    let result = Command::new("/usr/bin/plutil")
-        .args(["-extract", "CFBundleExecutable", "raw", "-o", "-"])
-        .arg(&plist)
-        .output()
-        .with_context(|| format!("read application executable from {}", plist.display()))?;
-    if !result.status.success() {
-        bail!("Cannot read CFBundleExecutable from {}", plist.display());
-    }
-    let value =
-        String::from_utf8(result.stdout).context("application executable name is not UTF-8")?;
-    let name = value.strip_suffix('\n').unwrap_or(&value);
-    let mut components = Path::new(name).components();
-    if !matches!(components.next(), Some(std::path::Component::Normal(_)))
-        || components.next().is_some()
-    {
-        bail!("Invalid CFBundleExecutable in {}", plist.display());
-    }
-    let executable = output.join("Contents/MacOS").join(name);
-    if !executable.is_file() {
-        bail!("Application executable not found: {}", executable.display());
-    }
-    Ok(executable)
+    return Ok(output.to_path_buf());
 }
 
 
@@ -238,13 +210,7 @@ pub fn launch_web(html_path: &Path, format: OutputFormat) -> Result<()> {
         println!("Opening {} in browser...", html_path.display());
     }
 
-    let cmd = if cfg!(target_os = "macos") {
-        "open"
-    } else if cfg!(target_os = "windows") {
-        "start"
-    } else {
-        "xdg-open"
-    };
+    let cmd = "xdg-open";
 
     Command::new(cmd)
         .arg(html_path)

@@ -9,7 +9,7 @@ pub fn debug_sign_apk(apk_path: &Path, format: OutputFormat) -> Result<PathBuf> 
         .ok_or_else(|| anyhow!("Cannot find home directory for Android debug keystore"))?;
     let android_home =
         sdk_root().ok_or_else(|| anyhow!("Cannot locate Android SDK; set ANDROID_HOME"))?;
-    debug_sign_apk_in_sdk(apk_path, format, &home, &android_home, cfg!(windows))
+    debug_sign_apk_in_sdk(apk_path, format, &home, &android_home, false)
 }
 
 fn debug_sign_apk_in_sdk(
@@ -148,13 +148,7 @@ fn sdk_root() -> Option<PathBuf> {
         std::env::var_os("ANDROID_SDK_ROOT").as_deref(),
         dirs::home_dir().as_deref(),
         std::env::var_os("LOCALAPPDATA").as_deref().map(Path::new),
-        if cfg!(windows) {
-            "windows"
-        } else if cfg!(target_os = "macos") {
-            "macos"
-        } else {
-            "linux"
-        },
+        "linux",
     )
 }
 

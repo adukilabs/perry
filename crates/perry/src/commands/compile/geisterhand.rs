@@ -154,9 +154,7 @@ pub(super) fn build_geisterhand_libs(
         Some("linux") => "perry-ui-gtk4",
         Some("windows-winui") => "perry-ui-windows-winui",
         target if is_windows_target(target) => "perry-ui-windows",
-        _ if cfg!(target_os = "linux") => "perry-ui-gtk4",
-        _ if cfg!(target_os = "windows") => "perry-ui-windows",
-        _ => "perry-ui-macos",
+        _ => "perry-ui-gtk4",
     };
     let workspace = find_perry_workspace_root().ok_or_else(|| {
         anyhow!("Cannot build Geisterhand libraries: Perry workspace not found. Set PERRY_WORKSPACE_ROOT to a Perry source checkout so all libraries can be built together.")

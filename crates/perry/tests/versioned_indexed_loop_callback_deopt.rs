@@ -54,11 +54,7 @@ fn target_runtime_dir() -> PathBuf {
         Some(path) => workspace_root().join(path),
         None => workspace_root().join("target"),
     };
-    if cfg!(windows) {
-        target.join("x86_64-pc-windows-msvc").join("release")
-    } else {
-        target.join("release")
-    }
+    target.join("release")
 }
 
 fn runtime_dir() -> PathBuf {
@@ -73,9 +69,6 @@ fn runtime_dir() -> PathBuf {
             // and the runtime Perry actually ships.
             .arg("--release");
         remove_gc_env_overrides(&mut command);
-        if cfg!(windows) {
-            command.arg("--target").arg("x86_64-pc-windows-msvc");
-        }
         let build = command
             .args(["-p", "perry-runtime-static"])
             .output()

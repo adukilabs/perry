@@ -59,11 +59,7 @@ console.log('proxy', P.prototype.get.call(proxied), P.prototype.identity.call(pr
         .join("../..")
         .canonicalize()
         .unwrap();
-    let executable = root.join(if cfg!(windows) {
-        "app.exe"
-    } else {
-        "app-native"
-    });
+    let executable = root.join("app-native");
     successful(
         Command::new(compiler)
             .current_dir(&root)

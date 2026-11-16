@@ -74,8 +74,7 @@ pub(super) fn native_manifest_target_key(target: Option<&str>) -> &'static str {
         | Some("linux-aarch64-musl") => "linux",
         Some("web") => "web",
         Some("macos") => "macos",
-        None if cfg!(target_os = "linux") => "linux",
-        None if cfg!(target_os = "windows") => "windows",
+        None => "linux",
         _ => "macos",
     }
 }

@@ -552,7 +552,7 @@ fn build_trap_shim() {
         } else if tool.is_like_msvc() && tool.is_like_clang() {
             let sibling =
                 tool.path()
-                    .with_file_name(if cfg!(windows) { "clang.exe" } else { "clang" });
+                    .with_file_name("clang");
             let clang = if sibling.exists() {
                 sibling
             } else {

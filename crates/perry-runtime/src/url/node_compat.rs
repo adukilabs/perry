@@ -204,12 +204,12 @@ fn options_windows_flag(options: f64) -> bool {
             let windows = object_prop_f64(opts, "windows");
             let jv = crate::value::JSValue::from_bits(windows.to_bits());
             if jv.is_undefined() || jv.is_null() {
-                cfg!(windows)
+                false
             } else {
                 crate::value::js_is_truthy(windows) != 0
             }
         }
-        None => cfg!(windows),
+        None => false,
     }
 }
 

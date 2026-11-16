@@ -62,14 +62,9 @@ pub(super) fn windows_target_arch(target: Option<&str>) -> Option<WindowsTargetA
         Some("windows-aarch64") | Some("windows-arm64") => Some(WindowsTargetArch::Aarch64),
         Some("windows-x86_64") => Some(WindowsTargetArch::X86_64),
         Some("windows") | Some("windows-winui") => {
-            if cfg!(target_os = "windows") {
-                Some(native_windows_arch())
-            } else {
-                // Preserve the long-standing cross-host meaning of `windows`.
-                Some(WindowsTargetArch::X86_64)
-            }
+            // Preserve the long-standing cross-host meaning of `windows`.
+            Some(WindowsTargetArch::X86_64)
         }
-        None if cfg!(target_os = "windows") => Some(native_windows_arch()),
         _ => None,
     }
 }
@@ -81,7 +76,7 @@ pub(super) fn is_windows_target(target: Option<&str>) -> bool {
 /// True when the requested Windows target matches this compiler process.
 /// Cross-architecture builds must never fall back to bare host artifact dirs.
 pub(super) fn is_native_windows_target(target: Option<&str>) -> bool {
-    cfg!(target_os = "windows") && windows_target_arch(target) == Some(native_windows_arch())
+    false
 }
 
 #[cfg(test)]

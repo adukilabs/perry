@@ -1653,11 +1653,7 @@ mod env_object_tests {
         let value_boxed = f64::from_bits(JSValue::string_ptr(value_ptr).bits());
         crate::object::js_object_set_field_by_name(obj, set_key, value_boxed);
 
-        let lookup_name = if cfg!(windows) {
-            TEST_KEY.to_ascii_lowercase()
-        } else {
-            TEST_KEY.to_string()
-        };
+        let lookup_name = TEST_KEY.to_string();
         let lookup_key = js_string_from_bytes(lookup_name.as_ptr(), lookup_name.len() as u32);
         let got = crate::object::js_object_get_field_by_name(obj, lookup_key);
         assert_eq!(read_js_string_lossy(f64::from_bits(got.bits())), value);

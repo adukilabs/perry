@@ -288,9 +288,6 @@ fn checked_metadata(path: &std::path::Path) -> std::io::Result<Option<std::fs::M
 
 fn replacement_paths(source: &str, target: &str) -> std::io::Result<(String, String)> {
     // Do not probe replacement alternatives that could remove a mapped EXE.
-    if !cfg!(any(target_os = "macos", target_os = "linux")) {
-        return Err(invalid_paths());
-    }
     let source = normalized_path(source)?;
     let target = normalized_path(target)?;
     let src = checked_metadata(&source)?.ok_or_else(invalid_paths)?;
@@ -298,7 +295,7 @@ fn replacement_paths(source: &str, target: &str) -> std::io::Result<(String, Str
     if source == target
         || source.starts_with(&target)
         || target.starts_with(&source)
-        || (src.is_dir() && !cfg!(target_os = "macos"))
+        || (src.is_dir())
         || dst.as_ref().is_some_and(|m| m.is_dir() != src.is_dir())
     {
         return Err(invalid_paths());

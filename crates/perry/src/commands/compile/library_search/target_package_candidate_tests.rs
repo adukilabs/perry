@@ -373,16 +373,10 @@ fn the_package_of_an_archive_depends_on_its_name_and_triple() {
 // --- on-demand host kinds ---------------------------------------------------
 
 /// The UI archive `find_ui_library` asks for on this host.
-const HOST_UI: &str = if cfg!(target_os = "windows") {
-    "perry_ui_windows.lib"
-} else if cfg!(target_os = "linux") {
+const HOST_UI: &str = {
     "libperry_ui_gtk4.a"
-} else {
-    "libperry_ui_macos.a"
 };
-const HOST_WASM: &str = if cfg!(target_os = "windows") {
-    "perry_wasm_host.lib"
-} else {
+const HOST_WASM: &str = {
     "libperry_wasm_host.a"
 };
 

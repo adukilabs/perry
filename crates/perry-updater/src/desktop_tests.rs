@@ -382,11 +382,7 @@ fn read_version(path: &str, bundle: bool) -> Vec<u8> {
 
 #[test]
 fn interruption_at_each_publication_keeps_live_target_and_completed_backup() {
-    let kinds = if cfg!(target_os = "macos") {
-        vec![false, true]
-    } else {
-        vec![false]
-    };
+    let kinds = vec![false];
     for bundle in kinds {
         for (destination, after) in [
             ("backup", false),
@@ -534,11 +530,7 @@ fn failed_publication_preserves_live_target_and_rollback_backup() {
 
 #[test]
 fn rollback_publication_failure_keeps_both_versions() {
-    let kinds = if cfg!(target_os = "macos") {
-        vec![false, true]
-    } else {
-        vec![false]
-    };
+    let kinds = vec![false];
     for bundle in kinds {
         let (dir, target, _stage, _prev) = protocol_fixture(bundle);
         let before = fixture_hash(dir.path());

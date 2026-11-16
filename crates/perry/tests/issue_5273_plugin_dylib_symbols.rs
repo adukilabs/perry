@@ -30,11 +30,7 @@ fn perry_bin() -> PathBuf {
 }
 
 fn dylib_ext() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "dylib"
-    } else {
-        "so"
-    }
+    "so"
 }
 
 /// Compile `source` as a dylib in `root` and return the output path.
@@ -73,9 +69,7 @@ fn exported_symbols(lib: &Path) -> Option<Vec<String>> {
     // only add it off-macOS.
     let mut cmd = Command::new("nm");
     cmd.arg("-gU");
-    if !cfg!(target_os = "macos") {
-        cmd.arg("-D");
-    }
+    cmd.arg("-D");
     let out = cmd.arg(lib).output().ok()?;
     if !out.status.success() {
         return None;

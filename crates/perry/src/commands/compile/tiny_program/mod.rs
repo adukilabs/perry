@@ -70,16 +70,6 @@ pub(super) fn try_compile(
         let helper_source = staging.path().join("tiny-output.c");
         fs::write(&helper_source, include_str!("output.c"))?;
         let mut cc = Command::new("cc");
-        if cfg!(target_os = "macos") {
-            cc.args([
-                "-arch",
-                if cfg!(target_arch = "aarch64") {
-                    "arm64"
-                } else {
-                    "x86_64"
-                },
-            ]);
-        }
         cc.args(["-std=c11", "-O2", "-c"])
             .arg(&helper_source)
             .arg("-o")
@@ -99,16 +89,6 @@ pub(super) fn try_compile(
     }
     super::run_lock_verify_for_compile(ctx, args.target.as_deref())?;
     let mut command = Command::new("cc");
-    if cfg!(target_os = "macos") {
-        command.args([
-            "-arch",
-            if cfg!(target_arch = "aarch64") {
-                "arm64"
-            } else {
-                "x86_64"
-            },
-        ]);
-    }
     if !proof.outputs().is_empty() {
         command.arg(&helper_path);
     }
@@ -118,11 +98,7 @@ pub(super) fn try_compile(
     command.arg(&object_path);
     command.args(super::link::link_pad_args());
     command.arg("-o").arg(&absolute_output);
-    if cfg!(target_os = "macos") {
-        command.arg("-Wl,-dead_strip");
-    } else {
-        command.arg("-Wl,--gc-sections");
-    }
+    command.arg("-Wl,--gc-sections");
     command.args(super::link::extra_link_args());
     if verbose > 0 && matches!(format, OutputFormat::Text) {
         println!(
@@ -215,7 +191,6 @@ fn build_eligibility(
 ) -> Result<(), &'static str> {
     let native_target = args.target.as_deref().is_none_or(|target| {
         target == "native"
-            || (cfg!(all(target_os = "macos", target_arch = "aarch64")) && target == "macos")
             || (cfg!(all(target_os = "linux", target_arch = "x86_64")) && target == "linux")
             || (cfg!(all(target_os = "linux", target_arch = "aarch64"))
                 && target == "linux-aarch64")

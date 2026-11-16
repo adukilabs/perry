@@ -1010,18 +1010,11 @@ mod tests {
     #[test]
     fn default_unit_workers_are_bounded_and_platform_aware() {
         let n = crate::workers::default_unit_workers();
-        if cfg!(target_os = "windows") {
-            assert_eq!(
-                n, 2,
-                "Windows keeps the conservative 2-worker default (#8017)"
-            );
-        } else {
-            let cpus = std::thread::available_parallelism().map_or(1, |p| p.get());
-            assert!(
-                (1..=cpus).contains(&n),
-                "non-Windows default must be in [1, available cores = {cpus}], got {n}"
-            );
-        }
+        let cpus = std::thread::available_parallelism().map_or(1, |p| p.get());
+        assert!(
+            (1..=cpus).contains(&n),
+            "non-Windows default must be in [1, available cores = {cpus}], got {n}"
+        );
     }
 
     use crate::types::{I1, I32, I64, PTR, VOID};
@@ -1327,24 +1320,12 @@ mod tests {
     }
 
     fn compact_gc_map_section_name() -> &'static [u8] {
-        if cfg!(target_os = "macos") {
-            b"__perry_gcmap"
-        } else if cfg!(target_os = "windows") {
-            b".pgcmap"
-        } else {
-            b".perry_gcmap"
-        }
+        b".perry_gcmap"
     }
 
     /// v9 keeps a function's records in a section of their own.
     fn compact_gc_records_section_name() -> &'static [u8] {
-        if cfg!(target_os = "macos") {
-            b"__perry_gcrec"
-        } else if cfg!(target_os = "windows") {
-            b".pgcrec"
-        } else {
-            b".perry_gcrec"
-        }
+        b".perry_gcrec"
     }
 
     fn object_contains(object: &[u8], needle: &[u8]) -> bool {

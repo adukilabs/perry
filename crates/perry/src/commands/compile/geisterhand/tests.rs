@@ -235,9 +235,7 @@ int main(void) { runtime_set(41); printf("%d\n", stdlib_get()); }
         let exe = root.join("probe");
         let mut cc = Command::new("cc");
         cc.arg(&source).arg(runtime).arg(stdlib).arg("-o").arg(&exe);
-        if cfg!(target_os = "linux") {
-            cc.args(["-ldl", "-lpthread", "-lm"]);
-        }
+        cc.args(["-ldl", "-lpthread", "-lm"]);
         success(&mut cc);
         String::from_utf8(success(&mut Command::new(&exe)).stdout).unwrap()
     };

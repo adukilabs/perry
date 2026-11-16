@@ -90,11 +90,7 @@ console.log("done");
 fn build_lib(dir: &Path) -> PathBuf {
     let c_path = dir.join("nanb.c");
     std::fs::write(&c_path, LIB_C).expect("write C fixture");
-    let lib = dir.join(if cfg!(target_os = "macos") {
-        "libnanb.dylib"
-    } else {
-        "libnanb.so"
-    });
+    let lib = dir.join("libnanb.so");
     let status = Command::new("cc")
         .args(["-shared", "-fPIC", "-o"])
         .arg(&lib)

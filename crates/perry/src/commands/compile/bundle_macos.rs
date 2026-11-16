@@ -46,7 +46,7 @@ pub(super) fn layout_for_compile(
     target: Option<&str>,
     output: &Path,
 ) -> Result<Option<MacosBundleLayout>> {
-    let macos = target == Some("macos") || (target.is_none() && cfg!(target_os = "macos"));
+    let macos = target == Some("macos");
     if !needs_ui || output_type != "executable" || !macos {
         return Ok(None);
     }
@@ -159,20 +159,6 @@ pub(super) fn bundle_for_macos(
 
     // Local development needs no signing identity or provisioning profile.
     // Seal the external plist and copied resources after the bundle is complete.
-    if cfg!(target_os = "macos") {
-        let signed = Command::new("codesign")
-            .args(["--force", "--sign", "-", "--timestamp=none"])
-            .arg(&layout.app_dir)
-            .output()
-            .context("sign local macOS app bundle")?;
-        if !signed.status.success() {
-            anyhow::bail!(
-                "codesign failed for {}: {}",
-                layout.app_dir.display(),
-                String::from_utf8_lossy(&signed.stderr)
-            );
-        }
-    }
     let bundle_id = ctx.app_metadata.bundle_id.clone();
     match format {
         OutputFormat::Text => println!("Wrote macOS app bundle: {}", layout.app_dir.display()),

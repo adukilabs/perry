@@ -884,7 +884,7 @@ pub fn select_linker_command(
         // Record the glibc the program links against (this host's when
         // linking natively, the sysroot's when cross-linking) for
         // process.report's header.glibcVersionCompiler.
-        let defsym = glibc_version_defsym(&c, cfg!(target_os = "linux"))?;
+        let defsym = glibc_version_defsym(&c, true)?;
         c.arg(defsym);
         c
     } else if is_windows {

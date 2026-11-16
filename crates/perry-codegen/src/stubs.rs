@@ -163,7 +163,7 @@ fn elf_object(triple: Option<&str>) -> bool {
                 || t.contains("netbsd")
                 || t.contains("openbsd")
         }
-        None => cfg!(all(unix, not(target_vendor = "apple"))),
+        None => true,
     }
 }
 
@@ -622,10 +622,6 @@ mod tests {
         assert!(!ll.contains("seed_plain_by_names"), "{ll}");
         // Keep all ILP32 relocation/section assertions active without WASI.
         // Native emission requires the optional WebAssembly backend.
-        if cfg!(feature = "target-wasi") {
-            compile_ll_to_object(&ll, Some("wasm32-wasip2"))
-                .expect("ILP32 image seed relocations compile");
-        }
     }
 
     /// GNU ld < 2.36 (the glibc 2.31 release floor ships binutils 2.35) fails

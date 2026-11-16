@@ -25,53 +25,25 @@ fn fallback_errno(code: &str) -> i64 {
     {
         match code {
             "ECONNREFUSED" => {
-                if cfg!(target_os = "macos") {
-                    -61
-                } else {
-                    -111
-                }
+                -111
             }
             "ETIMEDOUT" => {
-                if cfg!(target_os = "macos") {
-                    -60
-                } else {
-                    -110
-                }
+                -110
             }
             "ECONNABORTED" => {
-                if cfg!(target_os = "macos") {
-                    -53
-                } else {
-                    -103
-                }
+                -103
             }
             "ECONNRESET" => {
-                if cfg!(target_os = "macos") {
-                    -54
-                } else {
-                    -104
-                }
+                -104
             }
             "EADDRNOTAVAIL" => {
-                if cfg!(target_os = "macos") {
-                    -49
-                } else {
-                    -99
-                }
+                -99
             }
             "EHOSTUNREACH" => {
-                if cfg!(target_os = "macos") {
-                    -65
-                } else {
-                    -113
-                }
+                -113
             }
             "ENETUNREACH" => {
-                if cfg!(target_os = "macos") {
-                    -51
-                } else {
-                    -101
-                }
+                -101
             }
             _ => 0,
         }

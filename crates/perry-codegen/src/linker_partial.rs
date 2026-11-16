@@ -53,7 +53,7 @@ pub(super) fn unix_partial_linker(objs: &[Vec<u8>]) -> (String, bool, &'static s
     let first = objs.first().map(Vec::as_slice).unwrap_or_default();
     let (tool, ld64) = select_unix_partial_linker(
         first,
-        cfg!(target_os = "macos"),
+        false,
         env::var("PERRY_LD").ok(),
         ndk_home_from_env(),
     );

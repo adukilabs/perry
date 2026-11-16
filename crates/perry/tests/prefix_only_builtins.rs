@@ -22,7 +22,7 @@ fn run(dir: &Path, name: &str, source: &str) -> String {
         "{}",
         String::from_utf8_lossy(&result.stderr)
     );
-    let result = Command::new(dir.join(if cfg!(windows) { "app.exe" } else { "app" }))
+    let result = Command::new(dir.join("app"))
         .current_dir(dir)
         .output()
         .unwrap();

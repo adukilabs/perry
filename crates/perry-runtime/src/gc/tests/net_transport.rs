@@ -765,9 +765,6 @@ fn every_net_transport_sabotage_makes_its_witness_red() {
             "n6_teardown_discards_owed_completions_without_dispatch",
         ),
     ] {
-        if cfg!(not(unix)) && witness.starts_with("n11") {
-            continue;
-        }
         let name = format!("gc::tests::net_transport::{witness}");
         let output = std::process::Command::new(&exe)
             .args(["--exact", &name, "--nocapture", "--test-threads=1"])

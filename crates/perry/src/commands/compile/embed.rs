@@ -375,11 +375,7 @@ pub(super) fn generate_embedded_asset_object(
     // MSVC-compatible COFF on Windows. Both integrated assemblers support the
     // `.incbin` payload used below.
     let c_path = output_dir.join("__perry_embedded_assets.c");
-    let obj_path = output_dir.join(if cfg!(windows) {
-        "__perry_embedded_assets.obj"
-    } else {
-        "__perry_embedded_assets.o"
-    });
+    let obj_path = output_dir.join("__perry_embedded_assets.o");
     // Node SEA assets are exposed as raw immutable bytes; do not inherit Bun's
     // optional zstd asset packing when both platform modes are selected.
     let payloads = compression::prepare(assets, output_dir, bun_platform && !sea_profile)?;
@@ -486,13 +482,6 @@ pub(super) fn generate_embedded_asset_object(
     if assets.is_empty() && !sea_profile {
         // Keep this member small: an anchor-only archive object has no startup
         // constructor and pulls in no embedded-asset runtime symbols.
-    } else if cfg!(windows) {
-        c.push_str("static void __cdecl perry_register_embedded_assets(void);\n");
-        c.push_str("typedef void (__cdecl *perry_embedded_ctor_fn)(void);\n");
-        c.push_str("#pragma section(\".CRT$XCU\", read)\n");
-        c.push_str("#pragma comment(linker, \"/include:PERRY_EMBEDDED_ASSETS_CTOR\")\n");
-        c.push_str("__declspec(allocate(\".CRT$XCU\")) perry_embedded_ctor_fn PERRY_EMBEDDED_ASSETS_CTOR = perry_register_embedded_assets;\n");
-        c.push_str("static void __cdecl perry_register_embedded_assets(void) {\n");
     } else {
         c.push_str("__attribute__((constructor(101)))\n");
         c.push_str("static void perry_register_embedded_assets(void) {\n");
@@ -564,15 +553,7 @@ pub(super) fn generate_embedded_asset_object(
 
 fn host_target_triple() -> String {
     let arch = std::env::consts::ARCH;
-    if cfg!(target_os = "macos") {
-        format!("{arch}-apple-macosx")
-    } else if cfg!(target_os = "windows") {
-        format!("{arch}-pc-windows-msvc")
-    } else if cfg!(target_os = "linux") {
-        format!("{arch}-unknown-linux-gnu")
-    } else {
-        format!("{arch}-unknown-{}", std::env::consts::OS)
-    }
+    format!("{arch}-unknown-linux-gnu")
 }
 
 /// Render one line of assembler as a C string literal for a module-level

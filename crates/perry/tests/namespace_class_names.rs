@@ -100,7 +100,7 @@ console.log(BSON.UUID === UUID);
         let entry = root.join(name);
         let node = successful(Command::new("node").current_dir(&root).arg(&entry), name);
         assert_eq!(node.stdout, expected.as_bytes(), "Node fixture: {name}");
-        let executable = root.join(if cfg!(windows) { "app.exe" } else { "app-native" });
+        let executable = root.join("app-native");
         successful(
             Command::new(&compiler)
                 .current_dir(&root)

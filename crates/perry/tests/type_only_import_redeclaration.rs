@@ -18,11 +18,7 @@ fn compile(root: &Path) -> (Output, PathBuf) {
         .join("../..")
         .canonicalize()
         .unwrap();
-    let executable = root.join(if cfg!(windows) {
-        "app.exe"
-    } else {
-        "app-native"
-    });
+    let executable = root.join("app-native");
     let output = Command::new(compiler)
         .current_dir(root)
         .env("PERRY_RUNTIME_DIR", runtime)

@@ -76,11 +76,7 @@ fn compile_and_run(dir: &Path, entry: &Path, envs: &[(&str, &str)]) -> (bool, St
 fn build_test_dylib(dir: &Path) -> PathBuf {
     let c_path = dir.join("ffi_test_lib.c");
     std::fs::write(&c_path, TEST_LIB_C).expect("write C fixture");
-    let lib_name = if cfg!(target_os = "macos") {
-        "libffi_test.dylib"
-    } else {
-        "libffi_test.so"
-    };
+    let lib_name = "libffi_test.so";
     let lib_path = dir.join(lib_name);
     let status = Command::new("cc")
         .arg("-shared")

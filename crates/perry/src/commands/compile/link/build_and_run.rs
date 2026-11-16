@@ -72,7 +72,7 @@ pub(crate) fn build_and_run_link(
     let is_android = is_android_target(target);
     let is_harmonyos = matches!(target, Some("harmonyos") | Some("harmonyos-simulator"));
     let is_linux = matches!(target, Some(t) if t.starts_with("linux"))
-        || (target.is_none() && cfg!(target_os = "linux"));
+        || (target.is_none());
     // Fully-static musl Linux target (#4826) — a sub-case of is_linux. The
     // link command itself is built in select_linker_command (musl driver +
     // `-static`); here it only changes which system libs we request.
@@ -95,13 +95,13 @@ pub(crate) fn build_and_run_link(
         );
     }
     let is_windows = is_windows_target(target);
-    let is_cross_windows = is_windows && !cfg!(target_os = "windows");
-    let is_cross_ios = is_ios && !cfg!(target_os = "macos");
-    let is_cross_visionos = is_visionos && !cfg!(target_os = "macos");
-    let is_cross_macos = matches!(target, Some("macos")) && !cfg!(target_os = "macos");
+    let is_cross_windows = is_windows;
+    let is_cross_ios = is_ios;
+    let is_cross_visionos = is_visionos;
+    let is_cross_macos = matches!(target, Some("macos"));
     let is_watchos = matches!(target, Some("watchos") | Some("watchos-simulator"));
     let is_tvos = matches!(target, Some("tvos") | Some("tvos-simulator"));
-    let is_cross_tvos = is_tvos && !cfg!(target_os = "macos");
+    let is_cross_tvos = is_tvos;
 
     let mut cmd = select_linker_command(
         args_input,
@@ -200,8 +200,7 @@ pub(crate) fn build_and_run_link(
     // executable built on Linux with the default function layout
     // (`elf_linker`).
     let lld = super::elf_linker::use_lld(
-        cfg!(target_os = "linux")
-            && is_linux
+        is_linux
             && !is_musl
             && matches!(target, None | Some("linux"))
             && matches!(
@@ -318,8 +317,7 @@ pub(crate) fn build_and_run_link(
             runs_lld,
             // The default hot-data order: native glibc Linux executables,
             // where it was recorded and measured (`hot_data_order`).
-            cfg!(target_os = "linux")
-                && is_linux
+            is_linux
                 && !is_musl
                 && matches!(target, None | Some("linux")),
             verbose,
@@ -401,7 +399,7 @@ pub(crate) fn build_and_run_link(
     // lazy archive symbols globally. An unknown future linker stays
     // conservative and keeps the wrapper-local provider.
     let is_macos =
-        matches!(target, Some("macos")) || (target.is_none() && cfg!(target_os = "macos"));
+        matches!(target, Some("macos"));
     let stdlib_resolves_retained_wrapper_refs = (ctx.needs_stdlib || is_windows)
         && (is_linux
             || is_android
@@ -1012,7 +1010,7 @@ pub(crate) fn build_and_run_link(
         // links: a runtime-only program that genuinely needs one of these
         // fails AT LINK TIME with an undefined symbol (deterministic,
         // caught by the parity suites), never at runtime.
-        if (cfg!(target_os = "macos") || is_cross_macos)
+        if (is_cross_macos)
             && !is_harmonyos
             && (ctx.needs_stdlib || ctx.needs_ui || ctx.needs_plugins || ctx.needs_geisterhand)
         {
@@ -1031,7 +1029,7 @@ pub(crate) fn build_and_run_link(
         // final Rust binary, but a perry-ext static archive crosses Perry's
         // custom linker boundary, where that metadata is no longer present.
         // Restore it only for binaries that selected the watcher facade.
-        if (cfg!(target_os = "macos") || is_cross_macos)
+        if (is_cross_macos)
             && ctx
                 .native_module_imports
                 .iter()
@@ -1041,7 +1039,7 @@ pub(crate) fn build_and_run_link(
         }
 
         // On Linux (native, not cross-compiling to macOS), link against system libraries
-        if cfg!(target_os = "linux") && !is_cross_macos {
+        if !is_cross_macos {
             cmd.args(super::linux_dylib_libs::LINUX_DYLIB_SYSTEM_LIBS);
         }
     }
@@ -1215,7 +1213,7 @@ pub(crate) fn build_and_run_link(
             } else if is_windows {
                 // Win32 system libs already linked above
             } else {
-                if cfg!(target_os = "macos") || is_cross_macos {
+                if is_cross_macos {
                     cmd.arg("-framework").arg("AppKit");
                     // perry/ui WebView (#658) — WKWebView / WKWebViewConfiguration.
                     cmd.arg("-framework").arg("WebKit");
@@ -1567,9 +1565,7 @@ pub(crate) fn build_and_run_link(
                         } else {
                             // When building a plugin host on macOS, force-load plugin-related native
                             // libraries so their symbols are available for dlopen'd plugin dylibs.
-                            let force_load = cfg!(target_os = "macos")
-                                && ctx.needs_plugins
-                                && native_lib.module.contains("plugin");
+                            let force_load = false;
                             if force_load {
                                 cmd.arg(format!("-Wl,-force_load,{}", lib.display()));
                             } else if is_windows && lib.extension().is_some_and(|e| e == "lib") {
@@ -1903,7 +1899,7 @@ pub(crate) fn build_and_run_link(
     // Without this, WKWebView media capture can be denied by the platform even
     // when WKUIDelegate grants the web-origin permission.
     let is_macos_executable =
-        (target.is_none() && cfg!(target_os = "macos")) || matches!(target, Some("macos"));
+        matches!(target, Some("macos"));
     let mut embedded_info_plist_path: Option<PathBuf> = None;
     if ctx.needs_ui && is_macos_executable {
         let exe_stem = exe_path
@@ -1961,13 +1957,12 @@ pub(crate) fn build_and_run_link(
     cmd.args(super::extra_link_args());
 
     let mut response_file_to_clean: Option<PathBuf> = None;
-    if cfg!(target_os = "windows")
-        || std::env::var_os("PERRY_FORCE_LINK_RESPONSE_FILE").is_some()
+    if std::env::var_os("PERRY_FORCE_LINK_RESPONSE_FILE").is_some()
         || link_args_need_response_file(cmd.get_args())
     {
         // MSVC-style quoting for the native-Windows linker (link.exe/lld-link);
         // GNU-style for a clang/cc driver (the forced-test path on macOS/Linux).
-        let msvc_quoting = cfg!(target_os = "windows") && is_windows;
+        let msvc_quoting = false;
         if let Some((rsp_cmd, rsp_path)) = rewrite_link_with_response_file(&cmd, msvc_quoting) {
             cmd = rsp_cmd;
             response_file_to_clean = Some(rsp_path);

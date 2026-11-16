@@ -293,7 +293,7 @@ mod tests {
             for (index, ir) in units
                 .iter()
                 .enumerate()
-                .filter(|_| !target.starts_with("wasm32") || cfg!(feature = "target-wasi"))
+                .filter(|_| !target.starts_with("wasm32"))
             {
                 crate::inprocess::compile_ll_to_object_inprocess(
                     ir,

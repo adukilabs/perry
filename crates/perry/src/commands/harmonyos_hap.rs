@@ -546,18 +546,8 @@ fn compile_ets_to_abc(sdk_native: &Path, staging: &Path, quiet: bool) -> Result<
 
     // es2abc sits under ets-loader in a host-OS-specific subdir. `build-mac`
     // on macOS, `build-win` on Windows, `build` on Linux.
-    let host_dir = if cfg!(target_os = "macos") {
-        "build-mac"
-    } else if cfg!(target_os = "windows") {
-        "build-win"
-    } else {
-        "build"
-    };
-    let exe_suffix = if cfg!(target_os = "windows") {
-        ".exe"
-    } else {
-        ""
-    };
+    let host_dir = "build";
+    let exe_suffix = "";
     let es2abc = ets_loader_dir.join(format!("bin/ark/{}/bin/es2abc{}", host_dir, exe_suffix));
     if !es2abc.exists() {
         if !quiet {

@@ -181,7 +181,7 @@ fn process_report_object(trigger: &str, filename: Option<&str>) -> f64 {
         JSValue::from_bits((process_report_user_limits_object()).to_bits()),
     );
     obj.set(
-        if cfg!(windows) { 9 } else { 10 },
+        10,
         JSValue::from_bits((module_array_value(&[])).to_bits()),
     );
     module_object_value(obj.finish())

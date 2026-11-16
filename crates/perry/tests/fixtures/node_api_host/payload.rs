@@ -90,11 +90,7 @@ int fixture_answer(void) {
 "#,
     )
     .unwrap();
-    let library_name = if cfg!(target_os = "macos") {
-        "libfixture.2.dylib"
-    } else {
-        "libfixture.so.2"
-    };
+    let library_name = "libfixture.so.2";
     let library = platform.join(library_name);
     let mut clang = Command::new("clang");
     clang

@@ -468,7 +468,7 @@ mod tests {
         fs::write(package.join("table.dat"), b"runtime data").unwrap();
         let output = dir
             .path()
-            .join(if cfg!(windows) { "app.exe" } else { "app" });
+            .join("app");
         let mut ctx = CompilationContext::new(dir.path().to_path_buf());
         ctx.native_addon_packages.insert("demo".to_string());
         ctx.native_addons.insert(

@@ -25,11 +25,7 @@ fn target_runtime_dir() -> PathBuf {
     let target = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| workspace_root().join("target"));
-    if cfg!(windows) {
-        target.join("x86_64-pc-windows-msvc").join("release")
-    } else {
-        target.join("release")
-    }
+    target.join("release")
 }
 
 fn ensure_runtime_archive() {
@@ -45,9 +41,6 @@ fn ensure_runtime_archive() {
             "-p",
             "perry-stdlib-static",
         ]);
-        if cfg!(windows) {
-            command.arg("--target").arg("x86_64-pc-windows-msvc");
-        }
         let build = command.output().expect("build static runtime archives");
         assert!(build.status.success(), "static runtime build failed");
         assert!(

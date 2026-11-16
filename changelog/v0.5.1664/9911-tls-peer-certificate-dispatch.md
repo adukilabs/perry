@@ -1,1 +1,0 @@
-Fix dynamic `TLSSocket.getPeerCertificate()` calls from the native net extension so they return the full negotiated certificate. Certificate inspection now preserves the peer identity across server secure-context rotation.

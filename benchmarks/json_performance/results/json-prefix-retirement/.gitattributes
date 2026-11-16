@@ -1,3 +1,0 @@
-# Preserve raw diagnostic output and unified-diff context bytes.
-*.log -whitespace
-candidate.patch -whitespace

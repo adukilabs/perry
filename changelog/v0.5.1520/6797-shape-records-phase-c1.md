@@ -1,1 +1,0 @@
-perf(runtime): #6759 Phase C1 — first-class Shape records keyed on keys_array identity (`state().shapes`) replace the per-object `KEYS_INDEX` and the 4-entry `WIDE_KEY_INDEX` LRU: same-shape objects share one content-validated key→slot map. Adds `docs/shape-tree-plan.md`, the Phase C design doc (C1→C5 ladder).

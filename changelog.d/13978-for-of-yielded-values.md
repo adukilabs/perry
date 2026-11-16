@@ -1,1 +1,0 @@
-wpfacts: a for-of loop now reads only the values its iteration yields, and arrays carry a per-array hole fact, so element reads from for-of over holey-free arrays (chess and chesst receivers such as run.ts split) are proven instead of reading undefined or the iterator record.

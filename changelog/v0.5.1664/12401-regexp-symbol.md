@@ -1,1 +1,0 @@
-RegExp.prototype.test now applies JavaScript ToString conversion to non-string inputs and throws TypeError when the input or its @@toPrimitive result is a Symbol. Conversion remains observable before the RegExp `exec` lookup, while heap strings retain the direct matching path.

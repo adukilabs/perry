@@ -1,1 +1,0 @@
-Keep one requested_modules initializer in synthetic Module fixtures and supply the Array birth-layout argument in shadow-slot coverage, restoring Codegen integration-test compilation after fixture rebases.

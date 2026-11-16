@@ -1,1 +1,0 @@
-Add opt-in typed-feedback profile replay for guarded numeric array reads, with versioned capture catalogs, exact freshness checks, deterministic selection and rejection diagnostics, native-region verifier checks, and explain-lowering evidence. Profiles remain advisory and retain the runtime guard and boxed fallback.

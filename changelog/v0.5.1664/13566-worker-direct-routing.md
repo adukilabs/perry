@@ -1,1 +1,0 @@
-Prevent main-thread direct messages from cloning payloads or detaching transfer buffers when the destination is missing or stopped. Preserve worker-origin forwarding order and release sender ownership when cloning throws.

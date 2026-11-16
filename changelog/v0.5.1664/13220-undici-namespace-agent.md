@@ -1,1 +1,0 @@
-Fixed `new undici.Agent(...)` / `new undici.ProxyAgent(...)` when `undici` is a `var x = require("undici")` local or an `import * as` namespace (esbuild CommonJS output): it now constructs the native agent instead of throwing "undefined is not a constructor".

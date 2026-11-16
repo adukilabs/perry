@@ -1,1 +1,0 @@
-- Android runtimes share one pthread key across Perry's cached thread-local declarations, preventing the key exhaustion that aborted minimal UI apps when the timer pump started (#10219). Per-thread values keep independent initialization and cleanup, and accesses after teardown remain fallible.

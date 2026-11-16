@@ -1,1 +1,0 @@
-- Make Windows source invariant gates read UTF-8 and N-API filename fixtures use drive-qualified paths.

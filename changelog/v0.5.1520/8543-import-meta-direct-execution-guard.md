@@ -1,1 +1,0 @@
-Fixed compiled executables so `process.argv[1]` names the TypeScript entry module, allowing the conventional `import.meta.url`/`process.argv[1]` direct-execution guard to work as it does under Node and Bun.

@@ -1,1 +1,0 @@
-The arguments object is now synthesized in for-loop init clauses, object-literal accessors, and parameter defaults of function expressions and nested function declarations, instead of failing with ReferenceError: arguments is not defined.

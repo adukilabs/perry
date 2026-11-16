@@ -1,1 +1,0 @@
-Initialize the native-library documentation fixtures through the shared runtime startup and use canonical pointer boxing. A dev-only runtime-link feature makes the crate independently testable. The buffer-borrow API repair is already on main.

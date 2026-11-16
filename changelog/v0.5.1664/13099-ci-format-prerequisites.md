@@ -1,1 +1,0 @@
-Apply the pinned rustfmt output to the five files that broke main formatting checks. Run lint LLVM setup even after an earlier lint step fails, so the Windows type-check has the llvm-lib prerequisite it requires. No generated-code or runtime behavior changes.

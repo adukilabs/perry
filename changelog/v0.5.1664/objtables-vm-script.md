@@ -1,1 +1,0 @@
-Delete `VM_SCRIPTS`, its owner-key scanner and death/thread-exit prunes. A Script's private GC record holds its source text, filename and location offsets through the existing owner-family metadata bag. Add moving-owner, fresh-owner, mutation-control and Node parity gap checks.

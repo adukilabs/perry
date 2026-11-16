@@ -1,1 +1,0 @@
-Bind native SecureContext instances to their registered prototype using existing traced edges. Factory and constructor preserve prototype identity and instanceof after minor collection without weakening global object-role rules.

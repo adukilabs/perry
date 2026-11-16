@@ -1,1 +1,0 @@
-fix(runtime): expose Node-compatible `length === 1` metadata on both namespace and named `node:util.isArray` imports, and keep boxed-String `length` hidden in `util.inspect` after the descriptor fast-path refactor.

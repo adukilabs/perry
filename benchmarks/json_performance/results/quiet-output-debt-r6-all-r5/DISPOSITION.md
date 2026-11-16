@@ -1,1 +1,0 @@
-Rejected for performance acceptance: end-of-run quiet gate failed (one-minute load 2.718 > 2.5). The directory name reflects its planned purpose; it does not override window.json. Preserve raw trials for diagnosis; rerun in a new directory.

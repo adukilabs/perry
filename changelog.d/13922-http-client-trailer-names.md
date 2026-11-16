@@ -1,1 +1,0 @@
-The HTTP client's `res.trailers` keys are lowercase, as in node, whatever the wire spelling of the trailer names (they kept the wire spelling, so `res.trailers["x-end"]` was undefined for an `X-End` trailer).

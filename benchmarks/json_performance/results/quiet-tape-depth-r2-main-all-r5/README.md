@@ -1,1 +1,0 @@
-UNQUALIFIED TIMING WINDOW. The complete run failed the predefined final quiet-host gate. Raw results are retained, but they must not be used for performance acceptance. See window.json for admission and exit-load details.

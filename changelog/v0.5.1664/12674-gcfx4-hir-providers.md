@@ -1,1 +1,0 @@
-- gc_effects: perry computes the runtime provider set from HIR before codegen; codegen checks it instead of collecting it (#12674).

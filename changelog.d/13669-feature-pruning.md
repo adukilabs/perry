@@ -1,1 +1,0 @@
-Avoid retaining the regex engine for provably isolated user-class `search`, `match`, and `matchAll` methods, and avoid retaining process IPC for discarded signal/exit registrations with literal arrow callbacks. Keep conservative support for unknown receivers, escaping process values, ordinary or unknown callbacks, and real IPC.

@@ -1,1 +1,0 @@
-- Fix global `ReadableStreamBYOBReader`, `ByteLengthQueuingStrategy`, and `CountQueuingStrategy` construction after unresolved-identifier validation was tightened.

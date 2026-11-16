@@ -1,1 +1,0 @@
-Fix prototype method mocks from `node:test` being bypassed by direct class-method dispatch. The prototype census now recognizes method replacement calls, including computed property names, so replacement calls are recorded and restoration preserves the original behavior.

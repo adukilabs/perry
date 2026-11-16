@@ -1,1 +1,0 @@
-Fix messaging constructor error policies: MessagePort call/construction now reports `ERR_CONSTRUCT_CALL_INVALID`, MessageChannel calls without `new` report `ERR_CONSTRUCT_CALL_REQUIRED`, and BroadcastChannel calls retain a code-free class-constructor TypeError. Preserve canonical identities and successful construction.

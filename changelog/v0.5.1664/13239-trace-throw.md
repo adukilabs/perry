@@ -1,1 +1,0 @@
-Added `PERRY_TRACE_THROW=1`: prints every thrown value, with the native call chain resolved to JS function names, at `js_throw` time, so errors that are caught and swallowed or rethrown are visible at their origin.

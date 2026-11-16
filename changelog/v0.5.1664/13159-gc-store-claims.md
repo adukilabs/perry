@@ -1,1 +1,0 @@
-Document the custody proof at 83 raw GC store sites: scalar and stack-only destinations, fresh native initialization, existing barrier calls, and collector-maintained weak or derived addresses. Each claim states its local evidence; no inventory baseline or allowlist is raised.

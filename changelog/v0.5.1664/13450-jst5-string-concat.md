@@ -1,1 +1,0 @@
-String concatenation is cheaper: literal-aware concat folds image literals without re-reading headers, operand checks are inlined at the call site, and array push of freshly built strings uses a pointer-only gate. Allocation and GC schedules are unchanged.

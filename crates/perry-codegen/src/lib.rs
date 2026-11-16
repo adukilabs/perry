@@ -110,10 +110,6 @@ pub mod types;
 pub mod unit_cache;
 // DESIGN-p4l4 VR-3a: record bindings as their fields, before lowering.
 mod value_records;
-#[cfg(feature = "target-wasi")]
-pub mod wasi_toolchain;
-#[cfg(feature = "target-wasi")]
-mod wasm32;
 pub mod workers;
 
 /// ONCHANGE3: the driver names a proven method body only when codegen would call it directly.

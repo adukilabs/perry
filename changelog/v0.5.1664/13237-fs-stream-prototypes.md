@@ -1,1 +1,0 @@
-Fixed `Object.getPrototypeOf()` of `fs.ReadStream`, `fs.WriteStream`, `fs.Dir` and `fs.Dirent` instances returning the object itself: they now chain to their module prototype, so `instanceof Readable`/`Stream`/`EventEmitter` hold. A subclass also inherits its parent's static `Symbol.hasInstance`.

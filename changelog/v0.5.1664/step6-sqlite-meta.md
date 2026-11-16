@@ -1,1 +1,0 @@
-Create legacy SQLite column metadata from its static runtime layout. Delete the per-call key vector, packed key producer and shape-based allocation; keep all five values, Object.prototype and native statement ownership.

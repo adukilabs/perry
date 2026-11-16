@@ -1,1 +1,0 @@
-- Fix a false evacuation-verifier abort when a copying minor encounters a retained, non-moving array-growth alias, such as Solid's effect dependency array. Verification still follows the full forwarding chain and rejects nursery evacuation originals; old-page evacuation retains its strict checks.

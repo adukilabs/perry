@@ -1,1 +1,0 @@
-Developer and test builds retain file/line backtraces with line-tables-only debug information instead of full variable/type data. PR lint rejects profile overrides that restore full debug information. Shipping profiles are unchanged.

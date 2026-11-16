@@ -1,1 +1,0 @@
-Borrowed Array mutators now accept ordinary class instances and honor their `length` accessors. Generic array-like length reads use one property lookup with the original receiver, preserving inherited getters and their side effects. Adds regression coverage for push/pop/splice/shift/unshift, bound calls, class overrides, and getter-only lengths.

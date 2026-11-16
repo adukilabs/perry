@@ -1,1 +1,0 @@
-Array `push` onto a field (`this.out.push(x)`) now keeps the pre-append array head in a GC root across the push, and re-reads it at the field write-back compare, instead of holding it in a register across a call that can move it. The gc-root-dominance curated stale-register pin drops from 2 to 0.

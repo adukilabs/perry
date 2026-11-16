@@ -1,1 +1,0 @@
-Bound the non-gating statepoints hazard census to five minutes so it cannot consume the remaining job budget after required root checks succeed. Required checker coverage and failure thresholds are unchanged.

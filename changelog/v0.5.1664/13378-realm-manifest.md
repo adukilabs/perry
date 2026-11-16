@@ -1,1 +1,0 @@
-Add source-owned realm declarations, a shared build-time manifest and HIR builtin reachability with explicit full-realm boundaries. Add a reflective realm dump/comparison tool. This phase records facts and diagnostics without emitting realm data into compiled programs.

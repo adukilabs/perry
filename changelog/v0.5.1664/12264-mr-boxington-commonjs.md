@@ -1,1 +1,0 @@
-Scope the vendored Mr Boxington action bundle to CommonJS so Node 24 loads its `require` calls even though the repository root is an ES module package. This restores cache setup in release and cross-build workflows.

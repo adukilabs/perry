@@ -1,1 +1,0 @@
-The compiler env audit passes again. Five exclusions for variables nothing reads any more are removed. Eleven unregistered reads are listed with a reason: runtime diagnostics, lowering reports, test children and the runtime build script. PERRY_LAYOUT_VARIANTS changes emitted layouts, so it now keys both caches.

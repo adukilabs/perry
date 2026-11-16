@@ -1,1 +1,0 @@
-Array index assignments whose base is a call expression now preserve the call's statically known Array type and use the typed array-store path while evaluating the base exactly once. Strict writes through that path also honor non-writable and accessor descriptors, read-only length, and non-extensible holes.

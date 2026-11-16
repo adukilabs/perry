@@ -1,1 +1,0 @@
-Fix a garbage-collection crash when opening file streams from the previous stream's completion callback. Directly created file streams now register their retained callbacks and objects as GC roots without requiring the `fs` namespace to be materialized.

@@ -1,9 +1,0 @@
-package foo:dependency;
-
-interface types {
-    resource x;
-}
-
-world w {
-    export types;
-}

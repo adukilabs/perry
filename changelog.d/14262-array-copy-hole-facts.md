@@ -1,1 +1,0 @@
-Performance: the whole-program facts carry an array copy's holes from its source. `slice` keeps exactly the receiver's holes, and `toReversed`, `with` and `toSpliced` write every index, reading a hole as `undefined`, so a copy of a hole-free array iterates without `undefined`. An array-like receiver, `concat` and `flat` keep the general birth.

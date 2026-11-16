@@ -37,12 +37,6 @@ perry-update-manifest.workspace = true
 # Codegen backends for non-native targets — optional so a slim dev CLI
 # (--no-default-features --features dev-cli) drops them. full-cli (default)
 # re-enables all via all-codegen-backends, keeping the shipped CLI unchanged.
-perry-codegen-js = { workspace = true, optional = true }
-perry-codegen-swiftui = { workspace = true, optional = true }
-perry-codegen-arkts = { workspace = true, optional = true }
-perry-codegen-glance = { workspace = true, optional = true }
-perry-codegen-wear-tiles = { workspace = true, optional = true }
-perry-codegen-wasm = { workspace = true, optional = true }
 perry-api-manifest = { workspace = true, features = ["serde"] }
 
 clap.workspace = true
@@ -74,7 +68,6 @@ zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
 tempfile.workspace = true
 # Same Preview 1 reactor adapter supplied by wasm-component-ld, embedded for
 # the optional core-optimization/componentization path (no external asset).
-wasi-preview1-component-adapter-provider = { version = "=48.0.0", optional = true }
 libc.workspace = true
 zstd.workspace = true
 semver.workspace = true
@@ -120,7 +113,7 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage
 [features]
 # The default build is the full official CLI — every command and codegen
 # backend. The shipped binary is unchanged from before #5422.
-default = ["full-cli"]
+default = ["dev-cli"]
 # Opt-in reader support for archives outside Perry's release/IPA/HAP contract.
 extended-zip = ["zip/aes-crypto", "zip/bzip2", "zip/deflate64", "zip/deflate-zopfli", "zip/lzma", "zip/ppmd", "zip/time", "zip/zstd", "zip/xz"]
 
@@ -166,27 +159,13 @@ native-cli = []
 # for why this is load-bearing rather than an optimization.
 llvm-inprocess = ["perry-codegen/llvm-inprocess"]
 # Standalone WASI target (#11375). Off by default; see perry-codegen's manifest.
-target-wasi = ["perry-codegen/target-wasi", "dep:wasi-preview1-component-adapter-provider"]
 
 # Codegen backends for non-native targets. Each enables one backend crate;
 # `all-codegen-backends` (in full-cli) turns them all on so the default build is
 # unchanged. A slim CLI without a backend rejects its `--target` with a clear
 # "built without the <feature> feature" error. `backend-js`/`backend-wasm` gate
 # the shared web/wasm path together.
-backend-js = ["dep:perry-codegen-js"]
-backend-swiftui = ["dep:perry-codegen-swiftui"]
-backend-arkts = ["dep:perry-codegen-arkts"]
-backend-glance = ["dep:perry-codegen-glance"]
-backend-wear-tiles = ["dep:perry-codegen-wear-tiles"]
-backend-wasm = ["dep:perry-codegen-wasm"]
-all-codegen-backends = [
-    "backend-js",
-    "backend-swiftui",
-    "backend-arkts",
-    "backend-glance",
-    "backend-wear-tiles",
-    "backend-wasm",
-]
+all-codegen-backends = []
 
 [dev-dependencies]
 tempfile.workspace = true

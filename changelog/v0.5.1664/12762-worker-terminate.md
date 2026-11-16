@@ -1,1 +1,0 @@
-- `worker.terminate()` now stops a worker stuck in any loop, as in Node (#12633).

@@ -1,1 +1,0 @@
-Fixed `req.pipe(dest)` on a server-side `http.IncomingMessage`: it now writes the buffered body to `dest`, ends it unless `{ end: false }`, and returns `dest` (it used to be a silent no-op that left piped pipelines hanging).

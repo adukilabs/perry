@@ -1,1 +1,0 @@
-Completed Node.js 26 child-process parity across validation, stdio, asynchronous lifecycle ordering, synchronous result shapes, fork handling, and advanced IPC serialization for maps, sets, regular expressions, and errors.

@@ -1,1 +1,0 @@
-The GC root checker now follows array-derived values through local stack-slot copies and flags values held across a collection without a destination root. Inline array loads are recognized only through the guarded element-payload access shape, avoiding ordinary fields and numeric loads.

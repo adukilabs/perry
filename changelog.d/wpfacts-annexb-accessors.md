@@ -1,1 +1,0 @@
-Model Object.prototype.__defineGetter__ and __defineSetter__ as accessor installations on known receiver shapes, preserving getter results, setter arguments and receiver bindings without an external escape.

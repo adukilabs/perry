@@ -1,1 +1,0 @@
-A process linking several Perry images (a main program plus precompiled worker programs) now runs every image's feature installer instead of only the last registered one, so features only some images use are no longer dropped.

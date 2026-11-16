@@ -1,1 +1,0 @@
-Reduce `process.env` startup reflection work by reading only the requested live descriptor and retaining unchanged mirrored strings; also fix shared Worker environment membership and delete/reinsert order in enumeration, JSON serialization, and object spread.

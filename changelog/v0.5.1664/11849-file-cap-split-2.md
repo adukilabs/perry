@@ -1,1 +1,0 @@
-Split `collectors/ptr_shape.rs` and `node_stream_readwrite.rs` under the 2000-line file-size cap. Mechanical move into `ptr_shape_this_flow.rs` and `node_stream_readwrite_tables.rs`, with no behaviour change.

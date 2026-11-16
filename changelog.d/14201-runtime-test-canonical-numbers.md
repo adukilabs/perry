@@ -1,1 +1,0 @@
-The debug runtime suite is green again: twelve test fixtures handed INT32-tagged words straight to object setters that require canonical numbers, tripping the one-number-encoding assertion. They now build their values through the canonical number API, keeping their GC, JSON and field-store coverage; no production path stores INT32 words into object fields.

@@ -1,1 +1,0 @@
-- Forward synchronous Brotli dictionary and quality options through native dispatch and compiler bindings, and preserve decoder dictionary diagnostics.

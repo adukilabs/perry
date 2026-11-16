@@ -1,1 +1,0 @@
-Internal migration of the remaining runtime, stdlib and extension object-header reads to the A1 accessors (type predicates, cell meta accessors, slot bases, allocation widths); no user-visible change.

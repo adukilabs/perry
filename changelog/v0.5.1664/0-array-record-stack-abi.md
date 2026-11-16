@@ -1,1 +1,0 @@
-Array for-of records share a rooted stack ABI for protocol and completion operations. Ordinary indexed loops retain their previous inline length guards. Record reads reuse the existing guarded array backend, and native GC home coalescing preserves every word of an aggregate record.

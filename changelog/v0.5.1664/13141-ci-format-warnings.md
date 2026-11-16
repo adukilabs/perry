@@ -1,1 +1,0 @@
-Restore the formatting and rustc warning checks after the array flatten and async-generator changes by applying rustfmt and removing unused imports and an unused helper. No runtime behavior or warning policy changes.

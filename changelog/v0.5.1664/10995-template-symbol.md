@@ -1,1 +1,0 @@
-Fix template literal substitutions of Symbol values to throw a TypeError, including Symbols returned by an object's primitive conversion. Explicit `String(symbol)` and `symbol.toString()` still produce the Symbol description.

@@ -1,4 +1,0 @@
-connected
-phase0 ok: direct small write works
-phase1 ok: map large write works
-OK

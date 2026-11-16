@@ -1,1 +1,0 @@
-Fix `DatabaseSync` statement iterators so they remain exhausted after a `for...of` loop. A later `.next()` on the same iterator now returns `{ done: true, value: null }` instead of restarting from the first row.

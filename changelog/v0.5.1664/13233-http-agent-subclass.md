@@ -1,1 +1,0 @@
-Fixed `class X extends http.Agent` (and `https.Agent`, e.g. agentkeepalive): the subclass keeps its own prototype and fields instead of being replaced by the native handle, and instances get Node's `options` record.

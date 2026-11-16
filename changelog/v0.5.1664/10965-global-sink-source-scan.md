@@ -1,1 +1,0 @@
-- The GC global-sink lint now ignores comments, literals, and block-local bindings while retaining detection of real process-global statics.

@@ -1,1 +1,0 @@
-Computed class member names now retain their exact UTF-16 identity, including lone surrogates, through registration, lookup, reflection, invocation, and instance accessor writes. Symbol-key behavior and the runtime ABI are unchanged.

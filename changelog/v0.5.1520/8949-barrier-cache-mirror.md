@@ -1,1 +1,0 @@
-- **gc:** the write barrier's one-entry dirty-page cache is mirrored in a process global tagged with the writing thread's TSD base, so the owning thread's hit test is one `mrs` and two independent loads instead of the four-load hot-TLS chain (Darwin/aarch64; other targets keep the per-thread cell, which stays the authority).

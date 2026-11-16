@@ -1,1 +1,0 @@
-- Update the NestJS hello release fixture to @nestjs/platform-express 11.2.6 and multer 2.4.0, keeping its resolved dependency tree aligned.

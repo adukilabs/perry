@@ -1,1 +1,0 @@
-Functions and methods that only read `arguments.length` now reuse the already-bundled raw argument array instead of allocating a full Arguments object. Any other observation keeps the existing fail-closed materialization path.

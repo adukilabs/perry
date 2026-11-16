@@ -1,1 +1,0 @@
-Fix `AsyncLocalStorage.disable()` prematurely closing its native payload, preserving the original storage token for pending async contexts while clearing active stores. The existing pending-isolation node-parity regression covers this behavior.

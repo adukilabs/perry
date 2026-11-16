@@ -1,1 +1,0 @@
-Per-unit facts: `new C()` and `new f()` of a class or constructor function from another unit are no longer read as that class's instance when its constructor can return an object (`return expr`); the read stays unproven instead of describing the wrong value.

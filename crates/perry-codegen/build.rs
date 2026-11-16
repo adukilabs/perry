@@ -33,7 +33,6 @@ fn main() {
     }
 
     println!("cargo:rerun-if-env-changed=LLVM_SYS_221_PREFIX");
-    println!("cargo:rerun-if-changed=src/wasm32/target_options.cpp");
     println!("cargo:rerun-if-changed=src/inprocess/unique_sections.cpp");
     let wasi = std::env::var_os("CARGO_FEATURE_TARGET_WASI").is_some();
     let inprocess = std::env::var_os("CARGO_FEATURE_LLVM_INPROCESS").is_some();
@@ -54,9 +53,6 @@ fn main() {
             .include(include)
             .flag_if_supported("-std=c++17")
             .flag_if_supported("/std:c++17");
-        if wasi {
-            build.file("src/wasm32/target_options.cpp");
-        }
         if inprocess {
             build.file("src/inprocess/unique_sections.cpp");
         }

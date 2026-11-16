@@ -1,1 +1,0 @@
-fix(http, http2): live server requests and responses expose their Node.js prototype identities, constructors, and inherited helpers (#13802). Patched methods and custom or null prototypes take precedence over inherited native members while preserving own state.

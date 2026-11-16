@@ -1,1 +1,0 @@
-- Add `buttonSetFontFamily` for macOS buttons, preserving the current font size, weight, and attributed title color. The setter also applies CSS font families on Web.

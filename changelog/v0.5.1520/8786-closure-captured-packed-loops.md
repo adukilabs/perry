@@ -1,1 +1,0 @@
-Optimize immutable closure-captured packed Array and Array-subclass loops, including nested arrays derived from guarded indexed reads, while retaining generic side exits for rebinding, layout changes, and moving GC.

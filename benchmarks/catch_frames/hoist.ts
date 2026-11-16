@@ -1,1 +1,0 @@
-const vals: string[] = []; for (let i = 0; i < 1000000; i++) vals.push((i % 2 ? "record_" : "!bad_") + i); let c = 0; const re = /^[a-z]+_[0-9]+$/; for (let i = 0; i < vals.length; i++) if (re.test(vals[i])) c++; console.log(c);

@@ -1,1 +1,0 @@
-Fixed `socket.end()` on a server connection after the HTTP layer already closed it: the second shutdown (EPIPE on WASI) destroyed the socket with an unhandled `error` and killed the process; `end()` now coalesces with the earlier close, as in Node.

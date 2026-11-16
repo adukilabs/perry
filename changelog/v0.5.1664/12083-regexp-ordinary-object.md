@@ -1,1 +1,0 @@
-RegExp instances now use ordinary shaped object storage, with an intrinsic private matcher data cell and a non-enumerable, non-configurable lastIndex slot. Prototype changes, subclass identity and expandos follow ordinary object operations. Refs #11881.

@@ -1,1 +1,0 @@
-Lazy CommonJS requires of explicitly compiled bare packages now use their compile-time resolved module paths for runtime registry lookup and caching. Deployed binaries no longer depend on the build host's `node_modules` tree for these calls.

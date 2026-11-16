@@ -1,1 +1,0 @@
-A CommonJS module that a `createRequire` require loads first no longer runs its body twice, and `require.cache[path]` holds its record: the program's `require.cache` is `Module._cache` from program start (the CommonJS support module initializes before every other module), so a `createRequire` function made before the first CommonJS load holds the same cache object, as in node.

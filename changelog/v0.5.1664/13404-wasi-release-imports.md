@@ -1,1 +1,0 @@
-Fix WASIp1 release packaging to validate the optional networking archive member against the existing perry_net function/signature allowlist. Default linked programs still reject these imports unless networking is explicitly enabled.

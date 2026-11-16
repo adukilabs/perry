@@ -1614,9 +1614,6 @@ mod unwind {
 /// with no unwind info, a step that does not move outward — abandons the walk
 /// and returns, rather than visiting a slot the collector would then *write*
 /// through.
-#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-#[path = "stack_maps_unwind_windows.rs"]
-mod unwind;
 
 #[cfg(not(any(
     target_vendor = "apple",

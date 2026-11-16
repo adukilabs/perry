@@ -158,16 +158,10 @@ pub mod dgram;
 pub mod dgram_reactor;
 // A WASI guest has no turnloop: its dgram sockets are polled by the pump.
 pub mod async_module;
-#[cfg(target_os = "wasi")]
-#[path = "wasi_net/dgram.rs"]
-pub mod dgram_reactor;
 pub mod disposable;
 pub mod dns;
 pub mod dns_resolver;
 #[cfg(not(windows))]
-pub mod eh;
-#[cfg(windows)]
-#[path = "eh_windows.rs"]
 pub mod eh;
 /// The GCC-format LSDA decoder both personalities share (#7354).
 pub(crate) mod eh_lsda;
@@ -297,9 +291,6 @@ pub mod typedarray_view;
 // their backends are wired per agent.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod turnloop_net;
-#[cfg(target_os = "wasi")]
-#[path = "wasi_net/mod.rs"]
-pub mod turnloop_net;
 // turnloop P2: child processes, their pipes, `process.stdin`, dgram sockets
 // and OS signals on turnloop handles (`turnloop_proc/mod.rs`). Same target
 // gate as P1 — the driver itself is a native-only dependency.
@@ -309,9 +300,6 @@ pub mod turnloop_proc;
 // (`turnloop_pool/mod.rs`). Same target gate as P1 and P2 — the driver itself
 // is a native-only dependency, and the pool it wraps is turnloop's.
 #[cfg(not(target_arch = "wasm32"))]
-pub mod turnloop_pool;
-#[cfg(target_os = "wasi")]
-#[path = "turnloop_pool_wasm.rs"]
 pub mod turnloop_pool;
 // turnloop P10: run a host job on the loop of the agent this thread acts for
 // (`turnloop_post/mod.rs`). Same target gate as P1, P2 and P4. This is what a
@@ -411,16 +399,12 @@ pub mod util_settracesigint;
 pub mod util_style_text;
 pub mod util_syserr;
 pub mod util_usv;
-#[cfg(all(target_os = "watchos", feature = "watchos-game-loop"))]
-pub mod watchos_game_loop;
 pub mod weakref;
 /// Shared Win32 console helpers: GetStdHandle/GetConsoleMode plumbing,
 /// raw-input mode save/restore, window size, and the startup
 /// ENABLE_VIRTUAL_TERMINAL_PROCESSING hook. Used by `tty` (isatty,
 /// columns/rows, setRawMode), `tui::input` (render-loop raw mode) and
 /// `gc::js_gc_init` (VT output at program start).
-#[cfg(windows)]
-pub mod win_console;
 
 pub use array::ArrayHeader;
 pub use bigint::BigIntHeader;

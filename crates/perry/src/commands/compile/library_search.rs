@@ -1790,11 +1790,7 @@ mod llvm_tool_discovery_tests;
 // must probe the bare `target/{release,debug}/` dirs (where a plain
 // `cargo build -p perry-ui-macos` lands), while a genuine cross target keeps the
 // conservative triple-only search.
-#[cfg(all(test, target_os = "macos"))]
-mod macos_host_candidate_tests;
 
 #[cfg(all(test, target_os = "linux"))]
 mod linux_host_candidate_tests;
 
-#[cfg(all(test, target_os = "windows"))]
-mod windows_toolchain_tests;

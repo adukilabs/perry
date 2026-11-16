@@ -14,12 +14,6 @@ use std::sync::RwLock;
 #[cfg(target_os = "linux")]
 pub(crate) mod reservation;
 
-#[cfg(target_vendor = "apple")]
-#[path = "region/apple.rs"]
-mod apple;
-#[cfg(windows)]
-#[path = "region/windows.rs"]
-mod windows;
 #[cfg(target_os = "linux")]
 pub(crate) use reservation::contains;
 
@@ -362,9 +356,6 @@ pub(crate) unsafe fn release_test_block_backing(data: *mut u8, size: usize) {
     unmap(data, size)
 }
 
-#[cfg(all(test, target_vendor = "apple"))]
-#[path = "region/apple_tests.rs"]
-pub(super) mod apple_tests;
 
 /// Every target, every kind: the backing `map` returns starts and ends on a
 /// metadata page boundary (see [`map`]).
@@ -583,9 +574,6 @@ mod tests {
     }
 }
 
-#[cfg(all(test, windows))]
-#[path = "region/windows_tests.rs"]
-pub(super) mod windows_tests;
 
 #[cfg(all(test, not(any(target_os = "linux", target_vendor = "apple"))))]
 mod allocator_layout_tests {

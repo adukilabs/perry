@@ -10,9 +10,6 @@
 #[path = "termios_unix.rs"]
 pub(super) mod termios_impl;
 
-#[cfg(all(windows, not(unix)))]
-#[path = "termios_windows.rs"]
-pub(super) mod termios_impl;
 
 #[cfg(not(any(unix, windows)))]
 pub(super) mod termios_impl {

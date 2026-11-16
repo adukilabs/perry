@@ -26,9 +26,6 @@
 
 #[cfg(unix)]
 mod native;
-#[cfg(windows)]
-#[path = "windows.rs"]
-mod native;
 #[cfg(any(unix, windows))]
 pub(crate) mod reactor;
 #[cfg(all(test, any(unix, windows)))]

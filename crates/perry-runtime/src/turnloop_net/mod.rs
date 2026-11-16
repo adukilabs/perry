@@ -67,8 +67,6 @@ mod defer_eof;
 pub(crate) mod errors;
 mod sink;
 pub mod transport;
-#[cfg(windows)]
-mod windows_pipe;
 mod write_queue;
 
 #[cfg(test)]

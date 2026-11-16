@@ -25,5 +25,3 @@ extern crate perry_http_server;
 extern crate perry_runtime;
 #[cfg(all(target_os = "wasi", feature = "wasi-node-modules"))]
 extern crate perry_stdlib;
-#[cfg(target_os = "wasi")]
-mod wasi_ffi;

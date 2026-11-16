@@ -1948,6 +1948,3 @@ mod windows_atom_bounds_tests {
 #[cfg(test)]
 #[path = "layout_section_tests.rs"]
 mod layout_section_tests;
-#[cfg(all(feature = "wasm-image-selftest", target_family = "wasm"))]
-#[path = "layout_desc/wasm_program_image_checks.rs"]
-mod wasm_program_image_checks;

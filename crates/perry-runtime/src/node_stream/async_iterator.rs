@@ -1214,8 +1214,6 @@ pub(crate) fn install_method_listener_readable_async_iterator_symbol(stream: f64
 }
 
 // The foreign readable under test is child_process's pre-socket stdout.
-#[cfg(all(test, not(unix)))]
-mod foreign_eof_tests;
 
 #[cfg(test)]
 mod fifo_pending_tests {

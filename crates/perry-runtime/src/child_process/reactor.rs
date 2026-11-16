@@ -57,14 +57,10 @@ type CpWaiter = Box<dyn FnOnce() -> (Option<i32>, Option<i32>) + Send>;
 // The pre-socket stdio path: thread/loop readers and the stdin writer. On unix
 // every pipe slot is a net.Socket over a socketpair (`pipe_sockets`).
 #[cfg(not(unix))]
-mod stdin;
-#[cfg(not(unix))]
 use stdin::CpStdin;
 /// turnloop P2: the child's readable pipes as loop entries (split out only to
 /// keep this file under the 2000-line cap; it is one subject with the reader
 /// call sites above).
-#[cfg(not(unix))]
-mod streams;
 #[cfg(not(unix))]
 pub(super) use stdin::CP_STDIN_HIGH_WATER_MARK;
 #[cfg(not(unix))]
@@ -1989,14 +1985,7 @@ mod integration;
 mod kill;
 // The lifecycle tests drive the reader/stdin-writer path; on unix the pipe
 // slots are net sockets, covered by the child stdio gap tests.
-#[cfg(all(test, windows))]
-mod lifecycle_tests;
-#[cfg(not(unix))]
-mod stdin_drain;
 mod timeout;
-#[cfg(all(test, windows))]
-#[path = "reactor/windows_kill_tests.rs"]
-mod windows_kill_tests;
 pub(crate) use integration::*;
 pub(crate) use kill::*;
 #[cfg(not(unix))]

@@ -36,6 +36,13 @@ Other branch names in this repository came with the fork and are upstream's.
 
 The fourth fault is not in release `v0.5.1665`. It arrived on upstream `main` afterwards.
 
+**One more difference in behaviour.** A native library package declares its files per system
+in `perry.nativeLibrary.targets`. Upstream reads the `macos` section for the target names
+`linux-x86_64`, `linux-arm64` and `linux-aarch64`, because its lookup falls through to
+`macos` for any name it does not list (read from the source, not run). This fork reads the
+`linux` section for every target it accepts, and the per-architecture key (`linux-x64`,
+`linux-arm64`) follows the target name. Checked by unit tests only.
+
 **LLVM 23 in place of LLVM 22.** LLVM 23 split the branch instruction code in two, which five
 comparisons in the code generator now follow. It also removed the `Os` and `Oz` pass pipelines.
 Both size levels now run the `O2` pipeline and rely on the `optsize` and `minsize` attributes
@@ -52,24 +59,47 @@ Perry already puts on app code.
 - Inside the kept files, the items, fields, match arms and statements under a `cfg` condition
   that cannot hold on x86-64 Linux, and the `if cfg!(...)` branches decided there. Six files
   that do not parse on their own were left as they are.
+- Every `--target` other than Linux. `compile`, `check`, `lock`, `run` and `target add` refuse
+  any other name with "this fork of perry compiles for Linux only" before anything is written.
+  The accepted names are `linux`, `linux-x86_64`, `linux-arm64`, `linux-aarch64`, `linux-musl`,
+  `linux-x86_64-musl` and `linux-aarch64-musl`.
+- In the compiler package, the code that only those other targets reached: the link steps for
+  Android, Apple systems, Windows and HarmonyOS, the macOS app bundle, the Windows and Android
+  target tables, and what was left unused once they were gone. That package went from 332
+  Rust files and 144,336 lines to 294 files and 123,008 lines. Upstream has 344 and 151,895.
 - Benchmarks, changelogs, CI workflows, packaging, vendored CI actions, and translated docs.
-- The compiler's default command set is the slim one (`compile`, `run`, `check`, `types`,
-  `cache`, `dev`). The publish, mobile and updater commands are still in the source and are
-  built only with `--features full-cli`.
+- The publish and mobile commands are not offered. The built compiler offers `compile`,
+  `check`, `init`, `install`, `doctor`, `explain`, `update`, `run`, `dev`, `i18n`, `login`,
+  `types`, `cache`, `target` and `lock` (read from its `--help`). About 1,900 lines of the
+  publish code remain, because `login`, `update` and the remote build of `run` use its
+  configuration file and its upload code.
 
 | | Upstream `main` | This fork's `main` |
 |---|---|---|
-| Tracked files | 44,326 | 18,109 |
+| Tracked files | 44,326 | 18,064 |
 | Locked packages | 973 | 656 |
-| Size without `.git` | about 1.4 GB | 177 MB |
+| Size without `.git` | about 1.4 GB | 176 MB |
 
 **Not removed yet.**
 
-- 172 `cfg` attributes in 82 files that still name another system, against 2,960 in 429
+- 160 `cfg` attributes in 78 files that still name another system, against 2,892 in 406
   upstream, by a text search. They sit inside macro definitions, in the six files that do
   not parse on their own, or are one part of a wider condition.
-- The compiler's own link and run steps for Android, Apple systems, Windows and HarmonyOS.
-  Those are chosen at run time by `--target`, so they are ordinary code in a Linux build.
+- The removal of other targets was done in the compiler package only. The runtime, the code
+  generator and the other packages were not gone over for code that only another target
+  reaches.
+- In the compiler package, 1,161 lines in 110 files still contain the name of another system
+  or of its tools, by a word search (4,278 lines in 155 files before). Sorted by a script:
+  540 are comment lines, 152 are in test files, and 468 are code or message text. Of those
+  468, read from a random sample of 40: options that are still accepted and have no effect
+  (`--min-windows-version` and `--windows-subsystem` are checked and stored and nothing reads
+  what is stored, the HarmonyOS signing options are not read at all), the import of `.wasm`
+  files as assets, and 8 places in 3 files that branch on the text of a target triple
+  (`contains("windows")`, `contains("apple-")`, `starts_with("wasm32")`). Every triple comes
+  from a Linux target name or is the one this compiler was built for, so those branches are
+  not taken (read from the callers). The tool that removed the rest does not see them.
+- The `update` and `login` commands and the remote build of `run` talk to Perry's own
+  servers. They are built and were not tried.
 - `tests/parity`, 9,070 of upstream's 9,151 files of behaviour tests.
 
 ## Building
@@ -114,20 +144,30 @@ target/debug/perry compile app.ts --output-type staticlib -o libapp.a # a librar
 Checked on `main`, with a debug build on Debian with LLVM 23.1.6:
 
 - It builds with no errors.
-- Unit tests. The compiler's were run at `34d30b43` and the others at `1405f4b8`. Where a
-  suite failed it was also run on unmodified upstream `main` at 7270b624, with LLVM 22, and
-  the failures compared by name.
+- Unit tests. The compiler's were run at `7afc456e`, the code generator's at `ea75af9f` and
+  the others at `1405f4b8`. No file of a package changed between its run and `7afc456e`.
+  Where a suite failed it was also run on unmodified upstream `main` at 7270b624, with
+  LLVM 22, and the failures compared by name.
 
   | Package | This fork | Upstream `main` |
   |---|---|---|
   | `perry-runtime` | 6,870 passed, 0 failed | not run |
   | `perry-codegen` | 2,975 passed, 6 failed | 2,974 passed, the same 6 failed |
-  | `perry` (the compiler) | 1,573 passed, 0 failed | 1,627 passed, 0 failed |
+  | `perry` (the compiler) | 1,437 passed, 0 failed | 1,627 passed, 0 failed |
   | `perry-hir`, `perry-transform`, `perry-parser`, `perry-gc-effects` | 893, 395, 50 and 43 passed, 0 failed | not run |
 
-  The compiler has 54 fewer tests than upstream: the tests of the Android run code and of
-  other removed parts went with them. Two guards on how much a scan saw were set to this
-  fork's counts (20 packages, 41 manifests).
+  The compiler has 190 fewer tests than upstream. Tests of removed code went with it, and 15
+  tests that asserted only how another system is handled were cut. 25 tests that reached
+  kept code through a macOS, iOS, Windows or WebAssembly fixture were rewritten on Linux
+  targets and ELF fixtures. Two guards on how much a scan saw were set to this fork's counts
+  (20 packages, 41 manifests).
+- The gate on `--target`, with the built compiler: no target, `linux` and `linux-x86_64`
+  each compile a program that runs and prints the expected line. 15 other names, among them
+  `macos`, `ios`, `windows`, `android`, `wasi` and one misspelt Linux name, are each refused
+  with exit status 1 and write no output. `check`, `lock` and four `target add` requests for
+  another system are refused the same way. 24 of 24 cases.
+- `--output-type dylib` writes an ELF shared object, and `perry run` compiles and runs a
+  program. One run each.
 - A static library linked plainly behaves the same as one linked with every member forced in,
   for six runtime features, and all twelve runs exit 0.
 - `worker.terminate()` stops a looping worker in executable and static library output, in 15
@@ -135,7 +175,7 @@ Checked on `main`, with a debug build on Debian with LLVM 23.1.6:
   runs had no sidecar and did not. That fix was checked on `platform-fixes` with an optimized
   build on LLVM 22, where the static library case went from an abort in 3 of 3 runs to
   stopping in 6 of 6.
-- The two checks above were last run at `34d30b43`, with a sidecar beside the debug archives.
+- The two checks above were last run at `7afc456e`, with a sidecar beside the debug archives.
 
 Not checked:
 
@@ -144,7 +184,8 @@ Not checked:
 - An optimized build on LLVM 23, and code size or speed against LLVM 22.
 - The fix for the exception object's alignment has been read from the built archive (the
   object's section asks for 16) but the fault itself has not been re-run against it.
-- Any target other than x86-64 Linux.
+- Any target other than x86-64 Linux with glibc. `linux-arm64`, `linux-aarch64` and the three
+  musl names are accepted and were not compiled: this machine has no cross or musl toolchain.
 
 ## Keeping up with upstream
 

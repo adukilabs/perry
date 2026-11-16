@@ -132,9 +132,8 @@ fn for_each_native_library_package(
 /// Map a Perry target string into the per-arch lockfile key used in
 /// `perry.lock`'s `sha256_per_target` map. Distinct from the
 /// resolver-internal target_key because the lockfile is the
-/// reviewer-facing supply-chain artifact: "macos" alone is
-/// ambiguous between arm64 and x86_64, so we always include arch
-/// for multi-arch targets.
+/// reviewer-facing supply-chain artifact: "linux" alone is
+/// ambiguous between arm64 and x86_64, so the arch is always included.
 fn derive_target_key(target: Option<&str>) -> String {
     let arch = match std::env::consts::ARCH {
         "aarch64" | "arm64" => "arm64",
@@ -233,22 +232,15 @@ mod lock_integration_tests {
     use super::*;
 
     #[test]
-    fn derive_target_key_includes_arch_for_multi_arch_targets() {
-        assert!(derive_target_key(Some("macos")).starts_with("macos-"));
+    fn derive_target_key_includes_arch() {
         assert!(derive_target_key(Some("linux")).starts_with("linux-"));
-        assert!(derive_target_key(Some("windows")).starts_with("windows-"));
-        assert_eq!(derive_target_key(Some("windows-aarch64")), "windows-arm64");
+        // musl keeps the linux-<arch> lock key (#4826).
+        assert_eq!(
+            derive_target_key(Some("linux-musl")),
+            derive_target_key(Some("linux"))
+        );
     }
 
-    #[test]
-    fn derive_target_key_for_single_arch_mobile_targets() {
-        assert_eq!(derive_target_key(Some("ios")), "ios");
-        assert_eq!(derive_target_key(Some("ios-simulator")), "ios-simulator");
-        assert_eq!(derive_target_key(Some("tvos")), "tvos");
-        assert_eq!(derive_target_key(Some("watchos")), "watchos");
-        assert_eq!(derive_target_key(Some("android")), "android");
-        assert_eq!(derive_target_key(Some("android-x86_64")), "android");
-    }
 
     #[test]
     fn derive_target_key_native_falls_back_to_host_os_and_arch() {
@@ -264,7 +256,7 @@ mod lock_integration_tests {
     fn collect_archives_no_node_modules() {
         let dir = tempfile::tempdir().unwrap();
         let archives =
-            collect_native_archives_for_lock(dir.path(), None, Some("macos"), OutputFormat::Json)
+            collect_native_archives_for_lock(dir.path(), None, Some("linux"), OutputFormat::Json)
                 .expect("succeeds with no deps");
         assert!(archives.is_empty());
     }
@@ -285,7 +277,7 @@ mod lock_integration_tests {
                 "nativeLibrary": {
                     "functions": [],
                     "targets": {
-                        "macos": { "lib": "engine", "prebuilt": "./libengine.a" }
+                        "linux": { "lib": "engine", "prebuilt": "./libengine.a" }
                     }
                 }
             }
@@ -297,13 +289,11 @@ mod lock_integration_tests {
         .unwrap();
 
         let archives =
-            collect_native_archives_for_lock(project, None, Some("macos"), OutputFormat::Json)
+            collect_native_archives_for_lock(project, None, Some("linux"), OutputFormat::Json)
                 .expect("scan");
         assert_eq!(archives.len(), 1);
         assert_eq!(archives[0].package, "@bloom/engine");
-        // Derived from host arch so the test passes on both arm64 Mac dev
-        // boxes and x86_64 Linux CI runners.
-        assert_eq!(archives[0].target_key, derive_target_key(Some("macos")));
+        assert_eq!(archives[0].target_key, derive_target_key(Some("linux")));
         assert_eq!(archives[0].path, archive_path);
     }
 

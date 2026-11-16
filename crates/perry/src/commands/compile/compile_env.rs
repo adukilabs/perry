@@ -340,11 +340,7 @@ pub(super) const COMPILE_ENV_VARS: &[&str] = &[
     "PERRY_VERIFY_FACTS_LIFE_EVERY",
     "PERRY_VERIFY_NATIVE_REGIONS",
     "PERRY_VISIONOS_SYSROOT",
-    "PERRY_WASM_DISCARD",
-    "PERRY_WASM_NET",
     "PERRY_WASM_STATIC_RELOC",
-    "PERRY_WATCHOS_ARM64_32",
-    "PERRY_WATCHOS_MIN",
     "PERRY_WINDOWS_SYSROOT",
     "PERRY_WORKSPACE_ROOT",
     "PERRY_WPF_NO_THIS_HOST",
@@ -412,34 +408,6 @@ const COMPILE_ENV_EXCLUSIONS: &[(&str, &str)] = &[
     (
         "PERRY_5951_TRACE",
         "Prints lowering diagnostics; no emitted instructions depend on the report.",
-    ),
-    (
-        "PERRY_ANDROID_KEYSTORE",
-        "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
-    ),
-    (
-        "PERRY_ANDROID_KEYSTORE_PASSWORD",
-        "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
-    ),
-    (
-        "PERRY_ANDROID_KEY_PASSWORD",
-        "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
-    ),
-    (
-        "PERRY_APPLE_CERTIFICATE",
-        "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
-    ),
-    (
-        "PERRY_APPLE_CERTIFICATE_PASSWORD",
-        "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
-    ),
-    (
-        "PERRY_APPLE_INSTALLER_CERTIFICATE_PASSWORD",
-        "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
-    ),
-    (
-        "PERRY_APPLE_NOTARIZE_CERTIFICATE_PASSWORD",
-        "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
     ),
     (
         "PERRY_BUILD_CACHE_FEATURE_TEST_CHILD",
@@ -534,26 +502,6 @@ const COMPILE_ENV_EXCLUSIONS: &[(&str, &str)] = &[
         "Controls cache storage or reuse policy; identical compile inputs emit identical bytes.",
     ),
     (
-        "PERRY_DT_PLATFORM_BUILD",
-        "Changes Apple bundle metadata only; build-cache eligibility rejects bundled outputs.",
-    ),
-    (
-        "PERRY_DT_PLATFORM_VERSION",
-        "Changes Apple bundle metadata only; build-cache eligibility rejects bundled outputs.",
-    ),
-    (
-        "PERRY_DT_SDK_BUILD",
-        "Changes Apple bundle metadata only; build-cache eligibility rejects bundled outputs.",
-    ),
-    (
-        "PERRY_DT_XCODE",
-        "Changes Apple bundle metadata only; build-cache eligibility rejects bundled outputs.",
-    ),
-    (
-        "PERRY_DT_XCODE_BUILD",
-        "Changes Apple bundle metadata only; build-cache eligibility rejects bundled outputs.",
-    ),
-    (
         "PERRY_DXC",
         "Selects resource shader compiler only; resource side effects disable the build cache.",
     ),
@@ -610,10 +558,6 @@ const COMPILE_ENV_EXCLUSIONS: &[(&str, &str)] = &[
         "Diagnostics/analysis-only output of the program-facts pass; emitted code does not depend on it.",
     ),
     (
-        "PERRY_FAKE_XCRUN_LOG",
-        "Test-only fake xcrun logging in target discovery tests.",
-    ),
-    (
         "PERRY_FETCH_DIAG",
         "Prints lowering diagnostics; no emitted instructions depend on the report.",
     ),
@@ -642,42 +586,6 @@ const COMPILE_ENV_EXCLUSIONS: &[(&str, &str)] = &[
         "Selects resource shader compiler only; resource side effects disable the build cache.",
     ),
     (
-        "PERRY_HARMONYOS_BUNDLE_NAME",
-        "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
-    ),
-    (
-        "PERRY_HARMONYOS_CERT",
-        "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
-    ),
-    (
-        "PERRY_HARMONYOS_HAPSIGN",
-        "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
-    ),
-    (
-        "PERRY_HARMONYOS_KEY_ALIAS",
-        "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
-    ),
-    (
-        "PERRY_HARMONYOS_KEY_PASSWORD",
-        "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
-    ),
-    (
-        "PERRY_HARMONYOS_P12",
-        "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
-    ),
-    (
-        "PERRY_HARMONYOS_P12_PASSWORD",
-        "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
-    ),
-    (
-        "PERRY_HARMONYOS_PROFILE",
-        "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
-    ),
-    (
-        "PERRY_HARMONYOS_SIGN_ALG",
-        "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
-    ),
-    (
         "PERRY_INLINE_DEBUG",
         "Prints lowering diagnostics; no emitted instructions depend on the report.",
     ),
@@ -688,10 +596,6 @@ const COMPILE_ENV_EXCLUSIONS: &[(&str, &str)] = &[
     (
         "PERRY_LIB_CACHE_DIR",
         "Controls cache storage or reuse policy; identical compile inputs emit identical bytes.",
-    ),
-    (
-        "PERRY_LICENSE_KEY",
-        "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
     ),
     (
         "PERRY_LINK_MAP",
@@ -879,14 +783,6 @@ const COMPILE_ENV_EXCLUSIONS: &[(&str, &str)] = &[
     ),
     (
         "PERRY_TEST_BUN_CONDITIONS_CHILD",
-        "Test-only fixture/child-process control; absent from compiler production paths.",
-    ),
-    (
-        "PERRY_TEST_LOCAL_RUNTIME_EXPECTED",
-        "Test-only fixture/child-process control; absent from compiler production paths.",
-    ),
-    (
-        "PERRY_TEST_LOCAL_RUNTIME_TARGET",
         "Test-only fixture/child-process control; absent from compiler production paths.",
     ),
     (

@@ -166,32 +166,7 @@ mod app_metadata_tests {
         src.parse::<toml::Table>().unwrap()
     }
 
-    #[test]
-    fn android_x86_64_uses_android_metadata_and_rust_target() {
-        assert_eq!(
-            target_bundle_section(Some("android-x86_64")),
-            Some("android")
-        );
-        assert_eq!(
-            rust_target_triple(Some("android-x86_64")),
-            Some("x86_64-linux-android")
-        );
-    }
 
-    #[test]
-    fn windows_aarch64_uses_windows_metadata_and_rust_target() {
-        for target in ["windows-aarch64", "windows-arm64"] {
-            assert_eq!(target_bundle_section(Some(target)), Some("windows"));
-            assert_eq!(
-                rust_target_triple(Some(target)),
-                Some("aarch64-pc-windows-msvc")
-            );
-        }
-        assert_eq!(
-            rust_target_triple(Some("windows-x86_64")),
-            Some("x86_64-pc-windows-msvc")
-        );
-    }
 
     #[test]
     fn reads_project_metadata_and_target_bundle_id() {
@@ -203,19 +178,23 @@ version = "2.4.6"
 build_number = 42
 bundle_id = "com.example.project"
 
-[ios]
-bundle_id = "com.example.ios"
+[linux]
+bundle_id = "com.example.linux"
 "#,
         );
         let input = dir.path().join("src").join("main.ts");
         std::fs::create_dir_all(input.parent().unwrap()).unwrap();
         std::fs::write(&input, "console.log('x')").unwrap();
 
-        let metadata = read_app_metadata(Some(&doc), &input, Some("ios-simulator"), None);
+        // Every Linux target name reads the `[linux]` section.
+        for target in [None, Some("linux"), Some("linux-musl"), Some("linux-aarch64-musl")] {
+            let metadata = read_app_metadata(Some(&doc), &input, target, None);
+            assert_eq!(metadata.bundle_id, "com.example.linux", "{target:?}");
+        }
+        let metadata = read_app_metadata(Some(&doc), &input, Some("linux"), None);
 
         assert_eq!(metadata.version, "2.4.6");
         assert_eq!(metadata.build_number, 42);
-        assert_eq!(metadata.bundle_id, "com.example.ios");
     }
 
     #[test]
@@ -232,7 +211,8 @@ bundle_id = "com.example.project"
         let input = dir.path().join("main.ts");
         std::fs::write(&input, "console.log('x')").unwrap();
 
-        let metadata = read_app_metadata(Some(&doc), &input, Some("ios"), Some("com.example.cli"));
+        let metadata =
+            read_app_metadata(Some(&doc), &input, Some("linux"), Some("com.example.cli"));
 
         assert_eq!(metadata.version, "1.0.0");
         assert_eq!(metadata.build_number, 7);
@@ -240,14 +220,13 @@ bundle_id = "com.example.project"
     }
 
     #[test]
-    fn reads_ios_app_group_from_target_section() {
-        // #1178 — `[ios] app_group` is the canonical place to declare the
-        // App Group suite name; it should win over the generic `[app]`
-        // fallback for an iOS target.
+    fn reads_app_group_from_target_section() {
+        // #1178 — the target's own section wins over the generic `[app]`
+        // fallback.
         let dir = tempfile::tempdir().unwrap();
         let doc = parse(
             r#"
-[ios]
+[linux]
 app_group = "group.com.example.shared"
 
 [app]
@@ -257,15 +236,19 @@ app_group = "group.com.example.fallback"
         let input = dir.path().join("main.ts");
         std::fs::write(&input, "console.log('x')").unwrap();
 
-        let ios = read_app_metadata(Some(&doc), &input, Some("ios"), None);
-        assert_eq!(ios.app_group.as_deref(), Some("group.com.example.shared"));
-
-        // No-target build (host = macOS in CI) should still pick the
-        // `[macos]` or fall back to `[app]` when the target section is
-        // absent — here only `[app]` provides a value for the implicit
-        // host target.
+        let linux = read_app_metadata(Some(&doc), &input, Some("linux"), None);
+        assert_eq!(linux.app_group.as_deref(), Some("group.com.example.shared"));
+        // No target is the host, which is Linux.
         let host = read_app_metadata(Some(&doc), &input, None, None);
-        // macOS host: `[macos]` is absent, so `[app]` wins.
+        assert_eq!(host.app_group.as_deref(), Some("group.com.example.shared"));
+
+        // With no `[linux]` section, `[app]` provides the value.
+        let only_app = parse("[app]\napp_group = \"group.com.example.fallback\"\n");
+        let fallback = read_app_metadata(Some(&only_app), &input, Some("linux"), None);
+        assert_eq!(
+            fallback.app_group.as_deref(),
+            Some("group.com.example.fallback")
+        );
     }
 
     #[test]
@@ -276,7 +259,7 @@ app_group = "group.com.example.fallback"
         let dir = tempfile::tempdir().unwrap();
         let input = dir.path().join("main.ts");
         std::fs::write(&input, "console.log('x')").unwrap();
-        let metadata = read_app_metadata(None, &input, Some("ios"), None);
+        let metadata = read_app_metadata(None, &input, Some("linux"), None);
         assert!(metadata.app_group.is_none());
     }
 
@@ -302,28 +285,6 @@ app_group = "group.com.example.fallback"
         assert_eq!(metadata.bundle_id, "com.example.pkg");
     }
 
-    #[test]
-    fn macos_version_uses_package_json_when_project_version_is_missing() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("package.json"), r#"{"version":"2.3.4"}"#).unwrap();
-        let input = dir.path().join("main.ts");
-        std::fs::write(&input, "console.log('x')").unwrap();
-
-        let project_without_version = "[project]\nname = 'Example'"
-            .parse::<toml::Table>()
-            .unwrap();
-        let macos = read_app_metadata(Some(&project_without_version), &input, Some("macos"), None);
-        assert_eq!(macos.version, "2.3.4");
-
-        let project_with_version = "[project]\nversion = '3.0.0'"
-            .parse::<toml::Table>()
-            .unwrap();
-        let macos = read_app_metadata(Some(&project_with_version), &input, Some("macos"), None);
-        assert_eq!(macos.version, "3.0.0");
-
-        let ios = read_app_metadata(None, &input, Some("ios"), None);
-        assert_eq!(ios.version, "1.0.0");
-    }
 
     #[test]
     fn musl_targets_resolve_consistently() {

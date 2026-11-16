@@ -624,60 +624,38 @@ mod response_file_tests {
     }
 
     #[test]
-    fn plain_paths_are_unquoted_in_both_dialects() {
+    fn plain_paths_are_unquoted() {
         assert_eq!(quote_response_arg("/tmp/a_ts.o"), "/tmp/a_ts.o");
-        assert_eq!(
-            quote_response_arg(r"C:\build\d0449_ts.o"),
-            r"C:\build\d0449_ts.o"
-        );
-        // /OPT:REF etc. — no whitespace, untouched.
-        assert_eq!(quote_response_arg("/OPT:REF"), "/OPT:REF");
+        // No whitespace, no quote, no backslash: untouched.
+        assert_eq!(quote_response_arg("-Wl,--gc-sections"), "-Wl,--gc-sections");
     }
 
-    /// #5740 / #6333 — the regression this PR fixes. A Windows object path has
-    /// no spaces, so it used to take the "no quoting needed" early return
-    /// verbatim; the GNU tokenizer in clang/gcc/ld then consumed each `\` as an
-    /// escape and the path collapsed to `C:Usersme...`. Every separator must
-    /// come out the other side, so each one is doubled.
+    /// #5740 / #6333 upstream. The GNU tokenizer in clang, gcc and ld takes a
+    /// `\` as an escape outside quotes too, so one in an argument without
+    /// spaces must be doubled to come out the other side. On Linux a backslash
+    /// is a legal character of a file name.
     #[test]
-    fn gnu_escapes_backslashes_in_unquoted_windows_paths() {
+    fn backslashes_in_unquoted_arguments_are_escaped() {
         assert_eq!(
-            quote_response_arg(r"C:\Users\me\AppData\Local\Temp\app_ts.o"),
-            r"C:\\Users\\me\\AppData\\Local\\Temp\\app_ts.o"
+            quote_response_arg(r"/tmp/we\ird/app_ts.o"),
+            r"/tmp/we\\ird/app_ts.o"
         );
-        // Same for flags that embed a path (`-Wl,-rpath,C:\lib`).
+        // Same for flags that embed a path.
         assert_eq!(
-            quote_response_arg(r"-Wl,--out-implib,C:\build\app.lib"),
-            r"-Wl,--out-implib,C:\\build\\app.lib"
+            quote_response_arg(r"-Wl,-rpath,/opt/we\ird"),
+            r"-Wl,-rpath,/opt/we\\ird"
         );
-        // MSVC keeps backslashes literal — link.exe/lld-link do not escape.
-        assert_eq!(
-            quote_response_arg(r"C:\Users\me\app_ts.o"),
-            r"C:\Users\me\app_ts.o"
-        );
-        // Unix paths have no backslash to escape: byte-identical passthrough.
+        // No backslash to escape: byte-identical passthrough.
         assert_eq!(
             quote_response_arg("/tmp/perry/app_ts.o"),
             "/tmp/perry/app_ts.o"
         );
     }
 
-    /// The `@<file>` arg rides the command line, not the response file. On a
-    /// Windows host with a non-MSVC driver it is normalized to `/` separators
-    /// (clang/gcc accept them, and it survives any `cmd.exe` wrapper); on POSIX
-    /// a backslash is a legal filename character and must survive untouched.
+    /// The `@<file>` arg rides the command line, not the response file, so it
+    /// is never rewritten: a backslash in it is part of the file name.
     #[test]
-    fn response_file_arg_normalizes_only_on_windows_host_gnu_driver() {
-        assert_eq!(
-            response_file_arg(r"C:\Temp\perry-link-1.rsp"),
-            "@C:/Temp/perry-link-1.rsp"
-        );
-        // MSVC driver on Windows: backslashes are the native separator.
-        assert_eq!(
-            response_file_arg(r"C:\Temp\perry-link-1.rsp"),
-            r"@C:\Temp\perry-link-1.rsp"
-        );
-        // POSIX host: never rewrite (a `\` here is part of the filename).
+    fn response_file_arg_is_the_path_as_given() {
         assert_eq!(
             response_file_arg(r"/tmp/we\ird/perry-link-1.rsp"),
             r"@/tmp/we\ird/perry-link-1.rsp"
@@ -688,14 +666,6 @@ mod response_file_tests {
         );
     }
 
-    #[test]
-    fn msvc_quotes_spaces_keeps_backslashes_literal() {
-        // Windows path with a space: quoted, backslashes NOT escaped.
-        assert_eq!(
-            quote_response_arg(r"C:\Program Files\x.lib"),
-            "\"C:\\Program Files\\x.lib\""
-        );
-    }
 
     #[test]
     fn gnu_quotes_and_escapes_backslashes() {

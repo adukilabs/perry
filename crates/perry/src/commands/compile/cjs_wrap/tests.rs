@@ -525,41 +525,6 @@ fn identifier_is_reassigned_distinguishes_declaration_from_write() {
     ));
 }
 
-#[test]
-fn wrap_prunes_dead_process_platform_require_for_windows_target() {
-    let src = r#"
-var terminalCtor;
-if (process.platform === 'win32') {
-    terminalCtor = require('./windowsTerminal').WindowsTerminal;
-}
-else {
-    terminalCtor = require('./unixTerminal').UnixTerminal;
-}
-exports.spawn = function spawn() { return terminalCtor; };
-"#;
-    let wrapped = wrap_commonjs_for_target(
-        src,
-        &PathBuf::from("/tmp/node_modules/node-pty/lib/index.js"),
-        Some("windows"),
-        false,
-        None,
-    );
-    assert!(
-        wrapped.contains("import _lazyreq_0 from './windowsTerminal';"),
-        "expected live Windows require to remain collected and initialize in its branch, got:\n{}",
-        wrapped
-    );
-    assert!(
-        !wrapped.contains("from './unixTerminal'"),
-        "dead Unix require must not become an eager ESM import on Windows, got:\n{}",
-        wrapped
-    );
-    assert!(
-        !wrapped.contains("if (specifier === './unixTerminal')"),
-        "dead Unix require must not be dispatchable on Windows, got:\n{}",
-        wrapped
-    );
-}
 
 #[test]
 fn wrap_prunes_dead_process_platform_require_for_linux_target() {

@@ -15,6 +15,19 @@ use std::path::{Path, PathBuf};
 
 const LIB: &str = "libperry_runtime.a";
 
+/// A Linux target that is not this binary's own, and its triple: a runtime for
+/// it never ships with the binary, so it comes from a target package.
+const CROSS: &str = if cfg!(all(target_arch = "aarch64", target_env = "musl")) {
+    "linux-musl"
+} else {
+    "linux-aarch64-musl"
+};
+const CROSS_TRIPLE: &str = if cfg!(all(target_arch = "aarch64", target_env = "musl")) {
+    "x86_64-unknown-linux-musl"
+} else {
+    "aarch64-unknown-linux-musl"
+};
+
 fn tree() -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
@@ -70,23 +83,24 @@ fn package_roots_follow_the_install_layouts_npm_before_perry_home() {
     let home = root.join("home");
     let version = env!("CARGO_PKG_VERSION");
     let npm = package(
-        &npm_dir(&modules, "wasm32-wasip1"),
-        "wasm32-wasip1",
+        &npm_dir(&modules, CROSS_TRIPLE),
+        CROSS_TRIPLE,
         version,
     );
     let mine = package(
-        &perry_home_root(&home, PackageKind::Target, version, "wasm32-wasip1"),
-        "wasm32-wasip1",
+        &perry_home_root(&home, PackageKind::Target, version, CROSS_TRIPLE),
+        CROSS_TRIPLE,
         version,
     );
 
-    let candidates = collect_library_candidates_from(LIB, Some("wasip1"), Some(&exe), Some(&home));
+    let candidates = collect_library_candidates_from(LIB, Some(CROSS), Some(&exe), Some(&home));
     let pos = |p: &Path| candidates.iter().position(|c| c == p);
-    // The Windows-zip layout `<bin>/<triple>/release` is an install layout.
+    // The layout `<bin>/<triple>/release` is an install layout.
     let zip = exe
         .parent()
         .unwrap()
-        .join("wasm32-wasip1/release")
+        .join(CROSS_TRIPLE)
+        .join("release")
         .join(LIB);
     let (zip, npm, mine) = (
         pos(&zip).expect("zip layout probed"),
@@ -107,11 +121,11 @@ fn a_root_for_another_version_adds_no_candidate() {
     let modules = root.join("prefix/lib/node_modules");
     let exe = exe_in(&modules);
     let stale = package(
-        &npm_dir(&modules, "wasm32-wasip2"),
-        "wasm32-wasip2",
+        &npm_dir(&modules, CROSS_TRIPLE),
+        CROSS_TRIPLE,
         "0.0.1",
     );
-    let candidates = collect_library_candidates_from(LIB, Some("wasi"), Some(&exe), None);
+    let candidates = collect_library_candidates_from(LIB, Some(CROSS), Some(&exe), None);
     assert!(
         !candidates.iter().any(|c| c.starts_with(&stale)),
         "{candidates:#?}"
@@ -128,7 +142,7 @@ fn the_host_triple_never_resolves_through_a_package() {
         HOST_TRIPLE,
         env!("CARGO_PKG_VERSION"),
     );
-    for target in [None, Some("linux"), Some("macos"), Some("windows")] {
+    for target in [None, Some("linux")] {
         let candidates = collect_library_candidates_from(LIB, target, Some(&exe), None);
         assert!(
             !candidates.iter().any(|c| c.starts_with(&host)),
@@ -143,8 +157,8 @@ fn a_compressed_archive_in_a_package_links_the_cache_slot_and_keeps_the_sidecar_
     let modules = root.join("prefix/lib/node_modules");
     let exe = exe_in(&modules);
     let pkg = package(
-        &npm_dir(&modules, "aarch64-apple-ios"),
-        "aarch64-apple-ios",
+        &npm_dir(&modules, CROSS_TRIPLE),
+        CROSS_TRIPLE,
         env!("CARGO_PKG_VERSION"),
     );
     let archive = b"!<arch>\n";
@@ -164,7 +178,7 @@ fn a_compressed_archive_in_a_package_links_the_cache_slot_and_keeps_the_sidecar_
     // `target/<triple>/release`) are probed first and win whenever they exist,
     // as they do in CI where PERRY_RUNTIME_DIR names the release dir.
     let candidates: Vec<PathBuf> =
-        collect_library_candidates_from(LIB, Some("ios"), Some(&exe), None)
+        collect_library_candidates_from(LIB, Some(CROSS), Some(&exe), None)
             .into_iter()
             .filter(|c| c.starts_with(&pkg))
             .collect();
@@ -217,11 +231,11 @@ fn ext_archives_come_from_the_host_ext_package_after_the_install_layouts() {
         "{core:#?}"
     );
     let target = package(
-        &npm_dir(&modules, "wasm32-wasip1"),
-        "wasm32-wasip1",
+        &npm_dir(&modules, CROSS_TRIPLE),
+        CROSS_TRIPLE,
         version,
     );
-    let cross = collect_library_candidates_from(EXT, Some("wasip1"), Some(&exe), Some(&home));
+    let cross = collect_library_candidates_from(EXT, Some(CROSS), Some(&exe), Some(&home));
     assert!(!cross.iter().any(|c| c.starts_with(&target)), "{cross:#?}");
 }
 
@@ -232,8 +246,8 @@ fn an_ext_package_of_another_version_adds_no_candidate() {
     let exe = exe_in(&modules);
     let stale = package(&npm_ext_dir(&modules, HOST_TRIPLE), HOST_TRIPLE, "0.0.1");
     let other = package(
-        &npm_ext_dir(&modules, "aarch64-linux-android"),
-        "aarch64-linux-android",
+        &npm_ext_dir(&modules, CROSS_TRIPLE),
+        CROSS_TRIPLE,
         env!("CARGO_PKG_VERSION"),
     );
     let candidates = collect_library_candidates_from(EXT, None, Some(&exe), None);
@@ -276,7 +290,7 @@ fn a_cross_runtime_miss_fetches_its_target_package_once_and_finds_it() {
     let calls = RefCell::new(Vec::new());
     let found = locate_or_fetch_from(
         LIB,
-        Some("wasip1"),
+        Some(CROSS),
         None,
         Some(&home),
         fetcher(&calls, &home, true),
@@ -284,7 +298,7 @@ fn a_cross_runtime_miss_fetches_its_target_package_once_and_finds_it() {
     .unwrap_or_else(|m| panic!("not found after the fetch: {:#?}", m.searched));
     assert_eq!(
         *calls.borrow(),
-        [(PackageKind::Target, "wasm32-wasip1".to_string())]
+        [(PackageKind::Target, CROSS_TRIPLE.to_string())]
     );
     assert!(
         found.link.starts_with(root.join("home/.perry/targets")),
@@ -300,7 +314,7 @@ fn a_refused_fetch_keeps_the_search_list_and_carries_the_reason() {
     let calls = RefCell::new(Vec::new());
     let Err(missed) = locate_or_fetch_from(
         LIB,
-        Some("ios"),
+        Some(CROSS),
         None,
         Some(&home),
         fetcher(&calls, &home, false),
@@ -321,10 +335,10 @@ fn nothing_is_fetched_for_the_host_an_instrumented_archive_or_an_installed_packa
     let host = locate_or_fetch_from(LIB, None, None, Some(&home), fetcher(&calls, &home, true));
     assert!(host.is_err());
     // The instrumented variants are not in any package.
-    for name in ["libperry_runtime_instr.a", "perry_stdlib_instr.lib"] {
+    for name in ["libperry_runtime_instr.a", "libperry_stdlib_instr.a"] {
         let r = locate_or_fetch_from(
             name,
-            Some("wasip1"),
+            Some(CROSS),
             None,
             Some(&home),
             fetcher(&calls, &home, true),
@@ -337,14 +351,14 @@ fn nothing_is_fetched_for_the_host_an_instrumented_archive_or_an_installed_packa
             &home,
             PackageKind::Target,
             env!("CARGO_PKG_VERSION"),
-            "wasm32-wasip1",
+            CROSS_TRIPLE,
         ),
-        "wasm32-wasip1",
+        CROSS_TRIPLE,
         env!("CARGO_PKG_VERSION"),
     );
     let r = locate_or_fetch_from(
         LIB,
-        Some("wasip1"),
+        Some(CROSS),
         None,
         Some(&home),
         fetcher(&calls, &home, true),
@@ -356,7 +370,7 @@ fn nothing_is_fetched_for_the_host_an_instrumented_archive_or_an_installed_packa
 #[test]
 fn the_package_of_an_archive_depends_on_its_name_and_triple() {
     assert_eq!(
-        package_kind_for(LIB, "wasm32-wasip1"),
+        package_kind_for(LIB, CROSS_TRIPLE),
         Some(PackageKind::Target)
     );
     assert_eq!(package_kind_for(LIB, HOST_TRIPLE), None);
@@ -365,7 +379,7 @@ fn the_package_of_an_archive_depends_on_its_name_and_triple() {
         Some(PackageKind::Ext)
     );
     assert_eq!(
-        package_kind_for("perry_ext_http.lib", "wasm32-wasip1"),
+        package_kind_for("libperry_ext_http.a", CROSS_TRIPLE),
         Some(PackageKind::Ext)
     );
 }
@@ -384,29 +398,24 @@ const HOST_WASM: &str = {
 fn the_host_ui_and_wasm_host_archives_ship_in_separate_host_packages() {
     for (name, kind) in [
         ("libperry_ui_gtk4.a", PackageKind::Ui),
-        ("libperry_ui_macos.a", PackageKind::Ui),
-        ("perry_ui_windows.lib", PackageKind::Ui),
         ("libperry_wasm_host.a", PackageKind::WasmHost),
-        ("perry_wasm_host.lib", PackageKind::WasmHost),
         ("libperry_ext_bcrypt.a", PackageKind::Ext),
-        ("perry_ext_http.lib", PackageKind::Ext),
     ] {
         assert_eq!(package_kind_for(name, HOST_TRIPLE), Some(kind), "{name}");
     }
     // A cross target's UI and wasm_host come with its target package.
     assert_eq!(
-        package_kind_for("libperry_ui_android.a", "aarch64-linux-android"),
+        package_kind_for("libperry_ui_gtk4.a", CROSS_TRIPLE),
         Some(PackageKind::Target)
     );
     assert_eq!(
-        package_kind_for("libperry_wasm_host.a", "wasm32-wasip1"),
+        package_kind_for("libperry_wasm_host.a", CROSS_TRIPLE),
         Some(PackageKind::Target)
     );
     // Everything a plain program links ships with perry.
     for name in [
         "libperry_runtime.a",
         "libperry_stdlib.a",
-        "perry_stdlib.lib",
         "libperry_runtime.a.gc-effects",
     ] {
         assert_eq!(package_kind_for(name, HOST_TRIPLE), None, "{name}");

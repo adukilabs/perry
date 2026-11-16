@@ -9,7 +9,7 @@ fn parse_manifest_from_functions(
         "perry": {
             "nativeLibrary": {
                 "functions": functions,
-                "targets": { "macos": { "crate": "rust", "lib": "demo" } }
+                "targets": { "linux": { "crate": "rust", "lib": "demo" } }
             }
         }
     });
@@ -18,7 +18,7 @@ fn parse_manifest_from_functions(
         serde_json::to_string(&manifest).unwrap(),
     )
     .expect("write package.json");
-    parse_native_library_manifest(pkg_dir, "demo", Some("macos"))
+    parse_native_library_manifest(pkg_dir, "demo", Some("linux"))
 }
 
 fn parse_manifest_error(function: serde_json::Value) -> String {
@@ -531,7 +531,7 @@ fn lib_dirs_relative_paths_anchored_to_package_dir() {
             "nativeLibrary": {
                 "functions": [],
                 "targets": {
-                    "macos": {
+                    "linux": {
                         "crate": "rust",
                         "lib": "demo",
                         "libDirs": ["vendor/lib", "/abs/path"]
@@ -546,7 +546,7 @@ fn lib_dirs_relative_paths_anchored_to_package_dir() {
     )
     .expect("write package.json");
 
-    let parsed = parse_native_library_manifest(pkg_dir, "demo", Some("macos"))
+    let parsed = parse_native_library_manifest(pkg_dir, "demo", Some("linux"))
         .expect("parse manifest")
         .expect("parsed manifest");
     let tc = parsed.target_config.expect("target_config");
@@ -565,7 +565,7 @@ fn lib_dirs_defaults_to_empty_when_absent() {
         "perry": {
             "nativeLibrary": {
                 "functions": [],
-                "targets": { "macos": { "crate": "rust", "lib": "demo" } }
+                "targets": { "linux": { "crate": "rust", "lib": "demo" } }
             }
         }
     });
@@ -575,7 +575,7 @@ fn lib_dirs_defaults_to_empty_when_absent() {
     )
     .expect("write package.json");
 
-    let parsed = parse_native_library_manifest(pkg_dir, "demo", Some("macos"))
+    let parsed = parse_native_library_manifest(pkg_dir, "demo", Some("linux"))
         .expect("parse manifest")
         .expect("parsed manifest");
     let tc = parsed.target_config.expect("target_config");
@@ -584,9 +584,8 @@ fn lib_dirs_defaults_to_empty_when_absent() {
 
 /// Issue #860 — `targets.<os>-<arch>` keys take precedence over
 /// the bare `targets.<os>` key. A wrapper that ships per-arch
-/// prebuilts (esbuild/sharp/swc pattern) needs to direct macos
-/// arm64 vs macos x64 consumers at different `.a` archives even
-/// though both pass `--target macos`.
+/// prebuilts (esbuild/sharp/swc pattern) needs to direct Linux
+/// arm64 and Linux x64 consumers at different `.a` archives.
 #[test]
 fn per_arch_target_key_beats_bare_os_key() {
     let dir = tempfile::tempdir().expect("tempdir");
@@ -596,9 +595,9 @@ fn per_arch_target_key_beats_bare_os_key() {
             "nativeLibrary": {
                 "functions": [],
                 "targets": {
-                    "macos":       { "crate": "rust",       "lib": "fallback" },
-                    "macos-arm64": { "crate": "rust-arm64", "lib": "arm64_lib" },
-                    "macos-x64":   { "crate": "rust-x64",   "lib": "x64_lib"   }
+                    "linux":       { "crate": "rust",       "lib": "fallback" },
+                    "linux-arm64": { "crate": "rust-arm64", "lib": "arm64_lib" },
+                    "linux-x64":   { "crate": "rust-x64",   "lib": "x64_lib"   }
                 }
             }
         }
@@ -609,17 +608,22 @@ fn per_arch_target_key_beats_bare_os_key() {
     )
     .expect("write package.json");
 
-    // The arch key for `Some("macos")` is hard-coded to `arm64`
-    // by `arch_for_target_key` — that's the production macOS
-    // distribution arch (Apple Silicon). x64 entries can still be
-    // delivered by passing a different target string in the
-    // future; we just need the per-arch lookup to fire.
-    let parsed = parse_native_library_manifest(pkg_dir, "demo", Some("macos"))
-        .expect("parse manifest")
-        .expect("parsed manifest");
-    let tc = parsed.target_config.expect("target_config");
-    assert_eq!(tc.lib_name, "arm64_lib");
-    assert_eq!(tc.crate_path, pkg_dir.join("rust-arm64"));
+    // Each target name carries its architecture (`arch_for_target_key`).
+    for (target, lib, krate) in [
+        ("linux", "x64_lib", "rust-x64"),
+        ("linux-x86_64", "x64_lib", "rust-x64"),
+        ("linux-musl", "x64_lib", "rust-x64"),
+        ("linux-arm64", "arm64_lib", "rust-arm64"),
+        ("linux-aarch64", "arm64_lib", "rust-arm64"),
+        ("linux-aarch64-musl", "arm64_lib", "rust-arm64"),
+    ] {
+        let parsed = parse_native_library_manifest(pkg_dir, "demo", Some(target))
+            .expect("parse manifest")
+            .expect("parsed manifest");
+        let tc = parsed.target_config.expect("target_config");
+        assert_eq!(tc.lib_name, lib, "{target}");
+        assert_eq!(tc.crate_path, pkg_dir.join(krate), "{target}");
+    }
 }
 
 /// When no per-arch key matches, the bare OS-only key still
@@ -633,7 +637,7 @@ fn falls_back_to_bare_os_key_when_per_arch_absent() {
             "nativeLibrary": {
                 "functions": [],
                 "targets": {
-                    "macos": { "crate": "rust", "lib": "demo" }
+                    "linux": { "crate": "rust", "lib": "demo" }
                 }
             }
         }
@@ -644,7 +648,7 @@ fn falls_back_to_bare_os_key_when_per_arch_absent() {
     )
     .expect("write package.json");
 
-    let parsed = parse_native_library_manifest(pkg_dir, "demo", Some("macos"))
+    let parsed = parse_native_library_manifest(pkg_dir, "demo", Some("linux"))
         .expect("parse manifest")
         .expect("parsed manifest");
     let tc = parsed.target_config.expect("target_config");
@@ -664,7 +668,7 @@ fn prebuilt_resolves_node_modules_subpackage() {
     let dir = tempfile::tempdir().expect("tempdir");
     let root = dir.path();
     // Lay out a realistic node_modules: consumer/node_modules/
-    // @bloomengine/{engine, engine-darwin-arm64}/.
+    // @bloomengine/{engine, engine-linux-x64}/.
     let consumer_pkg = root
         .join("node_modules")
         .join("@bloomengine")
@@ -672,11 +676,11 @@ fn prebuilt_resolves_node_modules_subpackage() {
     let prebuilt_pkg = root
         .join("node_modules")
         .join("@bloomengine")
-        .join("engine-darwin-arm64")
+        .join("engine-linux-x64")
         .join("lib");
     std::fs::create_dir_all(&consumer_pkg).expect("mkdir engine");
-    std::fs::create_dir_all(&prebuilt_pkg).expect("mkdir engine-darwin-arm64/lib");
-    let prebuilt_file = prebuilt_pkg.join("libbloom_macos.a");
+    std::fs::create_dir_all(&prebuilt_pkg).expect("mkdir engine-linux-x64/lib");
+    let prebuilt_file = prebuilt_pkg.join("libbloom_linux.a");
     std::fs::write(&prebuilt_file, b"fake archive").expect("write prebuilt");
 
     let manifest = serde_json::json!({
@@ -684,9 +688,8 @@ fn prebuilt_resolves_node_modules_subpackage() {
             "nativeLibrary": {
                 "functions": [],
                 "targets": {
-                    "macos-arm64": {
-                        "prebuilt": "@bloomengine/engine-darwin-arm64/lib/libbloom_macos.a",
-                        "frameworks": ["Metal", "QuartzCore"]
+                    "linux-x64": {
+                        "prebuilt": "@bloomengine/engine-linux-x64/lib/libbloom_linux.a"
                     }
                 }
             }
@@ -698,22 +701,15 @@ fn prebuilt_resolves_node_modules_subpackage() {
     )
     .expect("write engine/package.json");
 
-    let parsed = parse_native_library_manifest(&consumer_pkg, "@bloomengine/engine", Some("macos"))
+    let parsed = parse_native_library_manifest(&consumer_pkg, "@bloomengine/engine", Some("linux"))
         .expect("parse manifest")
         .expect("parsed manifest");
     let tc = parsed.target_config.expect("target_config");
     let prebuilt = tc.prebuilt.expect("prebuilt path");
-    // Use canonicalize on both sides — the test's `tmpdir` on
-    // macOS lives under `/var/...` which is a symlink to
-    // `/private/var/...`; the resolver returns the symlinked
-    // form, the original `prebuilt_file` was constructed with
-    // the symlinked form too, so they match before canonicalize
-    // here. But canonicalize defensively in case CI tmpdirs differ.
     assert_eq!(
         prebuilt.canonicalize().expect("canonicalize prebuilt"),
         prebuilt_file.canonicalize().expect("canonicalize expected")
     );
-    assert_eq!(tc.frameworks, vec!["Metal", "QuartzCore"]);
     // The cargo build path should still be empty — no `crate:`
     // means the prebuilt branch is exclusive.
     assert_eq!(tc.lib_name, "");
@@ -736,7 +732,7 @@ fn prebuilt_relative_path_anchors_to_package_dir() {
             "nativeLibrary": {
                 "functions": [],
                 "targets": {
-                    "macos": { "prebuilt": "./vendor/libfoo.a" }
+                    "linux": { "prebuilt": "./vendor/libfoo.a" }
                 }
             }
         }
@@ -747,7 +743,7 @@ fn prebuilt_relative_path_anchors_to_package_dir() {
     )
     .expect("write package.json");
 
-    let parsed = parse_native_library_manifest(pkg_dir, "demo", Some("macos"))
+    let parsed = parse_native_library_manifest(pkg_dir, "demo", Some("linux"))
         .expect("parse manifest")
         .expect("parsed manifest");
     let tc = parsed.target_config.expect("target_config");
@@ -768,7 +764,7 @@ fn optional_frameworks_parse_snake_case() {
             "nativeLibrary": {
                 "functions": [],
                 "targets": {
-                    "ios": {
+                    "linux": {
                         "crate": "crate-ios",
                         "lib": "perry_google_auth",
                         "optional_frameworks": ["GoogleSignIn"],
@@ -784,7 +780,7 @@ fn optional_frameworks_parse_snake_case() {
     )
     .expect("write package.json");
 
-    let parsed = parse_native_library_manifest(pkg_dir, "demo", Some("ios"))
+    let parsed = parse_native_library_manifest(pkg_dir, "demo", Some("linux"))
         .expect("parse manifest")
         .expect("parsed manifest");
     let tc = parsed.target_config.expect("target_config");
@@ -808,7 +804,7 @@ fn optional_frameworks_parse_camel_case() {
             "nativeLibrary": {
                 "functions": [],
                 "targets": {
-                    "ios": {
+                    "linux": {
                         "crate": "crate-ios",
                         "lib": "demo",
                         "optionalFrameworks": ["GoogleSignIn", "AppAuth"],
@@ -824,7 +820,7 @@ fn optional_frameworks_parse_camel_case() {
     )
     .expect("write package.json");
 
-    let parsed = parse_native_library_manifest(pkg_dir, "demo", Some("ios"))
+    let parsed = parse_native_library_manifest(pkg_dir, "demo", Some("linux"))
         .expect("parse manifest")
         .expect("parsed manifest");
     let tc = parsed.target_config.expect("target_config");
@@ -842,7 +838,7 @@ fn optional_frameworks_default_when_absent() {
         "perry": {
             "nativeLibrary": {
                 "functions": [],
-                "targets": { "ios": { "crate": "rust", "lib": "demo" } }
+                "targets": { "linux": { "crate": "rust", "lib": "demo" } }
             }
         }
     });
@@ -852,7 +848,7 @@ fn optional_frameworks_default_when_absent() {
     )
     .expect("write package.json");
 
-    let parsed = parse_native_library_manifest(pkg_dir, "demo", Some("ios"))
+    let parsed = parse_native_library_manifest(pkg_dir, "demo", Some("linux"))
         .expect("parse manifest")
         .expect("parsed manifest");
     let tc = parsed.target_config.expect("target_config");
@@ -860,61 +856,6 @@ fn optional_frameworks_default_when_absent() {
     assert!(tc.frameworks_env.is_none());
 }
 
-#[test]
-fn parses_metal_backend_target_metadata() {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let pkg_dir = dir.path();
-    let manifest = serde_json::json!({
-        "perry": {
-            "nativeLibrary": {
-                "functions": [],
-                "targets": {
-                    "ios": {
-                        "crate": "crate-ios",
-                        "lib": "demo",
-                        "backends": {
-                            "metal": {
-                                "frameworks": ["Metal", "QuartzCore"],
-                                "shaderSources": ["shaders/default.metal"],
-                                "shaderOutputs": ["prebuilt/default.metallib"],
-                                "resources": ["resources/metal"],
-                                "package": {
-                                    "name": "demo-metal",
-                                    "version": "1.0.0",
-                                    "kind": "metallib"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    });
-    std::fs::write(
-        pkg_dir.join("package.json"),
-        serde_json::to_string(&manifest).unwrap(),
-    )
-    .expect("write package.json");
-
-    let parsed = parse_native_library_manifest(pkg_dir, "demo", Some("ios"))
-        .expect("parse manifest")
-        .expect("parsed manifest");
-    let tc = parsed.target_config.expect("target_config");
-    let backend = tc.backends.first().expect("metal backend");
-    assert_eq!(backend.backend, NativeBackend::Metal);
-    assert_eq!(backend.frameworks, vec!["Metal", "QuartzCore"]);
-    assert_eq!(
-        backend.shader_sources,
-        vec![pkg_dir.join("shaders/default.metal")]
-    );
-    assert_eq!(
-        backend.shader_outputs,
-        vec![pkg_dir.join("prebuilt/default.metallib")]
-    );
-    assert_eq!(backend.resources, vec![pkg_dir.join("resources/metal")]);
-    assert_eq!(backend.package.name.as_deref(), Some("demo-metal"));
-    assert_eq!(backend.package.kind.as_deref(), Some("metallib"));
-}
 
 #[test]
 fn parses_vulkan_backend_target_metadata() {
@@ -960,51 +901,6 @@ fn parses_vulkan_backend_target_metadata() {
     );
 }
 
-#[test]
-fn parses_d3d12_backend_target_metadata() {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let pkg_dir = dir.path();
-    let manifest = serde_json::json!({
-        "perry": {
-            "nativeLibrary": {
-                "functions": [],
-                "targets": {
-                    "windows": {
-                        "prebuilt": "./prebuilt/demo.lib",
-                        "backends": {
-                            "d3d12": {
-                                "libs": ["d3d12", "dxgi", "dxguid"],
-                                "shaderSources": ["shaders/default.hlsl"],
-                                "shaderOutputs": ["shaders/default.dxil"]
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    });
-    std::fs::write(
-        pkg_dir.join("package.json"),
-        serde_json::to_string(&manifest).unwrap(),
-    )
-    .expect("write package.json");
-
-    let parsed = parse_native_library_manifest(pkg_dir, "demo", Some("windows"))
-        .expect("parse manifest")
-        .expect("parsed manifest");
-    let tc = parsed.target_config.expect("target_config");
-    assert_eq!(
-        tc.prebuilt.as_ref().expect("prebuilt"),
-        &pkg_dir.join("./prebuilt/demo.lib")
-    );
-    let backend = tc.backends.first().expect("d3d12 backend");
-    assert_eq!(backend.backend, NativeBackend::D3d12);
-    assert_eq!(backend.libs, vec!["d3d12", "dxgi", "dxguid"]);
-    assert_eq!(
-        backend.shader_sources,
-        vec![pkg_dir.join("shaders/default.hlsl")]
-    );
-}
 
 #[test]
 fn rejects_d3d12_backend_on_linux_target() {
@@ -1079,9 +975,6 @@ fn parses_target_gated_backend_fixture() {
         include_str!("../../fixtures/native-target-packaging/target-gated-backends.package.json"),
     )
     .expect("write fixture package.json");
-    std::fs::create_dir_all(pkg_dir.join("prebuilt/windows")).expect("create prebuilt fixture dir");
-    std::fs::write(pkg_dir.join("prebuilt/windows/demo.lib"), b"fixture")
-        .expect("write prebuilt fixture lib");
 
     let linux = parse_native_library_manifest(pkg_dir, "@scope/demo-native", Some("linux"))
         .expect("parse linux manifest")
@@ -1108,34 +1001,8 @@ fn parses_target_gated_backend_fixture() {
     assert_eq!(vulkan.resources, vec![pkg_dir.join("resources/vulkan")]);
     assert_eq!(vulkan.package.name.as_deref(), Some("demo-vulkan"));
     assert_eq!(vulkan.package.kind.as_deref(), Some("spirv"));
-
-    let android = parse_native_library_manifest(pkg_dir, "@scope/demo-native", Some("android"))
-        .expect("parse android manifest")
-        .expect("android manifest");
-    let android_tc = android.target_config.expect("android target_config");
-    assert!(!android_tc.available);
-    assert_eq!(
-        android_tc.unavailable_reason.as_deref(),
-        Some("Android native package ships separately")
-    );
-    assert!(android_tc.backends.is_empty());
-
-    let windows = parse_native_library_manifest(pkg_dir, "@scope/demo-native", Some("windows"))
-        .expect("parse windows manifest")
-        .expect("windows manifest");
-    let windows_tc = windows.target_config.expect("windows target_config");
-    assert_eq!(
-        windows_tc.prebuilt.as_ref().expect("windows prebuilt"),
-        &pkg_dir.join("./prebuilt/windows/demo.lib")
-    );
-    let d3d12 = windows_tc.backends.first().expect("d3d12 backend");
-    assert_eq!(d3d12.backend, NativeBackend::D3d12);
-    assert_eq!(d3d12.libs, vec!["d3d12", "dxgi", "dxguid"]);
-    assert_eq!(
-        d3d12.shader_sources,
-        vec![pkg_dir.join("shaders/default.hlsl")]
-    );
-    assert_eq!(d3d12.package.kind.as_deref(), Some("dxil"));
+    // The fixture also declares `android` and `windows` sections. They are
+    // checked for shape like any section, and no build of this fork reads them.
 }
 
 #[test]

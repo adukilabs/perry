@@ -51,19 +51,15 @@ pub(crate) fn validate_native_library_manifest_value(
     Ok(())
 }
 
-pub(super) fn native_manifest_target_key(target: Option<&str>) -> &'static str {
-    match target {
-        // musl resolves the same native-library platform as glibc Linux
-        // (#4826). Prebuilt native addons are typically glibc; static-musl
-        // apps using them is an inherent limitation, but the platform key
-        // stays "linux" so resolution behaves consistently.
-        Some("linux")
-        | Some("linux-musl")
-        | Some("linux-x86_64-musl")
-        | Some("linux-aarch64-musl") => "linux",
-        None => "linux",
-        _ => "macos",
-    }
+/// The `perry.nativeLibrary.targets` key a build reads. Every target this fork
+/// accepts is Linux (`validate_explicit_target`), glibc or musl, x86-64 or
+/// arm64, so the key is always `linux`. musl resolves the same native-library
+/// platform as glibc Linux (#4826).
+///
+/// Upstream fell through to `"macos"` for any name it did not list, which
+/// included `linux-x86_64`, `linux-arm64` and `linux-aarch64`.
+pub(super) fn native_manifest_target_key(_target: Option<&str>) -> &'static str {
+    "linux"
 }
 
 fn base_target_key(target_key: &str) -> Option<&str> {
@@ -1582,16 +1578,11 @@ fn arch_for_target_key(target: Option<&str>) -> Option<&'static str> {
         return Some(host_arch_token());
     }
     match target {
-        // OS-level targets where both arm64 and x64 are real distribution
-        // targets — surface the arch so wrappers can ship per-arch
-        // prebuilts.
-        Some("linux") => Some("x64"),
-        // ios/tvos/watchos/visionos: device builds are always arm64 (or
-        // arm64_32 for watchOS). Simulators are arm64 on Apple Silicon
-        // hosts and x64 on Intel hosts — we don't currently expose the
-        // host distinction at the manifest level. Stick with the
-        // OS-only key for now; per-arch keys can be added later if
-        // wrappers start needing them.
+        // Both arm64 and x64 are real distribution targets, so the arch is
+        // surfaced and wrappers can ship per-arch prebuilts. Upstream knew
+        // only the bare `linux` name here.
+        Some("linux" | "linux-x86_64" | "linux-musl" | "linux-x86_64-musl") => Some("x64"),
+        Some("linux-arm64" | "linux-aarch64" | "linux-aarch64-musl") => Some("arm64"),
         _ => None,
     }
 }
@@ -1610,16 +1601,27 @@ fn host_arch_token() -> &'static str {
 }
 
 #[cfg(test)]
-mod android_target_tests {
+mod target_key_tests {
     use super::{arch_for_target_key, native_manifest_target_key};
 
     #[test]
-    fn x86_64_android_uses_android_manifest_and_x64_override() {
-        assert_eq!(
-            native_manifest_target_key(Some("android-x86_64")),
-            "android"
-        );
-        assert_eq!(arch_for_target_key(Some("android-x86_64")), Some("x64"));
+    fn every_accepted_target_reads_the_linux_key_with_its_own_arch() {
+        for (target, arch) in [
+            ("linux", "x64"),
+            ("linux-x86_64", "x64"),
+            ("linux-musl", "x64"),
+            ("linux-x86_64-musl", "x64"),
+            ("linux-arm64", "arm64"),
+            ("linux-aarch64", "arm64"),
+            ("linux-aarch64-musl", "arm64"),
+        ] {
+            assert_eq!(native_manifest_target_key(Some(target)), "linux", "{target}");
+            assert_eq!(arch_for_target_key(Some(target)), Some(arch), "{target}");
+        }
+        // The list above is the whole of what the gate lets through.
+        assert_eq!(perry_codegen::TARGET_NAMES.len(), 7);
+        assert_eq!(native_manifest_target_key(None), "linux");
+        assert!(arch_for_target_key(None).is_some());
     }
 }
 

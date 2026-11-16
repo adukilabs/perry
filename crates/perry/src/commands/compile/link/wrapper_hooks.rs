@@ -8,9 +8,8 @@
 //! hook is named as an undefined symbol on the link line. It is the only one:
 //! an undefined symbol is also a `--gc-sections` root, and every other
 //! wrapper hook is the entry prologue's to name, for the modules the program
-//! imports. Darwin also admits the runtime's weak
-//! reference by name (`-U`) for programs that link no perry-ext-net; ELF and
-//! COFF resolve an undefined weak symbol to null by themselves.
+//! imports. A program that links no perry-ext-net needs nothing: ELF resolves
+//! an undefined weak symbol to null by itself.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -24,9 +23,7 @@ pub(super) fn add_link_args(
     cmd: &mut Command,
     well_known_libs: &[PathBuf],
 ) {
-    let prefix = "";
     let mut arg = |flag: &str, symbol: &str| {
-        let symbol = format!("{prefix}{symbol}");
         cmd.arg(format!("-Wl,{flag},{symbol}"));
     };
     let links_lazy_hook = well_known_libs.iter().any(|lib| {
@@ -43,7 +40,7 @@ pub(super) fn add_link_args(
 mod tests {
     use super::*;
 
-    fn arguments(darwin: bool, direct: bool, libs: &[&str]) -> Vec<String> {
+    fn arguments(libs: &[&str]) -> Vec<String> {
         let mut cmd = Command::new("linker");
         let libs: Vec<PathBuf> = libs.iter().map(PathBuf::from).collect();
         add_link_args(&mut cmd, &libs);
@@ -55,28 +52,15 @@ mod tests {
     #[test]
     fn a_linked_wrapper_hook_is_forced_into_the_link() {
         assert_eq!(
-            arguments(false, false, &["/x/libperry_ext_net.a"]),
+            arguments(&["/x/libperry_ext_net.a"]),
             vec!["-Wl,-u,js_ext_net_nm_install"]
         );
-        assert_eq!(
-            arguments(true, true, &["/x/libperry_ext_net.a"]),
-            vec![
-                "-u",
-                "_js_ext_net_nm_install",
-                "-U",
-                "_js_ext_net_nm_install"
-            ]
-        );
         // Another wrapper's module hook is the entry prologue's to name.
-        assert!(arguments(false, false, &["/x/libperry_ext_ws.a"]).is_empty());
+        assert!(arguments(&["/x/libperry_ext_ws.a"]).is_empty());
     }
 
     #[test]
-    fn darwin_admits_the_lazy_hook_when_no_wrapper_links() {
-        assert_eq!(
-            arguments(true, false, &[]),
-            vec!["-Wl,-U,_js_ext_net_nm_install"]
-        );
-        assert!(arguments(false, false, &[]).is_empty());
+    fn nothing_is_added_when_no_wrapper_links() {
+        assert!(arguments(&[]).is_empty());
     }
 }

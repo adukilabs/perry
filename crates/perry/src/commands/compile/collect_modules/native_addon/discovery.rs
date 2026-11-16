@@ -202,12 +202,11 @@ fn matches_target(path: &Path, triple: &str) -> Result<bool> {
 mod tests {
     use super::*;
 
-    fn addon(path: &Path, arm: bool, symbol: &str) {
+    /// An ELF addon importing `symbol`: for x86-64, which is what the target
+    /// name `linux` means, or for arm64.
+    fn addon(path: &Path, x86_64: bool, symbol: &str) {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
-        let mut bytes = super::super::binary_tests::macho_import(symbol, 0xfe, true, 1);
-        if arm {
-            bytes[4..8].copy_from_slice(&0x0100000cu32.to_le_bytes());
-        }
+        let bytes = super::super::binary_tests::elf_import(symbol, !x86_64);
         fs::write(path, bytes).unwrap();
     }
 
@@ -217,14 +216,14 @@ mod tests {
         let root = temp.path().canonicalize().unwrap();
         let package = root.join("node_modules/demo");
         addon(
-            &package.join("prebuilds/darwin-arm64/addon.node"),
+            &package.join("prebuilds/linux-x64/addon.node"),
             true,
-            "_napi_create_int32",
+            "napi_create_int32",
         );
         addon(
-            &package.join("prebuilds/darwin-x64/addon.node"),
+            &package.join("prebuilds/linux-arm64/addon.node"),
             false,
-            "_napi_create_int32",
+            "napi_create_int32",
         );
         fs::write(
             package.join("package.json"),
@@ -233,20 +232,20 @@ mod tests {
         .unwrap();
         let mut ctx = CompilationContext::new(root);
         ctx.native_addon_packages.insert("demo".into());
-        collect_declared_addons(&mut ctx, Some("macos")).unwrap();
+        collect_declared_addons(&mut ctx, Some("linux")).unwrap();
         assert!(
             ctx.native_addons.is_empty(),
             "unused policy must not enable host"
         );
         ctx.checked_compile_package_native_addon_roots
             .insert(package.clone());
-        collect_declared_addons(&mut ctx, Some("macos")).unwrap();
+        collect_declared_addons(&mut ctx, Some("linux")).unwrap();
         assert_eq!(ctx.native_addons.len(), 1);
         assert!(ctx
             .native_addons
-            .contains_key("demo/prebuilds/darwin-arm64/addon.node"));
-        addon(&package.join("bad.node"), true, "_uv_loop_init");
-        assert!(collect_declared_addons(&mut ctx, Some("macos"))
+            .contains_key("demo/prebuilds/linux-x64/addon.node"));
+        addon(&package.join("bad.node"), true, "uv_loop_init");
+        assert!(collect_declared_addons(&mut ctx, Some("linux"))
             .unwrap_err()
             .to_string()
             .contains("unsupported symbol"));
@@ -254,34 +253,34 @@ mod tests {
 
     #[test]
     fn other_target_payload_edge_is_left_to_runtime() {
-        // A napi-rs loader names every platform's binary; the x64 one is not
-        // part of an aarch64 graph, approved or not, and records nothing.
+        // A napi-rs loader names every platform's binary; the arm64 one is not
+        // part of an x86-64 graph, approved or not, and records nothing.
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path().canonicalize().unwrap();
-        let payload = root.join("node_modules/demo-darwin-x64");
-        addon(&payload.join("demo.node"), false, "_napi_create_int32");
+        let payload = root.join("node_modules/demo-linux-arm64");
+        addon(&payload.join("demo.node"), false, "napi_create_int32");
         fs::write(
             payload.join("package.json"),
-            r#"{"name":"demo-darwin-x64","version":"1"}"#,
+            r#"{"name":"demo-linux-arm64","version":"1"}"#,
         )
         .unwrap();
         let mut ctx = CompilationContext::new(root.clone());
         let binary = payload.join("demo.node");
         assert!(
-            super::super::collect_or_refuse_node_addon(&mut ctx, &binary, Some("macos")).unwrap()
+            super::super::collect_or_refuse_node_addon(&mut ctx, &binary, Some("linux")).unwrap()
         );
         assert!(ctx.native_addons.is_empty());
         // A binary for the target itself is still subject to the policy.
-        let native = root.join("node_modules/demo-darwin-arm64");
-        addon(&native.join("demo.node"), true, "_napi_create_int32");
+        let native = root.join("node_modules/demo-linux-x64");
+        addon(&native.join("demo.node"), true, "napi_create_int32");
         fs::write(
             native.join("package.json"),
-            r#"{"name":"demo-darwin-arm64","version":"1"}"#,
+            r#"{"name":"demo-linux-x64","version":"1"}"#,
         )
         .unwrap();
         let binary = native.join("demo.node");
         assert!(
-            super::super::collect_or_refuse_node_addon(&mut ctx, &binary, Some("macos"))
+            super::super::collect_or_refuse_node_addon(&mut ctx, &binary, Some("linux"))
                 .unwrap_err()
                 .to_string()
                 .contains("perry.nativeAddons")
@@ -297,20 +296,20 @@ mod tests {
         let root = temp.path().canonicalize().unwrap();
         let store = root.join("store");
         let wrapper = store.join("demo/1/node_modules/@demo/addon");
-        let payload = store.join("demo-darwin-arm64/1/node_modules/@demo/addon-darwin-arm64");
+        let payload = store.join("demo-linux-x64/1/node_modules/@demo/addon-linux-x64");
         fs::create_dir_all(&wrapper).unwrap();
-        addon(&payload.join("addon.node"), true, "_napi_create_int32");
+        addon(&payload.join("addon.node"), true, "napi_create_int32");
         fs::write(
             wrapper.join("package.json"),
-            r#"{"name":"@demo/addon","optionalDependencies":{"@demo/addon-darwin-arm64":"1"}}"#,
+            r#"{"name":"@demo/addon","optionalDependencies":{"@demo/addon-linux-x64":"1"}}"#,
         )
         .unwrap();
         fs::write(
             payload.join("package.json"),
-            r#"{"name":"@demo/addon-darwin-arm64","version":"1"}"#,
+            r#"{"name":"@demo/addon-linux-x64","version":"1"}"#,
         )
         .unwrap();
-        std::os::unix::fs::symlink(&payload, wrapper.with_file_name("addon-darwin-arm64")).unwrap();
+        std::os::unix::fs::symlink(&payload, wrapper.with_file_name("addon-linux-x64")).unwrap();
         fs::write(wrapper.join("index.js"), "").unwrap();
 
         let mut ctx = CompilationContext::new(root.join("app"));
@@ -318,7 +317,7 @@ mod tests {
         let binary = payload.join("addon.node");
         // Unwalked, the wrapper grants nothing.
         assert!(
-            super::super::collect_or_refuse_node_addon(&mut ctx, &binary, Some("macos"))
+            super::super::collect_or_refuse_node_addon(&mut ctx, &binary, Some("linux"))
                 .unwrap_err()
                 .to_string()
                 .contains("perry.nativeAddons")
@@ -326,9 +325,9 @@ mod tests {
         // The walk enters the wrapper's loader, then reaches the payload.
         super::super::note_native_addon_wrapper(&mut ctx, &wrapper.join("index.js"));
         assert!(
-            super::super::collect_or_refuse_node_addon(&mut ctx, &binary, Some("macos")).unwrap()
+            super::super::collect_or_refuse_node_addon(&mut ctx, &binary, Some("linux")).unwrap()
         );
-        let record = &ctx.native_addons["@demo/addon-darwin-arm64/addon.node"];
+        let record = &ctx.native_addons["@demo/addon-linux-x64/addon.node"];
         assert_eq!(record.package, "@demo/addon");
     }
 
@@ -338,15 +337,15 @@ mod tests {
         let root = temp.path().canonicalize().unwrap();
         fs::write(root.join("package.json"), "{}").unwrap();
         let path = root.join("native/addon.node");
-        addon(&path, true, "_napi_create_int32");
-        addon(&root.join("native/unlisted.node"), true, "_uv_loop_init");
+        addon(&path, true, "napi_create_int32");
+        addon(&root.join("native/unlisted.node"), true, "uv_loop_init");
         let mut ctx = CompilationContext::new(root);
         ctx.native_addon_paths
             .insert(path, "native/addon.node".into());
-        collect_declared_addons(&mut ctx, Some("macos")).unwrap();
+        collect_declared_addons(&mut ctx, Some("linux")).unwrap();
         assert_eq!(ctx.native_addons.len(), 1);
         assert!(ctx.native_addons.contains_key("$project/native/addon.node"));
-        assert!(collect_declared_addons(&mut ctx, Some("linux"))
+        assert!(collect_declared_addons(&mut ctx, Some("linux-arm64"))
             .unwrap_err()
             .to_string()
             .contains("does not match target"));

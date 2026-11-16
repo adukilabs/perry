@@ -1,5 +1,56 @@
 use super::validate_node_api_binary;
 
+/// A minimal ELF64 shared object that imports one symbol: a header, a
+/// `.dynsym` holding that undefined symbol, and the two string tables. It has
+/// no dynamic section, which the reach reader takes as open.
+pub(super) fn elf_import(name: &str, aarch64: bool) -> Vec<u8> {
+    let dynstr = [&[0u8][..], name.as_bytes(), &[0]].concat();
+    let shstrtab = b"\0.dynsym\0.dynstr\0.shstrtab\0".to_vec();
+    let mut dynsym = vec![0u8; 24]; // the null symbol
+    dynsym.extend(1u32.to_le_bytes()); // st_name: skips the initial NUL
+    dynsym.extend([0x12, 0]); // STB_GLOBAL | STT_FUNC, default visibility
+    dynsym.extend(0u16.to_le_bytes()); // SHN_UNDEF
+    dynsym.extend([0u8; 16]); // st_value, st_size
+    let dynsym_at = 64u64;
+    let dynstr_at = dynsym_at + dynsym.len() as u64;
+    let shstrtab_at = dynstr_at + dynstr.len() as u64;
+    let shoff = (shstrtab_at + shstrtab.len() as u64).next_multiple_of(8);
+    let mut bytes = vec![0x7f, b'E', b'L', b'F', 2, 1, 1, 0]; // 64-bit, little-endian
+    bytes.extend([0u8; 8]);
+    bytes.extend(3u16.to_le_bytes()); // ET_DYN
+    bytes.extend((if aarch64 { 183u16 } else { 62 }).to_le_bytes()); // EM_AARCH64, EM_X86_64
+    bytes.extend(1u32.to_le_bytes());
+    bytes.extend(0u64.to_le_bytes()); // e_entry
+    bytes.extend(0u64.to_le_bytes()); // e_phoff
+    bytes.extend(shoff.to_le_bytes());
+    bytes.extend(0u32.to_le_bytes()); // e_flags
+    // e_ehsize, e_phentsize, e_phnum, e_shentsize, e_shnum, e_shstrndx
+    for half in [64u16, 0, 0, 64, 4, 3] {
+        bytes.extend(half.to_le_bytes());
+    }
+    assert_eq!(bytes.len(), 64);
+    bytes.extend(&dynsym);
+    bytes.extend(&dynstr);
+    bytes.extend(&shstrtab);
+    bytes.resize(shoff as usize, 0);
+    let mut section = |name: u32, kind: u32, offset: u64, size: u64, link: u32, entsize: u64| {
+        bytes.extend(name.to_le_bytes());
+        bytes.extend(kind.to_le_bytes());
+        bytes.extend([0u8; 16]); // sh_flags, sh_addr
+        bytes.extend(offset.to_le_bytes());
+        bytes.extend(size.to_le_bytes());
+        bytes.extend(link.to_le_bytes());
+        bytes.extend(1u32.to_le_bytes()); // sh_info: one local symbol, the null one
+        bytes.extend(1u64.to_le_bytes()); // sh_addralign
+        bytes.extend(entsize.to_le_bytes());
+    };
+    section(0, 0, 0, 0, 0, 0);
+    section(1, 11, dynsym_at, dynsym.len() as u64, 2, 24); // SHT_DYNSYM, names in section 2
+    section(9, 3, dynstr_at, dynstr.len() as u64, 0, 0); // SHT_STRTAB
+    section(17, 3, shstrtab_at, shstrtab.len() as u64, 0, 0);
+    bytes
+}
+
 /// One imported symbol in a minimal two-level Mach-O image. Keep the symbol
 /// range separate from its library ordinal: dynamic lookup uses 0xfe, and
 /// executable lookup uses 0xff, neither of which is a dylib-table index.
@@ -70,6 +121,27 @@ fn node_api_imports(bytes: &[u8]) -> std::collections::BTreeSet<String> {
     let path = dir.path().join("addon.node");
     std::fs::write(&path, bytes).unwrap();
     validate_node_api_binary(&path).unwrap().1
+}
+
+/// The fixture above is read as an ELF addon: its Node-API import is found,
+/// an unsupported import is refused, and with no dynamic section to read the
+/// linked libraries from, it counts as open.
+#[test]
+fn elf_imports_are_read_and_checked() {
+    for aarch64 in [false, true] {
+        assert_eq!(
+            node_api_imports(&elf_import("napi_create_int32", aarch64)),
+            ["napi_create_int32".to_string()].into()
+        );
+        let error = validate(&elf_import("uv_run", aarch64))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("imports unsupported symbol"), "{error}");
+    }
+    assert_eq!(
+        reach(&elf_import("napi_create_int32", false)),
+        [perry_runtime_manifest::NodeApiReach::World].into()
+    );
 }
 
 /// The host exports what its addons import: the addon's Node-API imports,

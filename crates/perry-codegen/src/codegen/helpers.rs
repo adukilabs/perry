@@ -1447,34 +1447,14 @@ mod resolve_target_triple_tests {
     use super::resolve_target_triple;
 
     #[test]
-    fn android_targets_resolve_to_android_elf_triples() {
-        // #5742: `android-x86_64` must resolve (it previously returned None and
-        // codegen fell back to the host triple, emitting COFF the Android
-        // linker rejects). Both Android arms use the `-unknown-linux-android`
-        // LLVM form so the emitted objects are ELF for the right arch.
-        assert_eq!(
-            resolve_target_triple("android").as_deref(),
-            Some("aarch64-unknown-linux-android")
-        );
-        assert_eq!(
-            resolve_target_triple("android-x86_64").as_deref(),
-            Some("x86_64-unknown-linux-android")
-        );
-        // Unknown targets still fall through to None.
-        assert_eq!(resolve_target_triple("android-mips"), None);
-    }
-
-    #[test]
-    fn explicit_windows_targets_resolve_to_coff_triples() {
-        assert_eq!(
-            resolve_target_triple("windows-x86_64").as_deref(),
-            Some("x86_64-pc-windows-msvc")
-        );
-        for target in ["windows-aarch64", "windows-arm64"] {
-            assert_eq!(
-                resolve_target_triple(target).as_deref(),
-                Some("aarch64-pc-windows-msvc")
-            );
+    fn every_accepted_name_resolves_to_a_linux_triple_and_nothing_else_resolves() {
+        for name in super::TARGET_NAMES {
+            let triple = resolve_target_triple(name).unwrap_or_else(|| panic!("{name}"));
+            assert!(triple.contains("-unknown-linux-"), "{name}: {triple}");
+        }
+        // The names of the systems this fork does not build for.
+        for name in ["macos", "ios", "windows", "windows-x86_64", "android", "wasi", "web"] {
+            assert_eq!(resolve_target_triple(name), None, "{name}");
         }
     }
 }

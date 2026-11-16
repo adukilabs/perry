@@ -57,7 +57,7 @@ pub enum TargetCommand {
 
 #[derive(Args, Debug)]
 pub struct AddArgs {
-    /// A perry `--target` name (android, ios-simulator, wasi, ...) or a Rust
+    /// A perry `--target` name (linux-aarch64, linux-musl, ...) or a Linux Rust
     /// triple. With --ui, --wasm-host or --ext it defaults to this perry's own platform.
     #[arg(required_unless_present_any = ["ext", "ui", "wasm_host"])]
     pub target: Option<String>,
@@ -116,7 +116,11 @@ pub fn run(args: TargetArgs) -> Result<()> {
     }
 }
 
-/// `android` → `aarch64-linux-android`; a triple passes through.
+/// `linux-aarch64` → `aarch64-unknown-linux-gnu`; a Linux triple passes through.
+///
+/// This fork compiles for Linux only (`validate_explicit_target`), so a
+/// package of libraries for any other system has no use and is refused here,
+/// before anything is looked up or fetched.
 fn resolve_triple(target: &str) -> Result<String> {
     if let Some(triple) = target_packages::triple_for(target) {
         return Ok(triple.to_string());
@@ -125,10 +129,67 @@ fn resolve_triple(target: &str) -> Result<String> {
         && target.bytes().all(|b| {
             b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-' || b == b'.'
         });
-    if triple_shaped {
+    if triple_shaped && is_linux_triple(target) {
         return Ok(target.to_string());
     }
-    bail!("unknown target `{target}`: pass a perry --target name (for example android, ios, wasi) or a Rust triple")
+    bail!(
+        "unknown target `{target}`: this fork of perry compiles for Linux only. Pass a perry \
+         --target name ({}) or a Linux Rust triple",
+        perry_codegen::TARGET_NAMES.join(", ")
+    )
+}
+
+/// `<arch>-unknown-linux-gnu` or `-musl`, with or without the vendor part.
+/// Android and HarmonyOS triples also carry a `linux` part and are not Linux
+/// in this sense.
+fn is_linux_triple(triple: &str) -> bool {
+    let parts: Vec<&str> = triple.split('-').collect();
+    let Some(os_at) = parts.iter().position(|p| *p == "linux") else {
+        return false;
+    };
+    os_at >= 1
+        && parts[os_at + 1..]
+            .first()
+            .is_some_and(|env| env.starts_with("gnu") || env.starts_with("musl"))
+        && parts.len() == os_at + 2
+}
+
+#[cfg(test)]
+mod linux_only_tests {
+    use super::{is_linux_triple, resolve_triple};
+
+    #[test]
+    fn only_linux_names_and_linux_triples_resolve() {
+        for name in perry_codegen::TARGET_NAMES {
+            let triple = resolve_triple(name).unwrap_or_else(|e| panic!("{name}: {e}"));
+            assert!(is_linux_triple(&triple), "{name}: {triple}");
+        }
+        for triple in [
+            "x86_64-unknown-linux-gnu",
+            "aarch64-unknown-linux-musl",
+            "riscv64gc-unknown-linux-gnu",
+            "armv7-unknown-linux-gnueabihf",
+        ] {
+            assert_eq!(resolve_triple(triple).unwrap(), triple);
+        }
+        for other in [
+            "android",
+            "ios",
+            "wasi",
+            "macos",
+            "windows",
+            "aarch64-linux-android",
+            "x86_64-unknown-linux-ohos",
+            "aarch64-apple-ios",
+            "wasm32-wasip1",
+            "x86_64-pc-windows-msvc",
+            "aarch64-apple-darwin",
+            "linux\u{2d}",
+        ] {
+            let error = resolve_triple(other).unwrap_err().to_string();
+            assert!(error.contains("Linux only"), "{other}: {error}");
+        }
+    }
 }
 
 /// The package a command line names: `<target>` is a target package, `--ext
@@ -138,7 +199,7 @@ fn resolve_package(target: Option<&str>, ext: bool) -> Result<(PackageKind, Stri
         (Some(target), false) => Ok((PackageKind::Target, resolve_triple(target)?)),
         (Some(target), true) => Ok((PackageKind::Ext, resolve_triple(target)?)),
         (None, true) => Ok((PackageKind::Ext, HOST_TRIPLE.to_string())),
-        (None, false) => bail!("name a target (for example android) or pass --ext"),
+        (None, false) => bail!("name a target (for example linux-aarch64) or pass --ext"),
     }
 }
 

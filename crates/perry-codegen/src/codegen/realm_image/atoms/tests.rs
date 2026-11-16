@@ -182,9 +182,10 @@ fn runtime_layout_facts_preserve_target_variants_and_symbol_registration() {
     );
     let layout = &plan.runtime_layouts["%Layout:RECORD_Q457_0%"];
     let linux = layout.for_target("x86_64-unknown-linux-gnu").unwrap();
-    let windows = layout.for_target("x86_64-pc-windows-msvc").unwrap();
     assert_eq!((linux.variant, linux.keys.len()), (0, 3));
-    assert_eq!((windows.variant, windows.keys.len()), (1, 4));
+    // The runtime of this fork declares one layout for the record, with no
+    // Windows variant beside it.
+    assert_eq!(layout.variants.len(), 1);
     let keys = plan
         .runtime_layouts
         .values()

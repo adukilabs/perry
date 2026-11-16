@@ -347,10 +347,9 @@ fn program_runtime_layouts_are_exactly_r_and_equal_the_declared_facts() {
                 let release = plan.runtime_layouts["%Layout:RECORD_Q457_0%"]
                     .for_target(target)
                     .unwrap();
-                assert_eq!(
-                    release.keys.len(),
-                    if target.contains("windows") { 4 } else { 3 }
-                );
+                // One layout for every target: the runtime of this fork
+                // declares no Windows variant of the record.
+                assert_eq!(release.keys.len(), 3);
             }
             let context = inkwell::context::Context::create();
             crate::inprocess::parse_ir_text(&context, &ir, "runtime_layouts")

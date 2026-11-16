@@ -105,10 +105,6 @@ pub mod typed_feedback_profile;
 pub(crate) mod typed_shape;
 pub mod types;
 pub mod unit_cache;
-#[cfg(feature = "target-wasi")]
-pub mod wasi_toolchain;
-#[cfg(feature = "target-wasi")]
-mod wasm32;
 pub mod workers;
 
 pub use codegen::{

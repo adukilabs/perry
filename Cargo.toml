@@ -268,10 +268,10 @@ repository = "https://github.com/PerryTS/perry"
 # nonzero only on denies, so warn-level noise never blocks a PR. Ratchet new
 # lints in here once the codebase is clean for them.
 [workspace.lints.rust]
-# Code generators for other platforms were removed from this fork. Their feature names
-# are declared here as values that are never set, so the code that tests for them
-# stays valid and stays out of the build.
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("backend-arkts", "backend-glance", "backend-js", "backend-swiftui", "backend-wasm", "backend-wear-tiles"))'] }
+# strip_perry: code for other platforms and for WebAssembly was removed from this fork.
+# Their feature names are declared here as values that are never set, so the code
+# that tests for them stays valid and stays out of the build.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("backend-arkts", "backend-glance", "backend-js", "backend-swiftui", "backend-wasm", "backend-wear-tiles", "target-wasi"))'] }
 non_ascii_idents = "deny"
 
 [workspace.lints.clippy]

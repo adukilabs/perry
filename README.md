@@ -98,7 +98,11 @@ target/prod/perry-gc-effects sidecars target/prod
 ```
 
 Without the sidecar the compiler prints a warning and treats every runtime call as one that can
-throw, which is correct and slower. On the debug archives the sidecar tool took 10 minutes here.
+throw, which is correct and slower. On the debug archives the sidecar tool took 8 to 10 minutes
+here.
+
+A compiler run from this checkout's own `target` directory refuses to compile until the sidecar
+is there. It tells its workspace by `crates/perry-runtime` and `crates/perry-stdlib`.
 
 ```bash
 target/debug/perry compile app.ts -o app                              # an executable
@@ -110,29 +114,28 @@ target/debug/perry compile app.ts --output-type staticlib -o libapp.a # a librar
 Checked on `main`, with a debug build on Debian with LLVM 23.1.6:
 
 - It builds with no errors.
-- Unit tests, run at `1405f4b8`. Where a suite failed it was also run on unmodified upstream
-  `main` at 7270b624, with LLVM 22, and the failures compared by name.
+- Unit tests. The compiler's were run at `34d30b43` and the others at `1405f4b8`. Where a
+  suite failed it was also run on unmodified upstream `main` at 7270b624, with LLVM 22, and
+  the failures compared by name.
 
   | Package | This fork | Upstream `main` |
   |---|---|---|
   | `perry-runtime` | 6,870 passed, 0 failed | not run |
   | `perry-codegen` | 2,975 passed, 6 failed | 2,974 passed, the same 6 failed |
-  | `perry` (the compiler) | 1,575 passed, 16 failed | 1,627 passed, 0 failed |
+  | `perry` (the compiler) | 1,573 passed, 0 failed | 1,627 passed, 0 failed |
   | `perry-hir`, `perry-transform`, `perry-parser`, `perry-gc-effects` | 893, 395, 50 and 43 passed, 0 failed | not run |
 
-  **The 16 failing compiler tests are caused by this fork's cut and are not fixed.** Six need
-  the Android project template. Five fail because the compiler tells its own checkout by a
-  package that was removed (`crates/perry-ui-geisterhand`), so it no longer knows when it
-  runs from its workspace. The other five name removed packages or a removed CI file, or
-  require a minimum number of packages.
+  The compiler has 54 fewer tests than upstream: the tests of the Android run code and of
+  other removed parts went with them. Two guards on how much a scan saw were set to this
+  fork's counts (20 packages, 41 manifests).
 - A static library linked plainly behaves the same as one linked with every member forced in,
   for six runtime features, and all twelve runs exit 0.
 - `worker.terminate()` stops a looping worker in executable and static library output, in 15
-  of 15 runs. A debug build has no sidecar, so this run does not exercise the unwind table
-  fix. That fix was checked on `platform-fixes` with an optimized build on LLVM 22, where the
-  static library case went from an abort in 3 of 3 runs to stopping in 6 of 6.
-- The two checks above were last run at `e64eba56`. Later commits change test files and this
-  README only.
+  of 15 runs. Whether this run exercises the unwind table fix was not determined: earlier
+  runs had no sidecar and did not. That fix was checked on `platform-fixes` with an optimized
+  build on LLVM 22, where the static library case went from an abort in 3 of 3 runs to
+  stopping in 6 of 6.
+- The two checks above were last run at `34d30b43`, with a sidecar beside the debug archives.
 
 Not checked:
 

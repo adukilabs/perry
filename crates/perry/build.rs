@@ -1,11 +1,7 @@
-#[path = "build/android_template.rs"]
-mod android_template;
-
 #[path = "build/archive_kinds.rs"]
 mod archive_kinds;
 
 fn main() {
-    android_template::emit().expect("failed to embed Android Gradle template");
     println!("cargo:rerun-if-changed=Cargo.toml");
     // CARGO_TARGET_DIR may place the compiler far from its source checkout.
     // Runtime discovery validates this hint before using it; release installs

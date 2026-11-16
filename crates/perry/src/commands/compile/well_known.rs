@@ -380,8 +380,8 @@ mod tests {
 
     #[test]
     fn node_prefix_stripped_on_lookup() {
-        let bare = lookup_well_known("bcrypt");
-        let prefixed = lookup_well_known("node:bcrypt");
+        let bare = lookup_well_known("zlib");
+        let prefixed = lookup_well_known("node:zlib");
         assert!(bare.is_some());
         assert!(prefixed.is_some());
     }
@@ -427,20 +427,6 @@ mod tests {
         let parsed = parse_well_known_toml(raw).expect("entry parses");
         // A typo / unrecognized level never grants faithfulness.
         assert_eq!(parsed["foo"].compat, BindingCompat::Partial);
-    }
-
-    /// The shipped table's audited posture: documented-subset wrappers
-    /// stay `Partial` and are never silently treated as complete drop-ins.
-    #[test]
-    fn shipped_subset_bindings_are_partial() {
-        for name in ["@parcel/watcher"] {
-            let b = lookup_well_known(name).unwrap_or_else(|| panic!("{name} registered"));
-            assert_eq!(
-                b.compat,
-                BindingCompat::Partial,
-                "{name} is a documented subset and must stay compat=partial"
-            );
-        }
     }
 
     #[test]
@@ -614,90 +600,6 @@ mod tests {
              macOS host), so the copy must not emit the stubs.\n\
              Add \"stdlib\" to the perry-runtime `features` list:\n{}",
             missing_stdlib.join("\n")
-        );
-    }
-
-    /// #7358 — the manifest features above are necessary but not sufficient:
-    /// Cargo resolves features over the package set selected by one command.
-    /// A release build of an ext staticlib alone can therefore bundle a
-    /// runtime/shared-dependency set that differs from the separately-built
-    /// stdlib archive. The link deduper cannot drop that whole second copy,
-    /// leaving HTTP attached to an async reactor the JS event loop never
-    /// drives. Keep the shipping workflow's package set paired with the
-    /// compiler and both static wrapper crates.
-    #[test]
-    fn release_ext_builds_share_the_shipped_runtime_feature_set() {
-        let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let workspace_root = manifest_dir
-            .parent()
-            .and_then(|p| p.parent())
-            .expect("workspace root reachable from CARGO_MANIFEST_DIR");
-        let workflow =
-            std::fs::read_to_string(workspace_root.join(".github/workflows/release-packages.yml"))
-                .expect("read release-packages workflow");
-        let step = workflow
-            .split("- name: Build native ext libraries (Unix)")
-            .nth(1)
-            .and_then(|tail| tail.split("- name: Build UI library (macOS)").next())
-            .expect("native ext release step remains present");
-        // The step builds through a shell variable holding the core set, so
-        // read the set from its assignment and require every build command
-        // of the step to carry it.
-        let core_line = step
-            .lines()
-            .map(str::trim_start)
-            .find(|line| line.starts_with("core_args="))
-            .expect("native ext release step names its core set in `core_args`");
-        let core: Vec<&str> = core_line
-            .trim_start_matches("core_args=")
-            .trim_matches('"')
-            .split_whitespace()
-            .collect();
-        for package in ["perry", "perry-runtime-static", "perry-stdlib-static"] {
-            assert!(
-                core.windows(2).any(|pair| pair == ["-p", package]),
-                "#7358: release ext build must select `{package}` in the same Cargo \
-                 invocation so its bundled runtime matches the shipped archives; got:\n{core_line}"
-            );
-        }
-        let builds: Vec<Vec<&str>> = step
-            .lines()
-            .map(str::trim_start)
-            .filter(|line| !line.starts_with('#'))
-            .filter_map(|line| {
-                let at = line
-                    .find("mbx build ")
-                    .or_else(|| line.find("cargo build "))?;
-                Some(
-                    line[at..]
-                        .split_whitespace()
-                        .map(|token| token.trim_end_matches(';'))
-                        .collect(),
-                )
-            })
-            .collect();
-        assert!(!builds.is_empty(), "native ext release step builds nothing");
-        for tokens in &builds {
-            assert!(
-                tokens.contains(&"$core_args"),
-                "#7358: every release ext build must select the core set: {}",
-                tokens.join(" ")
-            );
-        }
-        assert!(
-            builds.iter().any(|tokens| tokens.contains(&"$ext_args")),
-            "the combined release build stopped selecting the extensions"
-        );
-        assert!(
-            step.lines()
-                .any(|line| line.trim() == "ext_args=\"$ext_args -p $name\""),
-            "`ext_args` stopped selecting every governed extension"
-        );
-        assert!(
-            builds
-                .iter()
-                .any(|tokens| tokens.windows(2).any(|pair| pair == ["-p", "\"$name\""])),
-            "native ext release fallback stopped selecting the loop's crate"
         );
     }
 

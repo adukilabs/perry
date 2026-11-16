@@ -20,7 +20,7 @@ mod workspace_root_symlink_tests {
         let real_exe = real_dir.join("perry");
         std::fs::write(&real_exe, b"#!/bin/true\n").expect("write exe");
         std::fs::create_dir_all(root.join("crates/perry-runtime")).expect("mkdir runtime");
-        std::fs::create_dir_all(root.join("crates/perry-ui-geisterhand")).expect("mkdir gh");
+        std::fs::create_dir_all(root.join("crates/perry-stdlib")).expect("mkdir stdlib");
 
         // Install perry as a symlink under a sibling "bin" dir whose
         // ancestors contain no workspace markers (mimics ~/.cargo/bin).
@@ -48,7 +48,7 @@ mod workspace_root_symlink_tests {
         let real_exe = real_dir.join("perry");
         std::fs::write(&real_exe, b"#!/bin/true\n").expect("write exe");
         std::fs::create_dir_all(root.join("crates/perry-runtime")).expect("mkdir runtime");
-        std::fs::create_dir_all(root.join("crates/perry-ui-geisterhand")).expect("mkdir gh");
+        std::fs::create_dir_all(root.join("crates/perry-stdlib")).expect("mkdir stdlib");
 
         let found = workspace_root_from_exe(&real_exe).expect("workspace root");
         assert_eq!(

@@ -9,9 +9,6 @@ use std::process::Command;
 use super::compile::{CompileArgs, CompileResult};
 use crate::{OutputFormat, Platform};
 
-mod android;
-mod android_signing;
-mod android_template;
 mod devices;
 mod entry;
 mod launch;
@@ -19,7 +16,6 @@ mod metadata;
 mod remote;
 mod resign;
 
-pub use android::{build_and_run_android, build_and_run_wearos, install_and_launch_android};
 pub use devices::{
     detect_android_devices, detect_booted_simulators, detect_booted_tv_simulators,
     detect_booted_visionos_simulators, detect_booted_watch_simulators, detect_ios_devices,

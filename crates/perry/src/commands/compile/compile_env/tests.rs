@@ -252,7 +252,8 @@ fn codegen_env_vars_are_build_cache_inputs() {
         .to_path_buf();
     let roots = compiler_crates(&crates);
     assert!(
-        roots.len() >= 24,
+        // 20 in this fork, which has fewer packages than upstream's 26.
+        roots.len() >= 20,
         "compiler dependency scan shrank unexpectedly"
     );
     let mut found = BTreeSet::new();

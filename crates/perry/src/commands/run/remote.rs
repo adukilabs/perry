@@ -479,8 +479,7 @@ pub fn remote_build_and_launch(
             launch_ios_device(&app_dir, &bundle_id, udid, format)
         }
     } else if target == "android" {
-        let serial = device_udid.ok_or_else(|| anyhow!("No Android device serial — use perry run android with a connected device or emulator"))?;
-        install_and_launch_android(&dest, &bundle_id, serial, format)
+        bail!("this fork builds and runs for Linux only: it cannot install an Android build")
     } else {
         // Native binary
         launch_native(&dest, program_args, format)

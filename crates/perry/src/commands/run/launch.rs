@@ -67,15 +67,8 @@ pub fn launch(
             // Reuse iOS simulator launch — simctl install/launch works the same for tvOS
             launch_ios_simulator(&result.output_path, bundle_id, udid, format)
         }
-        "android" => {
-            let bundle_id = result.bundle_id.as_deref().unwrap_or("com.perry.app");
-            let serial = device_udid.unwrap_or("");
-            build_and_run_android(&result.output_path, bundle_id, serial, format)
-        }
-        "wearos" => {
-            let bundle_id = result.bundle_id.as_deref().unwrap_or("com.perry.app");
-            let serial = device_udid.unwrap_or("");
-            build_and_run_wearos(&result.output_path, bundle_id, serial, format)
+        target @ ("android" | "wearos") => {
+            bail!("this fork builds and runs for Linux only: it has no {target} packaging")
         }
         _ => launch_native(&result.output_path, program_args, format),
     }

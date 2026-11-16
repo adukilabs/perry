@@ -62,13 +62,13 @@ fn web_streams_remain_bundled_when_well_known_wrappers_are_enabled() {
 }
 
 /// The emitted-FFI → link derivation resolves to real well-known bindings.
-/// The codegen prefix net routes `js_parcel_watcher_*` to these
+/// The codegen prefix net routes `js_ws_*` to these
 /// binding keys; each must exist in the shipped `well_known_bindings.toml`
 /// and map to its `perry-ext-*` crate, or the driver's routing loop would
 /// silently drop the flip.
 #[test]
 fn ext_prefix_binding_keys_resolve_to_wrapper_crates() {
-    for (key, krate) in [("@parcel/watcher", "perry-ext-parcel-watcher")] {
+    for (key, krate) in [("perry/websocket", "perry-ext-ws")] {
         let binding = super::super::well_known::lookup_well_known(key)
             .unwrap_or_else(|| panic!("`{key}` must be a well-known binding"));
         assert_eq!(binding.krate, krate, "binding `{key}` routes to `{krate}`");
@@ -837,7 +837,6 @@ fn default_members_match_the_build_perry_alias() {
         "perry",
         "perry-runtime-static",
         "perry-stdlib-static",
-        "perry-wasm-host",
     ] {
         assert!(
             members.contains(required),

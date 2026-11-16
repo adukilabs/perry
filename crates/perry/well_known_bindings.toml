@@ -36,41 +36,6 @@
 # requires every ext crate and package mapping to have an explicit decision
 # (#5716).
 
-[bindings.bcrypt]
-crate = "perry-ext-bcrypt"
-lib = "perry_ext_bcrypt"
-tracking = "#466"
-
-[bindings.bcrypt.upstream]
-version = "6.0.0"
-sha256 = "3b2478cda06f066c744e06cd0b68f55e14cc546c19ee2b80be600dfc65b5ae20"
-repo = "https://github.com/kelektiv/node.bcrypt.js"
-ported-at = "6.0.0"
-date = "2026-07-30"
-[bindings.argon2]
-crate = "perry-ext-argon2"
-lib = "perry_ext_argon2"
-tracking = "#466"
-
-[bindings.argon2.upstream]
-version = "0.45.1"
-sha256 = "4acffbd5e5a87fe8fad926afc9a9ac450d69b7082686dd2836be0d8309dbd8aa"
-repo = "https://github.com/ranisalt/node-argon2"
-ref = "786de7152f95881b0683aea1d2ca60ed0d6d9e2f"
-ported-at = "0.45.1"
-date = "2026-07-30"
-[bindings.better-sqlite3]
-crate = "perry-ext-better-sqlite3"
-lib = "perry_ext_better_sqlite3"
-tracking = "#466"
-
-[bindings.better-sqlite3.upstream]
-version = "13.0.2"
-sha256 = "785493c44913bd6415eb4ef244f97b4774a8ba1ee7c45137f05c3ad09282bc75"
-repo = "https://github.com/WiseLibs/better-sqlite3"
-ref = "569e85ad031515d665c18c601da20d1915675ee5"
-ported-at = "13.0.2"
-date = "2026-07-30"
 [bindings.zlib]
 crate = "perry-ext-zlib"
 lib = "perry_ext_zlib"
@@ -89,18 +54,6 @@ node-builtin = true
 # its job: bundling the wrappers that *port* perry-stdlib's existing
 # in-tree implementations, not net-new functionality.
 
-[bindings.sharp]
-crate = "perry-ext-sharp"
-lib = "perry_ext_sharp"
-tracking = "#466"
-
-[bindings.sharp.upstream]
-version = "0.35.3"
-sha256 = "53637f5503f81d10b02097eca6f94c44e69d92ba7ef759f268a0c4ea1d06ae54"
-repo = "https://github.com/lovell/sharp"
-ref = "1018449164723ba0203c1beffaba0e21f7829c18"
-ported-at = "0.35.3"
-date = "2026-07-30"
 # `node-fetch` and the bare `fetch` alias deliberately have NO row here (P11).
 #
 # perry-ext-fetch defined the SAME 74 `js_fetch_*` / `js_headers_*` /
@@ -160,113 +113,3 @@ crate = "perry-ext-http"
 lib = "perry_ext_http"
 tracking = "#577"
 node-builtin = true
-
-# `@perryts/google-auth` is no longer bundled — extracted to a
-# standalone repo (https://github.com/PerryTS/google-auth) and
-# published as an npm package starting v0.5.1015. The previous
-# in-tree binding (perry-ext-google-auth) only shipped a
-# `not-yet-implemented` stub; the standalone package carries the
-# real GoogleSignIn iOS bridge + CredentialManager Android bridge.
-# Users now `npm install @perryts/google-auth`; perry resolves the
-# native lib through the standard `perry.nativeLibrary` lookup.
-# `@perryts/pdf` — official PDF creation package (issue #516).
-# Companion to the existing PdfView widget (rendering/viewing side
-# already shipped in perry-ui-{ios,visionos,macos}). The producer
-# side here wraps the pure-Rust `printpdf` crate behind a five-
-# function FFI: createPdf / pdfAddText / pdfAddLine / pdfNewPage /
-# pdfSave. Page units = PDF points (1/72"), origin = bottom-left
-# per the PDF standard.
-[bindings."@perryts/pdf"]
-crate = "perry-ext-pdf"
-lib = "perry_ext_pdf"
-tracking = "#516"
-
-# `perry/ads` — official in-app advertising package (issue #867).
-# Interstitial + rewarded + banner FFI over Google Mobile Ads
-# (iOS via SwiftPM, Android via play-services-ads). MVP scaffold:
-# every FFI entry point resolves a structured
-# `{ error: "no-sdk-linked" }` placeholder. Real SDK integration,
-# GDPR/ATT consent flow, and Info.plist / AndroidManifest auto-
-# injection are tracked as follow-ups under the same issue.
-[bindings."perry/ads"]
-crate = "perry-ext-ads"
-lib = "perry_ext_ads"
-tracking = "#867"
-
-# `@parcel/watcher` 2.5.1 ships a pure-JS option wrapper plus one platform
-# package whose `main` is a Node-API `.node` file. Perry serves the binding
-# object natively from one notify-backed static archive; all published sidecar
-# names are aliases so a target-folded dynamic require reaches the same facade.
-[bindings."@parcel/watcher"]
-crate = "perry-ext-parcel-watcher"
-lib = "perry_ext_parcel_watcher"
-tracking = "#8513"
-compat = "partial"
-
-[bindings."@parcel/watcher".upstream]
-version = "2.5.1"
-sha256 = "bf7a6b5577a287153c9a6bf7be953556b998f2a57706eb7a5371ec7eb0088d41"
-repo = "https://github.com/parcel-bundler/watcher"
-ref = "119f1ff04bb41c2369929e37274900c61b0a9f49"
-ported-at = "2.5.1"
-date = "2026-08-21"
-
-[bindings."@parcel/watcher-darwin-x64"]
-crate = "perry-ext-parcel-watcher"
-lib = "perry_ext_parcel_watcher"
-tracking = "#8513"
-alias-of = "@parcel/watcher"
-
-[bindings."@parcel/watcher-darwin-arm64"]
-crate = "perry-ext-parcel-watcher"
-lib = "perry_ext_parcel_watcher"
-tracking = "#8513"
-alias-of = "@parcel/watcher"
-
-[bindings."@parcel/watcher-linux-x64-glibc"]
-crate = "perry-ext-parcel-watcher"
-lib = "perry_ext_parcel_watcher"
-tracking = "#8513"
-alias-of = "@parcel/watcher"
-
-[bindings."@parcel/watcher-linux-x64-musl"]
-crate = "perry-ext-parcel-watcher"
-lib = "perry_ext_parcel_watcher"
-tracking = "#8513"
-alias-of = "@parcel/watcher"
-
-[bindings."@parcel/watcher-linux-arm64-glibc"]
-crate = "perry-ext-parcel-watcher"
-lib = "perry_ext_parcel_watcher"
-tracking = "#8513"
-alias-of = "@parcel/watcher"
-
-[bindings."@parcel/watcher-linux-arm64-musl"]
-crate = "perry-ext-parcel-watcher"
-lib = "perry_ext_parcel_watcher"
-tracking = "#8513"
-alias-of = "@parcel/watcher"
-
-[bindings."@parcel/watcher-win32-x64"]
-crate = "perry-ext-parcel-watcher"
-lib = "perry_ext_parcel_watcher"
-tracking = "#8513"
-alias-of = "@parcel/watcher"
-
-[bindings."@parcel/watcher-win32-arm64"]
-crate = "perry-ext-parcel-watcher"
-lib = "perry_ext_parcel_watcher"
-tracking = "#8513"
-alias-of = "@parcel/watcher"
-# perry-ext-bun is Perry's own `Bun.Transpiler` / in-memory `Bun.build`
-# (#9602), over the compiler's pinned SWC generation. It is not an npm
-# binding: nothing imports `perry/bun-transpiler`; the codegen symbol registry
-# flips this row onto the link line when a program emits a
-# `js_bun_transpiler_*` / `js_bun_build` call. The crate used to be
-# perry-ext-typescript, which also served a `typescript` subset
-# (`transpileModule`); that binding was removed and npm `typescript` compiles
-# from source.
-[bindings."perry/bun-transpiler"]
-crate = "perry-ext-bun"
-lib = "perry_ext_bun"
-tracking = "#9602"

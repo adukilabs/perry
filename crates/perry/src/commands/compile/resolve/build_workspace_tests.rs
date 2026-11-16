@@ -2,7 +2,7 @@ use super::*;
 
 fn checkout(root: &Path, version: &str) {
     fs::create_dir_all(root.join("crates/perry-runtime")).unwrap();
-    fs::create_dir_all(root.join("crates/perry-ui-geisterhand")).unwrap();
+    fs::create_dir_all(root.join("crates/perry-stdlib")).unwrap();
     fs::create_dir_all(root.join("crates/perry")).unwrap();
     fs::write(
         root.join("Cargo.toml"),

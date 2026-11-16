@@ -874,10 +874,6 @@ const COMPILE_ENV_EXCLUSIONS: &[(&str, &str)] = &[
         "Prints lowering diagnostics; no emitted instructions depend on the report.",
     ),
     (
-        "PERRY_TEST_BUNDLE_LAUNCH_CHILD",
-        "Test-only fixture/child-process control; absent from compiler production paths.",
-    ),
-    (
         "PERRY_TEST_ISOLATED_FEATURES_CHILD",
         "Test-only child-process isolation marker; never read by the compiler's production path.",
     ),
@@ -916,10 +912,6 @@ const COMPILE_ENV_EXCLUSIONS: &[(&str, &str)] = &[
     (
         "PERRY_UPDATE_SERVER",
         "Used by standalone CLI/update/publish commands, outside the compile pipeline.",
-    ),
-    (
-        "PERRY_WASM_DEBUG_IMPORTS",
-        "Writes IR/report files or diagnostic output without changing emitted objects.",
     ),
     (
         "PERRY_ARRAY_BASE_DIAG",

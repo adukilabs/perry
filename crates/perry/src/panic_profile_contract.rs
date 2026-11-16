@@ -510,7 +510,8 @@ mod tests {
         // prune, a parse that stopped matching) would otherwise make this
         // test pass having examined nothing.
         assert!(
-            result.manifests_seen >= 50,
+            // 41 in this fork, against upstream's 115.
+            result.manifests_seen >= 40,
             "the manifest walk found only {} Cargo.toml files under {} — discovery is broken, \
              so this contract is measuring nothing",
             result.manifests_seen,

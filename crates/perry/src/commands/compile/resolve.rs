@@ -57,7 +57,9 @@ use native_library::{split_module_spec, PERRY_FFI_ABI_VERSION};
 /// True when `dir` is the root of the Perry workspace (carries the
 /// marker crates the auto-optimize relink reaches for).
 fn is_perry_workspace_root(dir: &Path) -> bool {
-    dir.join("crates/perry-runtime").is_dir() && dir.join("crates/perry-ui-geisterhand").is_dir()
+    // This fork has no `perry-ui-geisterhand`, upstream's second marker. The
+    // standard library is the other package every relink reaches for.
+    dir.join("crates/perry-runtime").is_dir() && dir.join("crates/perry-stdlib").is_dir()
 }
 
 /// Locate the workspace root by walking up from the perry executable.

@@ -129,7 +129,37 @@ pub(super) fn place(module: &Module<'_>, tm: &TargetMachine) -> Result<()> {
         // Every use was inlined; the definition itself is dead.
         unsafe { function.delete() };
     }
+    require_unwind_tables(module);
     Ok(())
+}
+
+/// `js_loop_interrupt` unwinds from the poll to the worker's base trap, so
+/// every frame between the two needs an unwind table entry.
+///
+/// The polls are placed after the optimizer, which by then has marked a body
+/// that made no call `nounwind` (a loop that only computes), and likewise
+/// every body that calls only such bodies. LLVM emits no FDE for a `nounwind`
+/// function without `uwtable`, so the unwind stopped at the first such frame
+/// with `_URC_END_OF_STACK` and the runtime aborted ("worker base handoff
+/// found no base trap"). An ELF executable hid this: its bodies begin with
+/// the stack check, whose call to `js_stack_overflow` keeps them from being
+/// `nounwind`. Library output has no stack check.
+///
+/// The attribute goes on every defined function and not only on the ones
+/// that received a poll, because the frames above a polled loop are walked
+/// too. `nounwind` itself stays: nothing between the poll and the base trap
+/// may catch this unwind, and call sites optimized on it remain valid.
+fn require_unwind_tables(module: &Module<'_>) {
+    let kind = inkwell::attributes::Attribute::get_named_enum_kind_id("uwtable");
+    debug_assert_ne!(kind, 0, "LLVM knows the uwtable attribute");
+    // 1 = synchronous tables, matching `-Z use-sync-unwind` on the runtime.
+    let uwtable = module.get_context().create_enum_attribute(kind, 1);
+    for function in module.get_functions() {
+        if function.count_basic_blocks() == 0 {
+            continue;
+        }
+        function.add_attribute(inkwell::attributes::AttributeLoc::Function, uwtable);
+    }
 }
 
 #[cfg(test)]
@@ -232,6 +262,24 @@ entry:
             !body(&ir, "straight").contains("PERRY_LOOP_INTERRUPT_ARMED"),
             "no entry polls:\n{ir}"
         );
+    }
+
+    #[test]
+    fn a_polled_module_has_unwind_tables_on_every_body() {
+        let ir = polled(SPIN);
+        for name in ["spin", "straight"] {
+            let start = ir.find(&format!("@{name}(")).unwrap();
+            let header = &ir[start..start + ir[start..].find('{').unwrap()];
+            let group = header
+                .split_whitespace()
+                .find(|word| word.starts_with('#'))
+                .unwrap_or_else(|| panic!("{name} has no attribute group:\n{ir}"));
+            let attrs = ir
+                .lines()
+                .find(|line| line.starts_with(&format!("attributes {group} =")))
+                .unwrap();
+            assert!(attrs.contains("uwtable"), "{name}: {attrs}\n{ir}");
+        }
     }
 
     #[test]

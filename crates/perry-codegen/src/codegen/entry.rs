@@ -216,6 +216,19 @@ pub(super) fn compile_module_entry(
         // and the first GC cycle after connect() would free them (issue #54).
         let ic_base = llmod.ic_counter;
         let buffer_alias_scopes = llmod.buffer_alias_scope_allocator();
+        // A static archive is linked by someone else's linker, which takes an
+        // archive member only when something refers to it. The feature
+        // installer object registers itself from `.init_array` and nothing
+        // names it, so a plain `cc host.c libapp.a ...` dropped it: BigInt
+        // then aborted, a regex replace returned its input and
+        // `import.meta.url` was undefined. The reference below makes the
+        // member part of every link. `perry_module_init` also calls it, before
+        // `js_gc_init` runs the installers, so the registration does not
+        // depend on the host's startup running `.init_array` either.
+        let installer_ref = (output_type == "staticlib").then(|| {
+            llmod.declare_function(crate::stubs::FEATURE_INSTALLER_REGISTRATION, VOID, &[]);
+            crate::stubs::FEATURE_INSTALLER_REGISTRATION
+        });
         // Declare `perry_geisterhand_start` BEFORE `main` is created — once
         // `main` holds a mutable borrow on `llmod`, no further
         // `llmod.declare_function` calls are allowed. Inline (not in
@@ -468,6 +481,9 @@ pub(super) fn compile_module_entry(
         let _ = main.create_block("entry");
         {
             let blk = main.block_mut(0).unwrap();
+            if let Some(register) = installer_ref {
+                blk.call_void(register, &[]);
+            }
             if let Some((const_name, byte_len)) = process_entry_path.as_ref() {
                 let path_ptr = format!("@{}", const_name);
                 let len_str = byte_len.to_string();

@@ -192,6 +192,12 @@ fn startup_registration_ll(func: &str, triple: Option<&str>) -> String {
     }
 }
 
+/// The feature installer object's registration function. Hidden, not internal:
+/// a static archive's `perry_module_init` names it (`codegen/entry.rs`) so a
+/// linker that takes archive members on demand keeps the object, and hidden
+/// visibility keeps it out of a shared object's exports.
+pub const FEATURE_INSTALLER_REGISTRATION: &str = "perry_register_feature_installers";
+
 /// Generate the object that tells the runtime (and perry-stdlib, when linked)
 /// which optional features this program installs.
 ///
@@ -223,7 +229,7 @@ pub fn generate_feature_installer_object(
     if let Some(stdlib) = stdlib_installs {
         halves.push(("stdlib", stdlib));
     }
-    let mut ctor = String::from("define internal void @perry_register_feature_installers() {\n");
+    let mut ctor = format!("define hidden void @{FEATURE_INSTALLER_REGISTRATION}() {{\n");
     for symbol in registrations {
         ll.push_str(&format!("declare void @{}()\n", symbol));
         ctor.push_str(&format!("  call void @{}()\n", symbol));
@@ -250,7 +256,7 @@ pub fn generate_feature_installer_object(
     ll.push_str(&ctor);
     let triple = target.and_then(crate::resolve_target_triple);
     ll.push_str(&startup_registration_ll(
-        "perry_register_feature_installers",
+        FEATURE_INSTALLER_REGISTRATION,
         triple.as_deref(),
     ));
     compile_ll_to_object(&ll, triple.as_deref())

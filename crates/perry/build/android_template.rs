@@ -9,7 +9,12 @@ pub fn emit() -> io::Result<()> {
     let manifest_dir = env::var_os("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR");
     let root = Path::new(&manifest_dir).join("../perry-ui-android/template");
     let mut files = Vec::new();
-    collect(&root, &root, &mut files)?;
+    // The adukilabs fork removed the Android package. With no template to
+    // embed the table is empty, and `perry run --android` has nothing to
+    // extract. Every other command is unaffected.
+    if root.is_dir() {
+        collect(&root, &root, &mut files)?;
+    }
     files.sort();
     let mut source = String::from("pub(super) static FILES: &[(&str, &[u8])] = &[\n");
     for name in files {

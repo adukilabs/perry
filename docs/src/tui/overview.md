@@ -13,6 +13,8 @@
 
 `perry/tui` enters the terminal's [alternate screen buffer](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-The-Alternate-Screen-Buffer) (so your scrollback isn't polluted), captures raw-mode keypresses, and re-renders only the cells that changed between frames. The cell grid is a packed `Vec<Cell>` so an 80×24 terminal fits in ~15 KB — well within L2.
 
+Cursor positions retain the full `u16` grid dimensions, including rows or columns beyond 255 and 999. Grid indices are zero-based; the renderer converts them to one-based ANSI coordinates without truncation.
+
 ## Quick Start
 
 The smallest interactive `perry/tui` program — a counter that increments on `+`, decrements on `-`, and quits on `q`:
@@ -54,6 +56,8 @@ If you've used ink, the only real difference at the surface is the **factory cal
 ## Architecture in one paragraph
 
 `run(component)` enters the alt screen, enables raw mode on stdin, spawns a reader thread, and loops: reset hook index → call the component closure → diff the returned widget tree against the front buffer → emit minimal ANSI to reconcile → drain pending keypresses (dispatching to `useInput` handlers and the focus ring) → if any state changed, immediately re-render; else idle 16 ms. Exit happens when `exit()` (or `useApp().exit()`) flips a flag the loop checks at the top of every iteration. On exit, raw mode is restored and the alt screen is left so your terminal returns to exactly the state it was in before the program ran.
+
+Widget handles key a hash-indexed registry, so looking one up is average O(1) however many widgets exist; `lookup` still copies the node, so its cost follows the node's text or child count. A handle stays valid for the rest of the process: the registry never reclaims nodes.
 
 ## What's next
 

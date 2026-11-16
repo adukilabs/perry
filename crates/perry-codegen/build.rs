@@ -32,12 +32,12 @@ fn main() {
         }
     }
 
-    println!("cargo:rerun-if-env-changed=LLVM_SYS_221_PREFIX");
+    println!("cargo:rerun-if-env-changed=LLVM_SYS_231_PREFIX");
     println!("cargo:rerun-if-changed=src/inprocess/unique_sections.cpp");
     let wasi = std::env::var_os("CARGO_FEATURE_TARGET_WASI").is_some();
     let inprocess = std::env::var_os("CARGO_FEATURE_LLVM_INPROCESS").is_some();
     if wasi || inprocess {
-        let include = if let Some(prefix) = std::env::var_os("LLVM_SYS_221_PREFIX") {
+        let include = if let Some(prefix) = std::env::var_os("LLVM_SYS_231_PREFIX") {
             std::path::PathBuf::from(prefix).join("include")
         } else {
             let output = std::process::Command::new("llvm-config")
@@ -63,8 +63,8 @@ fn main() {
         return;
     }
 
-    let prefix = std::env::var_os("LLVM_SYS_221_PREFIX").unwrap_or_else(|| {
-        panic!("LLVM_SYS_221_PREFIX must point to the LLVM 22 development archive on Windows")
+    let prefix = std::env::var_os("LLVM_SYS_231_PREFIX").unwrap_or_else(|| {
+        panic!("LLVM_SYS_231_PREFIX must point to the LLVM 23 development archive on Windows")
     });
     let lib_dir = std::path::PathBuf::from(prefix).join("lib");
     if !lib_dir.join("LLVM-C.lib").is_file() {

@@ -194,8 +194,10 @@ fn split_slow_arms(
         };
         unsafe {
             let term = term.as_value_ref();
-            if LLVMGetInstructionOpcode(term) != LLVMOpcode::LLVMBr
-                || LLVMIsConditional(term) == 0
+            // LLVM 23 split the branch opcode in two. A conditional branch
+            // is now its own opcode, so the separate `LLVMIsConditional`
+            // test is gone.
+            if LLVMGetInstructionOpcode(term) != LLVMOpcode::LLVMCondBr
                 || !branches_on_leaf_call(LLVMGetCondition(term))
             {
                 continue;
@@ -215,9 +217,7 @@ fn split_slow_arms(
                     }
                     let next = LLVMGetBasicBlockTerminator(block);
                     block = match LLVMGetInstructionOpcode(next) {
-                        LLVMOpcode::LLVMBr if LLVMIsConditional(next) == 0 => {
-                            LLVMGetSuccessor(next, 0)
-                        }
+                        LLVMOpcode::LLVMUncondBr => LLVMGetSuccessor(next, 0),
                         LLVMOpcode::LLVMInvoke => LLVMGetNormalDest(next),
                         _ => break,
                     };

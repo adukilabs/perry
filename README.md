@@ -1,173 +1,117 @@
-# Perry
+# Perry, adukilabs fork
 
-**Write TypeScript. Ship native. Everywhere.**
+A cut-down fork of [Perry](https://github.com/PerryTS/perry), a compiler that turns TypeScript
+into native machine code ahead of time. This fork keeps one thing: compiling TypeScript for
+Linux, as an executable or as a static library that a host program links.
 
-Perry compiles the TypeScript you already write into real machine-code executables — for macOS, Windows, Linux, iOS, Android, watchOS, and TV. No Node.js to install. No Electron to bundle. No runtime at all. Just a binary. (The same codebase can also target the web, emitted as JavaScript or WebAssembly.)
+It exists for an application platform that runs HTML, CSS and TypeScript apps directly on the
+Linux kernel. That platform needs a TypeScript compiler it can read, build and change. It does
+not need Perry's support for other operating systems, its UI toolkits or its WebAssembly target.
 
-[![Latest release](https://img.shields.io/github/v/release/PerryTS/perry?display_name=tag)](https://github.com/PerryTS/perry/releases/latest)
-[![Join the Perry Discord community](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&logoColor=white)](https://discord.gg/chEmpGdTtZ)
+Perry is the work of the Perry contributors and is MIT licensed. The license and copyright
+notice are in `LICENSE`, unchanged. For Perry itself, its documentation and its releases, go to
+the upstream repository. Nothing here is endorsed by the Perry project.
 
-[Website](https://perryts.com) · [Documentation](https://perryts.github.io/perry/) · [Showcase](https://perryts.com/showcase) · [Examples](https://github.com/PerryTS/perry-examples)
+## Branches
 
-```bash
-perry compile src/main.ts -o myapp
-./myapp    # a standalone native binary — ~34 KB for hello world
-```
+| Branch | What it is |
+|---|---|
+| `main` | Upstream `main` as it was when the fork was made. Not built on. |
+| `platform-fixes` | Upstream release `v0.5.1665` plus three fixes, nothing removed. |
+| `platform` | The branch to use. `platform-fixes`, cut down, on LLVM 23. |
 
-## The language you know. The deployment you wish it had.
+## What is different from upstream
 
-Millions of developers write TypeScript every day — but shipping it has always meant shipping a JavaScript engine: a Node install on every server, ~100 MB of embedded runtime per CLI, or a whole browser engine per desktop app. Perry removes the engine. SWC parses your code, LLVM compiles it to machine code, and you get what systems languages get: instant cold starts, tiny self-contained binaries, real threads — without leaving TypeScript.
+**Three fixes for static library output.** Each was reported upstream with a reproduction.
 
-|  | **Perry** | Node.js | Bun | Electron |
-|---|---|---|---|---|
-| **What you ship** | One native binary, from ~34 KB | Your code + a Node install | One binary embedding the JS engine | App bundle with a browser engine |
-| **Execution** | Ahead-of-time machine code | JIT | JIT | JIT |
-| **Cold start** | Instant — no engine to boot, no warmup | Engine boot + warmup | Engine boot + warmup | Browser boot |
-| **Native UI (no WebView)** | ✅ AppKit, UIKit, Android Views, Win32, GTK4 | — | — | Chromium |
-| **iOS · Android · watchOS · TV** | ✅ from the same codebase | — | — | — |
-| **Multicore** | Real OS threads, data-race-safe at compile time | worker_threads | workers | processes |
+| Fault | Fix | Upstream report |
+|---|---|---|
+| A plain link (`cc host.c libapp.a ...`) left out the object that sets up big integers, regular expressions and more. A regex replace then returned its input with exit code 0. | The library's entry function calls the set-up function, so any link keeps it. | PerryTS/perry issue 14787 |
+| `worker.terminate()` on a worker that only loops aborted the process. | Every function of a module that receives loop polls gets an unwind table entry. | PerryTS/perry issue 14788 |
+| The exception object was aligned to 8 bytes where the ABI asks for 16. LLVM's unwinder faults on that. | `align(16)` on the object. | PerryTS/perry issue 14789 |
 
-<sub>Table describes Perry's native targets. `--target web` / `--target wasm` emit JavaScript / WebAssembly that runs in the browser rather than as a native binary.</sub>
+**LLVM 23 in place of LLVM 22.** Two changes were needed. LLVM 23 split the branch instruction
+code in two, and it removed the `Os` and `Oz` pass pipelines. Both size levels now run the `O2`
+pipeline and rely on the `optsize` and `minsize` attributes Perry already puts on app code.
 
-## Performance
+**Removed.**
 
-Ahead-of-time machine code means no engine boot and no JIT warmup — and on measured workloads, real multiples over the JS runtimes. Highlights from our open benchmark harnesses (Apple M1 Max, medians of repeated runs):
+- 37 of 72 workspace packages: the UI toolkits for macOS, iOS, Android, Windows, GTK and the
+  rest, six code generators for other platforms, optional extension packages (SQLite, PDF,
+  image processing and others), and WebAssembly hosting.
+- The WebAssembly target of the code generator.
+- Benchmarks, changelogs, CI workflows, packaging, vendored CI actions, and translated docs.
+- The compiler's default command set is the slim one (`compile`, `run`, `check`, `types`,
+  `cache`, `dev`). The publish, mobile and updater commands are still in the source and are
+  built only with `--features full-cli`.
 
-| Workload | **Perry** | Node.js | Bun | Rust |
-|---|---:|---:|---:|---:|
-| Image convolution (4K, 5×5 Gaussian) | **354 ms** | 1,207 ms — *3.4× slower* | 915 ms — *2.6× slower* | 392 ms |
-| Fibonacci (recursive calls) | **309 ms** | 987 ms — *3.2× slower* | 518 ms — *1.7× slower* | 316 ms |
-| JSON pipeline (100 records) | **39 ms** | 144 ms — *3.7× slower* | 51 ms — *1.3× slower* | 34 ms |
-| JSON pipeline (500k records, 108 MB) | **1,649 ms** | 1,010 ms — *1.6× faster* | 647 ms — *2.5× faster* | 604 ms |
-| Object allocation (1M objects) | **2 ms** | 8 ms — *4× slower* | 6 ms — *3× slower* | <1 ms |
-| Array write (10M elements) | **3 ms** | 9 ms — *3× slower* | 6 ms — *2× slower* | 7 ms |
-| Peak memory (JSON pipeline) | **3.5 MB** | 36 MB — *10× more* | 11 MB — *3× more* | 1.2 MB |
+The tree is 159 MB with 16,208 files. Upstream at the same release is 1.4 GB with 41,793.
 
-Look at the Rust column again: on convolution, fibonacci, and the array-write loop, TypeScript compiled with Perry **runs even with — or ahead of — Rust**. And Electron isn't in the table because it doesn't compete here: it ships a whole browser engine per app, where a comparable Perry app is a single-digit-MB native binary.
+**One upstream change taken since the fork.** `fix(strip-dedup)` (upstream #13554), a link fix.
+It builds here and its own unit test passes.
 
-<sub>Sources: convolution & JSON from the [systems-language report](https://github.com/PerryTS/perry/blob/7beb3a50ca/benchmarks/honest_bench/REPORT.md)
-— pinned to `7beb3a50ca`, the last revision whose artifact contains these values; the copy at HEAD was regenerated in #7641 on a host
-where the harness clock was invalid and now reads 0.0 ms in every timing cell (see this PR). Re-pin to `main` once it is regenerated.
-Fibonacci, object allocation & array write from the [polyglot sweep](benchmarks/polyglot/RESULTS.md) (Perry default mode, no fast-math).</sub>
+## Building
 
-We publish *everything*, including the workloads where V8's JIT still beats us — no cherry-picked table can survive an open harness. Run it yourself: `./benchmarks/run_public_baseline.sh` ([methodology](benchmarks/README.md)).
-
-<details>
-<summary><b>The full published suite, generated from the artifact — including the rows we lose</b></summary>
-
-<!-- public-node-bun:start -->
-Generated from [`benchmarks/results/public-node-bun-v1.json`](benchmarks/results/public-node-bun-v1.json) at Perry commit `b77aba63433b`.
-Lower wall-clock median is better; every row includes complete raw samples and passed correctness checks. Medians within 5% of a peer count as a tie with it.
-
-| Benchmark | Perry | Node.js | Bun | Result | What it tests |
-|---|---:|---:|---:|---|---|
-| modulo_loop | 93 ms | 95 ms | 95 ms | tie | Integer-modulo accumulation loop (microbenchmark) |
-| method_calls | 35 ms | 11 ms | 8 ms | loss vs both | Class method dispatch |
-| closure | 47 ms | 49 ms | 49 ms | tie | Closure creation and invocation |
-| binary_trees | 13 ms | 6 ms | 6 ms | loss vs both | Tree allocation and traversal |
-| string_concat | 6 ms | 31 ms | 5 ms | mixed | String append loop |
-| prime_sieve | 6 ms | 5 ms | 5 ms | loss vs both | Sieve of Eratosthenes |
-| mandelbrot | 25 ms | 24 ms | 29 ms | mixed | Complex-number iteration |
-| matrix_multiply | 19 ms | 33 ms | 33 ms | win vs both | Matrix multiplication |
-| json_roundtrip | 144 ms | 379 ms | 219 ms | win vs both | Parse and stringify ~1 MB JSON |
-
-<!-- public-node-bun:end -->
-
-</details>
-
-## Why developers pick Perry
-
-- **⚡ Native speed, zero warmup.** LLVM-optimized machine code with escape analysis, scalar replacement, and a generational GC — see the [numbers above](#performance).
-- **📦 Binaries you can actually email.** Hello world is ~34 KB: a program that only prints constants links no runtime at all. Once a program uses the runtime (loops over values, JSON, async), expect a few MB stripped — about 5.5 MB on macOS arm64 today. A real MongoDB GUI built with Perry ships as [a ~7 MB app](https://github.com/MangoQuery/app).
-- **🔌 Your Node code mostly just works.** ~97% pass rate on Node's own test suite across 53 `node:*` modules — real implementations of `fs`, `http`/`http2`, `net`/`tls`, `crypto`, `stream`, `child_process`, `worker_threads`, `fetch` and the web globals, plus ~50 popular npm packages (Fastify, Express, mysql2, pg, ioredis, ws, bcrypt, jsonwebtoken…). Plain JavaScript compiles too.
-- **🖥️ One UI codebase, 11 targets.** A SwiftUI-like API that compiles to *real* platform widgets — macOS, iOS, iPadOS, visionOS, tvOS, watchOS, Android, Wear OS, Windows, Linux, Web/WASM. Even [home-screen widgets](https://perryts.github.io/perry/widgets/overview.html).
-- **🧵 All your cores, safely.** `parallelMap`, `parallelFilter`, and `spawn` on real OS threads — the compiler rejects shared mutable state, so data races don't compile.
-- **🔋 Batteries included.** Databases, WebSockets, containers, i18n, keychain, notifications, auto-update, a TUI framework — natively implemented and statically linked.
-
-## Get started in 60 seconds
+Needs: the Rust toolchain named in `rust-toolchain.toml`, LLVM 23 development files, `clang`,
+`cmake`, and a C compiler.
 
 ```bash
-# Install (macOS · Linux · Windows)
-npm install -g @perryts/perry     # or: brew install perryts/perry/perry
-                                  # or: winget install PerryTS.Perry
+# LLVM_SYS_231_PREFIX is needed only when llvm-config is not on PATH.
+export LLVM_SYS_231_PREFIX=/usr/lib/llvm-23
+export PERRY_TRAP_CLANG=clang-23        # only when plain `clang` is not on PATH
 
-# Create and run a project
-perry init my-app && cd my-app
-perry run .
+# One cargo run for all four. Built in separate runs, the runtime and standard
+# library archives hold different copies of the runtime and do not link together.
+cargo build -p perry -p perry-runtime-static -p perry-stdlib-static -p perry-gc-effects
 ```
 
-npm packages and ES modules work as you'd expect:
+That is a debug build, the one to work with. Measured on a 12-thread laptop with four jobs and
+the build held to 5 GB of memory: about 10 minutes from nothing (before the cut), and 1 to 4
+minutes after a change.
 
-```typescript
-import fastify from 'fastify';
-
-const app = fastify();
-app.get('/api/users', async () => [{ id: 1, name: 'Alice' }]);
-app.listen({ port: 3000 }, () => console.log('Listening on :3000'));
-```
+For optimized output add `--profile prod` to the same command, then write the sidecar file the
+compiler looks for beside the runtime archive:
 
 ```bash
-perry compile src/main.ts -o api && ./api    # one binary — no node_modules on the server
+target/prod/perry-gc-effects sidecars target/prod
 ```
 
-Same code, other platforms: `--target ios`, `--target android`, `--target web`… full list in the [platforms guide](https://perryts.github.io/perry/platforms/overview.html). APT, Scoop, install script, and source builds are in the [installation guide](https://perryts.github.io/perry/getting-started/installation.html); run `perry doctor` to verify your setup.
+Without the sidecar the compiler prints a warning and treats every runtime call as one that can
+throw, which is correct and slower. The sidecar tool refused the debug archives here.
 
-## Built with Perry
+```bash
+target/debug/perry compile app.ts -o app                              # an executable
+target/debug/perry compile app.ts --output-type staticlib -o libapp.a # a library for a host
+```
 
-Real products, shipping today:
+## What has been checked, and what has not
 
-| Project | What it is | Platforms |
-|---------|-----------|-----------|
-| [**Bloom Engine**](https://bloomengine.dev) | Native TypeScript game engine — Metal, DirectX 12, Vulkan, OpenGL | macOS, Windows, Linux, iOS, tvOS, Android |
-| [**Mango**](https://github.com/MangoQuery/app) | Native MongoDB GUI — ~7 MB binary, sub-second cold start | macOS, Windows, Linux, iOS, Android |
-| [**Hone**](https://hone.codes) | AI-powered native code editor with terminal, Git, and LSP | macOS, Windows, Linux, iOS, Android, Web |
-| [**dB Meter**](https://dbmeter.app) | Real-time sound level measurement at 60 fps | iOS, macOS, Android |
+Checked on `platform`, with a debug build on Debian with LLVM 23.1.6:
 
-<p align="center">
-  <img src="docs/images/showcase/mango-explorer.png" width="400" alt="Mango — native MongoDB GUI built with Perry" />
-  <img src="https://hone.codes/screenshot.png" width="400" alt="Hone — AI code editor built with Perry" />
-</p>
+- It builds with no errors.
+- A static library linked plainly behaves the same as one linked with every member forced in,
+  for six runtime features.
+- `worker.terminate()` stops a looping worker in executable and static library output, in 15
+  of 15 runs. A debug build has no sidecar, so this run does not exercise the unwind table
+  fix. That fix was checked on `platform-fixes` with an optimized build on LLVM 22, where the
+  static library case went from an abort in 3 of 3 runs to stopping in 6 of 6.
 
-More in the [showcase](https://perryts.com/showcase) — built something with Perry? Open a PR and add it.
+Not checked:
 
-## Documentation
+- Perry's own test suite has not been run on this branch.
+- An optimized build on LLVM 23, and code size or speed against LLVM 22.
+- The fix for the exception object's alignment has been read from the built archive (the
+  object's section asks for 16) but the fault itself has not been re-run against it.
+- Any target other than x86-64 Linux. The source for other targets that remains inside the
+  kept packages is untested and is expected to go.
 
-Everything else lives in the [docs](https://perryts.github.io/perry/):
+## Keeping up with upstream
 
-- [Getting started](https://perryts.github.io/perry/getting-started/installation.html) — install, hello world, project config
-- [Language support](https://perryts.github.io/perry/language/supported-features.html) — supported TypeScript features and [limitations](https://perryts.github.io/perry/language/limitations.html)
-- [Native UI](https://perryts.github.io/perry/ui/overview.html) · [Multi-threading](https://perryts.github.io/perry/threading/overview.html) · [Standard library](https://perryts.github.io/perry/stdlib/overview.html)
-- [Platforms](https://perryts.github.io/perry/platforms/overview.html) — per-platform guides from macOS to watchOS to WASM
-- [CLI reference](https://perryts.github.io/perry/cli/commands.html) — commands, flags, `perry.toml`, [privacy & telemetry](docs/src/cli/telemetry.md)
-- [Contributing](docs/src/contributing/architecture.md) — architecture, [building from source](docs/src/contributing/building.md), and the [release process](docs/src/contributing/releasing.md)
-
-## Community
-
-Perry is built in the open — come say hi:
-
-- 💬 **[Join the Discord](https://discord.gg/chEmpGdTtZ)** — get help, share what you're building, and talk directly to the people building Perry
-- 🐛 [Issues](https://github.com/PerryTS/perry/issues) — bug reports and feature requests
-- 🚀 [Showcase](https://perryts.com/showcase) — apps the community is shipping
-
-## Privacy
-
-Telemetry is **opt-in**: nothing leaves your machine unless you explicitly enable it in `~/.perry/config.toml`, and `PERRY_NO_TELEMETRY=1` (or `CI=true`) always wins. What can be sent is anonymous and redacted — never your source, paths, or project names. Inspect it any time with `perry doctor`, and see exactly what's in the payload in the [privacy & telemetry docs](docs/src/cli/telemetry.md).
-
-## Sponsors
-
-Perry's development is backed by our sponsors. 🙏
-
-<p align="center">
-  <a href="https://www.skelpo.com">
-    <img src="docs/images/sponsors/skelpo-logo.svg" width="360" alt="Skelpo — premium sponsor" />
-  </a>
-</p>
-<p align="center">
-  <strong>💎 <a href="https://www.skelpo.com">Skelpo</a> — Premium Sponsor</strong>
-</p>
-
-Want to support Perry and see your logo here? Get in touch via [perryts.com](https://perryts.com).
+`platform` is based on the release `v0.5.1665`, which is 1,459 commits behind upstream `main`,
+so upstream commits often do not apply as they are. Of the 12 commits upstream made in the
+hours after the fork, one was taken. The cut itself is made by a script, so it can be repeated
+on a newer upstream release.
 
 ## License
 
-MIT
+MIT. See `LICENSE`.

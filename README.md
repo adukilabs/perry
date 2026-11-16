@@ -60,7 +60,7 @@ Perry already puts on app code.
   that cannot hold on x86-64 Linux, and the `if cfg!(...)` branches decided there. Six files
   that do not parse on their own were left as they are.
 - Every `--target` other than Linux. `compile`, `check`, `lock`, `run` and `target add` refuse
-  any other name with "this fork of perry compiles for Linux only" before anything is written.
+  any other name with a message that this fork is for Linux only, before anything is written.
   The accepted names are `linux`, `linux-x86_64`, `linux-arm64`, `linux-aarch64`, `linux-musl`,
   `linux-x86_64-musl` and `linux-aarch64-musl`.
 - In the compiler package, the code that only those other targets reached: the link steps for
@@ -159,8 +159,8 @@ Checked on `main`, with a debug build on Debian with LLVM 23.1.6:
   The compiler has 190 fewer tests than upstream. Tests of removed code went with it, and 15
   tests that asserted only how another system is handled were cut. 25 tests that reached
   kept code through a macOS, iOS, Windows or WebAssembly fixture were rewritten on Linux
-  targets and ELF fixtures. Two guards on how much a scan saw were set to this fork's counts
-  (20 packages, 41 manifests).
+  targets and ELF fixtures. Two guards on how much a scan saw were lowered to fit this fork:
+  at least 20 packages, and at least 40 manifests where the fork has 41.
 - The gate on `--target`, with the built compiler: no target, `linux` and `linux-x86_64`
   each compile a program that runs and prints the expected line. 15 other names, among them
   `macos`, `ios`, `windows`, `android`, `wasi` and one misspelt Linux name, are each refused

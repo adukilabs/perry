@@ -14,19 +14,8 @@ pub fn can_compile_locally(target: Option<&str>) -> bool {
 
 /// Map perry target names to Rust target triples
 pub fn rust_target_triple(target: Option<&str>) -> Option<&'static str> {
-    if let Some(android) = crate::commands::compile::android_target::android_target(target) {
-        return Some(android.rust_triple);
-    }
 
-    match target {
-        Some("ios-simulator") => Some("aarch64-apple-ios-sim"),
-        Some("ios") => Some("aarch64-apple-ios"),
-        Some("visionos-simulator") => Some("aarch64-apple-visionos-sim"),
-        Some("visionos") => Some("aarch64-apple-visionos"),
-        Some("tvos-simulator") => Some("aarch64-apple-tvos-sim"),
-        Some("tvos") => Some("aarch64-apple-tvos"),
-        _ => None,
-    }
+    None
 }
 
 /// Resolve the entry TypeScript file

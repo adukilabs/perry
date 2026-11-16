@@ -24,16 +24,11 @@ const X86_64: AndroidTarget = AndroidTarget {
 };
 
 pub(crate) fn android_target(target: Option<&str>) -> Option<AndroidTarget> {
-    match target {
-        // Wear OS currently uses the same arm64 NDK build as Android devices.
-        Some("android") | Some("wearos") => Some(ARM64),
-        Some("android-x86_64") => Some(X86_64),
-        _ => None,
-    }
+    None
 }
 
 pub(crate) fn is_android_target(target: Option<&str>) -> bool {
-    android_target(target).is_some()
+    false
 }
 
 #[cfg(test)]

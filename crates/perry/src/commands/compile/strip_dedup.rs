@@ -1833,17 +1833,7 @@ pub(super) fn dedup_runtime_for_tier3(
     runtime: &Path,
     stdlib: &Path,
 ) -> PathBuf {
-    if matches!(target, Some("tvos") | Some("watchos")) {
-        match strip_members_present_in_reference(runtime, stdlib, "") {
-            Ok(t) => t,
-            Err(e) => {
-                eprintln!("[strip-dedup] runtime-vs-stdlib dedup skipped (non-fatal): {e}");
-                runtime.to_path_buf()
-            }
-        }
-    } else {
-        runtime.to_path_buf()
-    }
+    runtime.to_path_buf()
 }
 
 /// Tier-3 Apple (tvOS/watchOS) dedup for a per-crate native binding staticlib.
@@ -1862,32 +1852,7 @@ pub(super) fn dedup_native_lib_for_tier3(
     lib_name: &str,
     lib: PathBuf,
 ) -> PathBuf {
-    if matches!(target, Some("tvos") | Some("watchos")) && !lib_name.ends_with(".so") {
-        let trimmed = match strip_duplicate_objects_from_lib(&lib) {
-            Ok(trimmed) => trimmed,
-            Err(e) => {
-                eprintln!("[strip-dedup] skipped for native lib {lib_name} (non-fatal): {e}");
-                lib
-            }
-        };
-        // The member-subset trim removes the native crate's std objects that are
-        // a clean subset of perry-stdlib, but its allocator/panic/EH shim cgu
-        // (`alloc-*.rcgu.o`) carries extra monomorphizations so it survives — and
-        // its `__rdl_alloc` / `rust_eh_personality` / … globals then collide with
-        // perry-stdlib's. Localize those shim symbols here so perry-stdlib stays
-        // the single global allocator.
-        match strip_duplicate_objects_from_well_known_lib(&trimmed) {
-            Ok(localized) => localized,
-            Err(e) => {
-                eprintln!(
-                    "[strip-dedup] allocator localize skipped for native lib {lib_name} (non-fatal): {e}"
-                );
-                trimmed
-            }
-        }
-    } else {
-        lib
-    }
+    lib
 }
 
 #[cfg(test)]

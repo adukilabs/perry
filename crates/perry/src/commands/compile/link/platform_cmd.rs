@@ -145,11 +145,7 @@ pub fn select_linker_command(
     let cmd = if is_watchos {
         let is_watchos_game_loop = compiled_features.iter().any(|f| f == "watchos-game-loop");
         let is_watchos_swift_app = compiled_features.iter().any(|f| f == "watchos-swift-app");
-        let sdk = if target == Some("watchos-simulator") {
-            "watchsimulator"
-        } else {
-            "watchos"
-        };
+        let sdk = "watchos";
         let sysroot = String::from_utf8(
             Command::new("xcrun")
                 .args(["--sdk", sdk, "--show-sdk-path"])
@@ -161,15 +157,9 @@ pub fn select_linker_command(
         // arm64_32 watchOS (Series 4-8 / SE): opt-in via PERRY_WATCHOS_ARM64_32.
         // Lets the device target reach pre-S9 watches; deployment min defaults
         // low (these watches run watchOS 9-11) but is overridable.
-        let arm64_32 = target == Some("watchos") && std::env::var("PERRY_WATCHOS_ARM64_32").is_ok();
+        let arm64_32 = false;
         let watchos_min = std::env::var("PERRY_WATCHOS_MIN").unwrap_or_else(|_| "11.0".to_string());
-        let triple_owned;
-        let triple = if target == Some("watchos-simulator") {
-            "arm64-apple-watchos10.0-simulator"
-        } else if arm64_32 {
-            triple_owned = format!("arm64_32-apple-watchos{}", watchos_min);
-            triple_owned.as_str()
-        } else {
+        let triple = {
             // Device builds default to arm64-only (S9+ / watchOS 26).
             "arm64-apple-watchos26.0"
         };
@@ -231,43 +221,17 @@ pub fn select_linker_command(
             } else {
                 ("_main", "_perry_main_init")
             };
-            if arm64_32 {
-                // arm64_32: rust-objcopy / llvm-objcopy SIGSEGV writing these
-                // Mach-O objects with `--redefine-sym` (LLVM MachOWriter bug,
-                // still present through LLVM 22). Do the rename via `ld -r`
-                // instead — a different Mach-O writer that doesn't crash:
-                // `-alias` exposes the entry at `_main`'s address and
-                // `-unexported_symbol` demotes the original `_main` to a local
-                // so it can't collide with the Swift/native `@main`. Without
-                // this the default shell's `perry_main_init` is never defined
-                // and every arm64_32 device link fails "undefined
-                // _perry_main_init" (the old code skipped the rename for
-                // arm64_32 expecting a codegen PERRY_ENTRY_SYMBOL emit that is
-                // never wired up).
-                let tmp = entry_obj.with_extension("aliased.o");
-                let status = Command::new("ld")
-                    .args(["-r", "-arch", "arm64_32"])
-                    .arg(entry_obj)
-                    .arg("-o")
-                    .arg(&tmp)
-                    .args(["-alias", from_sym, to_sym, "-unexported_symbol", from_sym])
-                    .status();
-                if matches!(status, Ok(s) if s.success()) && tmp.exists() {
-                    let _ = std::fs::rename(&tmp, entry_obj);
-                }
-            } else {
-                let objcopy = std::env::var("HOME").ok()
-                    .map(|h| PathBuf::from(h).join(".rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy"))
-                    .filter(|p| p.exists())
-                    .or_else(|| std::env::var("HOME").ok()
-                        .map(|h| PathBuf::from(h).join(".rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/llvm-objcopy"))
-                        .filter(|p| p.exists()))
-                    .unwrap_or_else(|| PathBuf::from("rust-objcopy"));
-                let _ = Command::new(&objcopy)
-                    .args(["--redefine-sym", &format!("{from_sym}={to_sym}")])
-                    .arg(entry_obj)
-                    .status();
-            }
+            let objcopy = std::env::var("HOME").ok()
+                .map(|h| PathBuf::from(h).join(".rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy"))
+                .filter(|p| p.exists())
+                .or_else(|| std::env::var("HOME").ok()
+                    .map(|h| PathBuf::from(h).join(".rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/llvm-objcopy"))
+                    .filter(|p| p.exists()))
+                .unwrap_or_else(|| PathBuf::from("rust-objcopy"));
+            let _ = Command::new(&objcopy)
+                .args(["--redefine-sym", &format!("{from_sym}={to_sym}")])
+                .arg(entry_obj)
+                .status();
         }
 
         if is_watchos_game_loop {
@@ -348,11 +312,7 @@ pub fn select_linker_command(
         //   - default: a SwiftUI app shell (PerryVisionApp.swift) linked with
         //     swiftc; `_main → _perry_main_init` so the Swift `@main` entry wins.
         let is_visionos_game_loop = compiled_features.iter().any(|f| f == "ios-game-loop");
-        let sdk = if target == Some("visionos-simulator") {
-            "xrsimulator"
-        } else {
-            "xros"
-        };
+        let sdk = "xros";
         let sysroot = String::from_utf8(
             Command::new("xcrun")
                 .args(["--sdk", sdk, "--show-sdk-path"])
@@ -362,11 +322,7 @@ pub fn select_linker_command(
         .trim()
         .to_string();
         let sdk_version = apple_sdk_version(sdk).unwrap_or_else(|| "1.0".to_string());
-        let triple = if target == Some("visionos-simulator") {
-            format!("arm64-apple-xros{}-simulator", sdk_version)
-        } else {
-            format!("arm64-apple-xros{}", sdk_version)
-        };
+        let triple = format!("arm64-apple-xros{}", sdk_version);
 
         if is_visionos_game_loop {
             // UIKit/Metal game-loop app — link with clang, mirroring the iOS
@@ -524,11 +480,7 @@ pub fn select_linker_command(
             .arg("-dead_strip");
         c
     } else if is_ios {
-        let sdk = if target == Some("ios-simulator") {
-            "iphonesimulator"
-        } else {
-            "iphoneos"
-        };
+        let sdk = "iphoneos";
         let clang = String::from_utf8(
             Command::new("xcrun")
                 .args(["--sdk", sdk, "--find", "clang"])
@@ -545,11 +497,7 @@ pub fn select_linker_command(
         )?
         .trim()
         .to_string();
-        let triple = if target == Some("ios-simulator") {
-            "arm64-apple-ios17.0-simulator"
-        } else {
-            "arm64-apple-ios17.0"
-        };
+        let triple = "arm64-apple-ios17.0";
 
         // Discover Xcode developer directory for Swift standard library paths.
         // Swift libs live in the toolchain, not the SDK sysroot, so the linker
@@ -669,11 +617,7 @@ pub fn select_linker_command(
             .arg("-dead_strip");
         c
     } else if is_tvos {
-        let sdk = if target == Some("tvos-simulator") {
-            "appletvsimulator"
-        } else {
-            "appletvos"
-        };
+        let sdk = "appletvos";
         let clang = String::from_utf8(
             Command::new("xcrun")
                 .args(["--sdk", sdk, "--find", "clang"])
@@ -690,11 +634,7 @@ pub fn select_linker_command(
         )?
         .trim()
         .to_string();
-        let triple = if target == Some("tvos-simulator") {
-            "arm64-apple-tvos17.0-simulator"
-        } else {
-            "arm64-apple-tvos17.0"
-        };
+        let triple = "arm64-apple-tvos17.0";
 
         let developer_dir =
             String::from_utf8(Command::new("xcode-select").arg("-p").output()?.stdout)?
@@ -770,11 +710,7 @@ pub fn select_linker_command(
         if !clang.exists() {
             return Err(anyhow!("OHOS SDK clang not found at: {}", clang.display()));
         }
-        let clang_target = if target == Some("harmonyos-simulator") {
-            "x86_64-linux-ohos"
-        } else {
-            "aarch64-linux-ohos"
-        };
+        let clang_target = "aarch64-linux-ohos";
         let mut c = Command::new(clang);
         c.arg("-shared")
             .arg("-fPIC")
@@ -978,7 +914,7 @@ pub fn select_linker_command(
         // A developer shell's LIB points at the host architecture. Always
         // replace it for cross-architecture Windows targets; otherwise an x64
         // prompt silently feeds x64 import libraries to an ARM64 link.
-        if std::env::var("LIB").is_err() || !is_native_windows_target(target) {
+        if std::env::var("LIB").is_err() || true {
             if let Some(lib_paths) = find_msvc_lib_paths(target) {
                 c.env("LIB", lib_paths);
             } else if is_cross_windows {

@@ -17,11 +17,7 @@ pub(crate) enum Flavour {
 impl Flavour {
     /// The flavour a `--target` name selects; `None` for every other target.
     pub(crate) fn from_target(target: &str) -> Option<Self> {
-        match target {
-            "wasi" => Some(Self::P2),
-            "wasip1" => Some(Self::P1),
-            _ => None,
-        }
+        None
     }
 
 
@@ -54,8 +50,6 @@ impl Flavour {
 /// exist instead of being linked as a host executable.
 pub(crate) fn canonical_target(target: Option<String>) -> anyhow::Result<Option<String>> {
     Ok(match target.as_deref() {
-        Some("wasip2" | "wasm32-wasip2") => Some(Flavour::P2.cli_name().to_string()),
-        Some("wasm32-wasip1") => Some(Flavour::P1.cli_name().to_string()),
         Some(name @ ("wasip3" | "wasm32-wasip3")) => anyhow::bail!(
             "--target {name}: Perry cannot emit WASI 0.3 commands yet. Use \
              --target wasi (alias wasip2, wasm32-wasip2) for a WASI 0.2 component, \

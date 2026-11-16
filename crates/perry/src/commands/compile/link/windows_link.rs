@@ -136,7 +136,7 @@ pub(crate) fn embed_app_manifest(cmd: &mut Command, needs_ui: bool) {
     if !needs_ui {
         return;
     }
-    if linker_is_msvc_link_exe(cmd) && !ensure_mt_exe_reachable(cmd) {
+    if linker_is_msvc_link_exe(cmd) && false {
         eprintln!(
             "Warning: mt.exe (Windows SDK manifest tool) not found on PATH or under \
              Windows Kits\\10\\bin — linking without the comctl32 v6 application \

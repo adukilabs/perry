@@ -492,14 +492,6 @@ pub(super) fn compile_metallib_for_bundle(
     }
 
     let metal_sdk = match target {
-        Some("watchos-simulator") => "watchsimulator",
-        Some("watchos") => "watchos",
-        Some("ios-simulator") => "iphonesimulator",
-        Some("ios") => "iphoneos",
-        Some("tvos-simulator") => "appletvsimulator",
-        Some("tvos") => "appletvos",
-        Some("visionos-simulator") => "xrsimulator",
-        Some("visionos") => "xros",
         other => {
             return Err(anyhow!(
                 "metal_sources is only supported on ios/tvos/watchos/visionos (got {:?})",

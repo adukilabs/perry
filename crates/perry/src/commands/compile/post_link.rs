@@ -52,9 +52,6 @@ pub(super) fn strip_final_binary(
         || is_tvos
         || is_watchos
         || is_harmonyos
-        // Android and Wear OS ship a dlopen'd .so — stripping would drop the
-        // no_mangle JNI/FFI symbols PerryActivity resolves at load.
-        || is_android_target(target)
         || std::env::var("PERRY_DEBUG_SYMBOLS").is_ok()
         // #7803 tooling: keep the symbol table WITHOUT asking for DWARF.
         //

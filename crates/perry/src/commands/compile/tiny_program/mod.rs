@@ -74,9 +74,6 @@ pub(super) fn try_compile(
             .arg(&helper_source)
             .arg("-o")
             .arg(&helper_path);
-        if args.target.as_deref() == Some("macos") {
-            cc.arg("-mmacosx-version-min=15.0");
-        }
         let built = cc
             .output()
             .context("compiling tiny console output helper")?;
@@ -91,9 +88,6 @@ pub(super) fn try_compile(
     let mut command = Command::new("cc");
     if !proof.outputs().is_empty() {
         command.arg(&helper_path);
-    }
-    if args.target.as_deref() == Some("macos") {
-        command.arg("-mmacosx-version-min=15.0");
     }
     command.arg(&object_path);
     command.args(super::link::link_pad_args());

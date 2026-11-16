@@ -28,37 +28,13 @@ pub(super) fn default_output_path(
         // Same by-output-type table as `windows_default_output_extension`,
         // which already covered the `-o NAME` path; this covers the
         // no-`-o` default, which used to fall through to `.so` on Windows.
-        if is_windows_target(target) {
-            PathBuf::from(format!("{}.dll", stem))
-        } else if is_apple_target(target) {
-            PathBuf::from(format!("{}.dylib", stem))
-        } else {
-            PathBuf::from(format!("{}.so", stem))
-        }
+        PathBuf::from(format!("{}.so", stem))
     } else if is_staticlib {
         // #1088 — Windows hosts expect `.lib`; everywhere else uses
         // the Unix `lib<stem>.a` convention so the archive is reachable
         // from `-l<stem>` at the host's link step.
-        if is_windows_target(target) {
-            PathBuf::from(format!("{}.lib", stem))
-        } else {
-            PathBuf::from(format!("lib{}.a", stem))
-        }
-    } else if matches!(target, Some("harmonyos") | Some("harmonyos-simulator"))
-        || is_android_target(target)
-    {
-        // #5740 — Android targets link with `-shared` and ship as a `.so`
-        // that `PerryActivity` dlopens; there is no standalone executable
-        // shipping shape.
-        // HarmonyOS apps ship as .so loaded by the ArkTS runtime via
-        // napi_module_register — there is no standalone executable
-        // shipping shape. `lib` prefix matches the dlopen name used by
-        // the generated ArkTS shim (`import entry from 'libapp.so'`),
-        // and the Android/Wear OS jniLibs copy expects a `.so` too.
-        PathBuf::from(format!("lib{}.so", stem))
-    } else if is_windows_target(target) {
-        PathBuf::from(format!("{}.exe", stem))
-    } else if target.is_some_and(|t| Flavour::from_target(t).is_some()) {
+        PathBuf::from(format!("lib{}.a", stem))
+    } else if target.is_some_and(|t| false) {
         PathBuf::from(format!("{}.wasm", stem))
     } else {
         PathBuf::from(stem)
@@ -68,20 +44,7 @@ pub(super) fn default_output_path(
 /// `--target macos` or any embedded-Apple target, or a native build on a
 /// macOS host — the platforms whose shared-library convention is `.dylib`.
 fn is_apple_target(target: Option<&str>) -> bool {
-    matches!(
-        target,
-        Some(
-            "macos"
-                | "ios"
-                | "ios-simulator"
-                | "tvos"
-                | "tvos-simulator"
-                | "watchos"
-                | "watchos-simulator"
-                | "visionos"
-                | "visionos-simulator"
-        )
-    )
+    false
 }
 
 #[cfg(test)]

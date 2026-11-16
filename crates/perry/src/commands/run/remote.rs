@@ -71,7 +71,6 @@ pub fn remote_build_and_launch(
 
     // The build target for the manifest
     let build_target = match target {
-        "ios-simulator" | "ios" => "ios",
         other => other,
     };
 
@@ -126,11 +125,7 @@ pub fn remote_build_and_launch(
     }
 
     // Build manifest
-    let ios_distribute = match target {
-        "ios" => "development", // device build needs dev signing, not distribution
-        "ios-simulator" => "simulator",
-        _ => "none",
-    };
+    let ios_distribute = "none";
     let manifest = serde_json::json!({
         "app_name": app_name,
         "bundle_id": bundle_id,
@@ -144,17 +139,13 @@ pub fn remote_build_and_launch(
 
     // Build credentials — device builds need signing
     let ios_toml = read_perry_toml_ios(&project_root);
-    let credentials = if target == "ios" {
-        build_device_credentials(&config, &bundle_id, ios_toml.as_ref())?
-    } else {
-        serde_json::json!({
-            "apple_team_id": null,
-            "apple_signing_identity": null,
-            "apple_key_id": null,
-            "apple_issuer_id": null,
-            "apple_p8_key": null
-        })
-    };
+    let credentials = serde_json::json!({
+        "apple_team_id": null,
+        "apple_signing_identity": null,
+        "apple_key_id": null,
+        "apple_issuer_id": null,
+        "apple_p8_key": null
+    });
 
     // Upload
     if let OutputFormat::Text = format {
@@ -452,38 +443,8 @@ pub fn remote_build_and_launch(
     }
 
     // For iOS: extract .app from .ipa and install
-    if target == "ios-simulator"
-        || target == "ios"
-        || target == "visionos-simulator"
-        || target == "visionos"
-    {
-        let app_dir = extract_app_from_ipa(&dest, &dist_dir)?;
-        let udid = device_udid.ok_or_else(|| anyhow!("No device UDID for iOS launch"))?;
-
-        // Bundle resource files from the project into the .app
-        // (the hub may not include logo/, assets/, etc.)
-        bundle_project_resources(&app_dir, &project_root);
-
-        // Embed app icon from project source if missing from the bundle
-        embed_app_icon(&app_dir, &project_root);
-
-        // For device builds, re-sign with a local development identity
-        // (the hub may have signed with a distribution profile)
-        if target == "ios" || target == "visionos" {
-            resign_for_development(&app_dir, &config, udid, format)?;
-        }
-
-        if target == "ios-simulator" || target == "visionos-simulator" {
-            launch_ios_simulator(&app_dir, &bundle_id, udid, format)
-        } else {
-            launch_ios_device(&app_dir, &bundle_id, udid, format)
-        }
-    } else if target == "android" {
-        bail!("this fork builds and runs for Linux only: it cannot install an Android build")
-    } else {
-        // Native binary
-        launch_native(&dest, program_args, format)
-    }
+    // Native binary
+    launch_native(&dest, program_args, format)
 }
 
 /// Copy resource directories (logo/, assets/, resources/, images/) from the project

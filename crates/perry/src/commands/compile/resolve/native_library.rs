@@ -52,18 +52,7 @@ pub(crate) fn validate_native_library_manifest_value(
 }
 
 pub(super) fn native_manifest_target_key(target: Option<&str>) -> &'static str {
-    if is_android_target(target) {
-        return "android";
-    }
-    if super::super::is_windows_target(target) {
-        return "windows";
-    }
     match target {
-        Some("ios-simulator") | Some("ios") => "ios",
-        Some("visionos-simulator") | Some("visionos") => "visionos",
-        Some("tvos-simulator") | Some("tvos") => "tvos",
-        Some("watchos-simulator") | Some("watchos") => "watchos",
-        Some("harmonyos-simulator") | Some("harmonyos") => "harmonyos",
         // musl resolves the same native-library platform as glibc Linux
         // (#4826). Prebuilt native addons are typically glibc; static-musl
         // apps using them is an inherent limitation, but the platform key
@@ -72,8 +61,6 @@ pub(super) fn native_manifest_target_key(target: Option<&str>) -> &'static str {
         | Some("linux-musl")
         | Some("linux-x86_64-musl")
         | Some("linux-aarch64-musl") => "linux",
-        Some("web") => "web",
-        Some("macos") => "macos",
         None => "linux",
         _ => "macos",
     }
@@ -1594,20 +1581,11 @@ fn arch_for_target_key(target: Option<&str>) -> Option<&'static str> {
     if target.is_none() {
         return Some(host_arch_token());
     }
-    if let Some(android) = android_target(target) {
-        return Some(android.manifest_arch);
-    }
-    if let Some(windows) = super::super::windows_target_arch(target) {
-        return Some(windows.manifest_token());
-    }
     match target {
         // OS-level targets where both arm64 and x64 are real distribution
         // targets — surface the arch so wrappers can ship per-arch
         // prebuilts.
-        Some("macos") => Some("arm64"),
         Some("linux") => Some("x64"),
-        Some("harmonyos") => Some("arm64"),
-        Some("harmonyos-simulator") => Some("x64"),
         // ios/tvos/watchos/visionos: device builds are always arm64 (or
         // arm64_32 for watchOS). Simulators are arm64 on Apple Silicon
         // hosts and x64 on Intel hosts — we don't currently expose the

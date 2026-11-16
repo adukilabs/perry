@@ -58,19 +58,11 @@ const fn native_windows_arch() -> WindowsTargetArch {
 
 /// Resolve a Perry target to its Windows machine architecture.
 pub(super) fn windows_target_arch(target: Option<&str>) -> Option<WindowsTargetArch> {
-    match target {
-        Some("windows-aarch64") | Some("windows-arm64") => Some(WindowsTargetArch::Aarch64),
-        Some("windows-x86_64") => Some(WindowsTargetArch::X86_64),
-        Some("windows") | Some("windows-winui") => {
-            // Preserve the long-standing cross-host meaning of `windows`.
-            Some(WindowsTargetArch::X86_64)
-        }
-        _ => None,
-    }
+    None
 }
 
 pub(super) fn is_windows_target(target: Option<&str>) -> bool {
-    windows_target_arch(target).is_some()
+    false
 }
 
 /// True when the requested Windows target matches this compiler process.

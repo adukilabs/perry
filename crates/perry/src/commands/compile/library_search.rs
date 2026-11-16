@@ -95,19 +95,8 @@ pub(crate) fn locate_native_lib_artifact(
 /// cargo lib name (refs issue #792).
 fn lib_name_variants(lib_name: &str, target: Option<&str>) -> Vec<String> {
     let mut out = vec![lib_name.to_string()];
-    let is_windows = is_windows_target(target);
-    let is_macos = matches!(
-        target,
-        Some("ios")
-            | Some("ios-simulator")
-            | Some("tvos")
-            | Some("tvos-simulator")
-            | Some("watchos")
-            | Some("watchos-simulator")
-            | Some("visionos")
-            | Some("visionos-simulator")
-            | Some("macos")
-    );
+    let is_windows = false;
+    let is_macos = false;
 
     if std::path::Path::new(lib_name).extension().is_some() {
         // A wrapper may hard-code the Unix static-lib filename (e.g.
@@ -118,13 +107,6 @@ fn lib_name_variants(lib_name: &str, target: Option<&str>) -> Vec<String> {
         // extension but we're building for Windows, also probe the
         // MSVC-translated names so the artifact resolves without forcing
         // the wrapper to special-case the filename per platform. Refs #5812.
-        if is_windows && std::path::Path::new(lib_name).extension() == Some("a".as_ref()) {
-            let stem = lib_name.strip_suffix(".a").unwrap_or(lib_name);
-            out.push(format!("{}.lib", stem));
-            if let Some(stripped) = stem.strip_prefix("lib") {
-                out.push(format!("{}.lib", stripped));
-            }
-        }
         return out;
     }
 
@@ -133,13 +115,6 @@ fn lib_name_variants(lib_name: &str, target: Option<&str>) -> Vec<String> {
     // named `libfoo` → `libfoo.lib`), then the stripped variant so a
     // wrapper that copied the macOS convention into `"lib"` (e.g.
     // `libperry_ext_foo`) still resolves.
-    if is_windows {
-        out.push(format!("{}.lib", lib_name));
-        if let Some(stripped) = lib_name.strip_prefix("lib") {
-            out.push(format!("{}.lib", stripped));
-        }
-        return out;
-    }
 
     // Unix-like: cargo prepends `lib` to staticlib/dylib output. Try the
     // prefixed form first; if `lib_name` already starts with `lib` we
@@ -149,11 +124,7 @@ fn lib_name_variants(lib_name: &str, target: Option<&str>) -> Vec<String> {
     } else {
         format!("lib{}", lib_name)
     };
-    let exts: &[&str] = if is_macos {
-        &["a", "dylib"]
-    } else {
-        &["a", "so"]
-    };
+    let exts: &[&str] = &["a", "so"];
     for ext in exts {
         out.push(format!("{}.{}", prefixed, ext));
     }
@@ -972,19 +943,7 @@ pub(super) fn collect_library_candidates_from(
                 // v0.5.470 fix shipped only the sim variant and named it
                 // `libperry_ui_ios.a` (same name as device); v0.5.472+ ships
                 // both and uses this suffix to disambiguate.
-                let class_and_sim = match target {
-                    Some("ios") | Some("ios-widget") => Some(("_ios", false)),
-                    Some("ios-simulator") | Some("ios-widget-simulator") => Some(("_ios", true)),
-                    Some("visionos") => Some(("_visionos", false)),
-                    Some("visionos-simulator") => Some(("_visionos", true)),
-                    Some("watchos") => Some(("_watchos", false)),
-                    Some("watchos-simulator") => Some(("_watchos", true)),
-                    Some("tvos") => Some(("_tvos", false)),
-                    Some("tvos-simulator") => Some(("_tvos", true)),
-                    Some("harmonyos") => Some(("_harmonyos", false)),
-                    Some("harmonyos-simulator") => Some(("_harmonyos", true)),
-                    _ => None,
-                };
+                let class_and_sim = None;
                 if let Some((class, is_sim)) = class_and_sim {
                     let suffixed = apple_class_lib_name(name, class, is_sim);
                     candidates.push(dir.join(&suffixed));
@@ -1030,11 +989,7 @@ pub(super) fn find_runtime_library(target: Option<&str>) -> Result<PathBuf> {
 
 /// [`find_runtime_library`], keeping the candidate path (sidecar lookup).
 pub(super) fn locate_runtime_library(target: Option<&str>) -> Result<LocatedLibrary> {
-    let default_name = if is_windows_target(target) {
-        "perry_runtime.lib"
-    } else {
-        "libperry_runtime.a"
-    };
+    let default_name = "libperry_runtime.a";
     // The instrumented variant (`libperry_runtime_instr.a`) when an instrument
     // knob is set while compiling; see `instrumented_variant_requested`.
     let lib_name_owned = super::optimized_libs::variant_archive_name(default_name);
@@ -1112,11 +1067,7 @@ pub(super) fn find_stdlib_library(target: Option<&str>) -> Option<PathBuf> {
 
 /// [`find_stdlib_library`], keeping the candidate path (sidecar lookup).
 pub(super) fn locate_stdlib_library(target: Option<&str>) -> Option<LocatedLibrary> {
-    let lib_name = if is_windows_target(target) {
-        "perry_stdlib.lib"
-    } else {
-        "libperry_stdlib.a"
-    };
+    let lib_name = "libperry_stdlib.a";
     // A refused fetch is the runtime lookup's to report: every cross link
     // needs the runtime from the same package, and a stdlib is optional.
     locate_or_fetch(
@@ -1149,11 +1100,7 @@ fn locate_optional_archive(name: &str, target: Option<&str>, program: &str) -> O
 /// when the program uses `WebAssembly.*` or `--enable-wasm-runtime` is set,
 /// see issue #76). A host install fetches its wasm-host package.
 pub(super) fn find_wasm_host_library(target: Option<&str>) -> Option<PathBuf> {
-    let lib_name = if is_windows_target(target) {
-        "perry_wasm_host.lib"
-    } else {
-        "libperry_wasm_host.a"
-    };
+    let lib_name = "libperry_wasm_host.a";
     locate_optional_archive(lib_name, target, "this WebAssembly program")
 }
 
@@ -1172,18 +1119,10 @@ pub(super) fn find_wasm_host_library(target: Option<&str>) -> Option<PathBuf> {
 /// (#400).
 pub(super) fn find_ui_library(target: Option<&str>) -> Option<PathBuf> {
     let lib_name = match target {
-        Some("ios-simulator") | Some("ios") => "libperry_ui_ios.a",
-        Some("visionos-simulator") | Some("visionos") => "libperry_ui_visionos.a",
         // Wear OS and every Android architecture reuse the Android View backend.
-        target if is_android_target(target) => "libperry_ui_android.a",
-        Some("watchos-simulator") | Some("watchos") => "libperry_ui_watchos.a",
-        Some("tvos-simulator") | Some("tvos") => "libperry_ui_tvos.a",
         Some("linux") => "libperry_ui_gtk4.a",
-        Some("macos") => "libperry_ui_macos.a",
         // Opt-in WinUI 3 backend (#4680) with the same Perry FFI surface as
         // the default Win32 library.
-        Some("windows-winui") => "perry_ui_windows_winui.lib",
-        target if is_windows_target(target) => "perry_ui_windows.lib",
         _ => {
             "libperry_ui_gtk4.a"
         }
@@ -1340,10 +1279,7 @@ pub(super) fn harmonyos_cross_env(
     sdk_native: &Path,
     target: Option<&str>,
 ) -> Vec<(String, String)> {
-    let (triple, clang_target) = match target {
-        Some("harmonyos-simulator") => ("x86_64-unknown-linux-ohos", "x86_64-linux-ohos"),
-        _ => ("aarch64-unknown-linux-ohos", "aarch64-linux-ohos"),
-    };
+    let (triple, clang_target) = ("aarch64-unknown-linux-ohos", "aarch64-linux-ohos");
     let bin = sdk_native.join("llvm").join("bin");
     let clang = if bin.join("clang").is_file() {
         bin.join("clang")

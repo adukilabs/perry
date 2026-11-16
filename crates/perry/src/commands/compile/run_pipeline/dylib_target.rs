@@ -11,17 +11,7 @@ use std::process::Command;
 /// cross-compiled iOS object and emits a **host-arch** dylib — the failure the user
 /// sees is a link error or a dylib that will never load on device.
 pub(super) fn apple_dylib_cross_target(target: &str) -> Option<(&'static str, &'static str)> {
-    Some(match target {
-        "ios" => ("iphoneos", "arm64-apple-ios17.0"),
-        "ios-simulator" => ("iphonesimulator", "arm64-apple-ios17.0-simulator"),
-        "tvos" => ("appletvos", "arm64-apple-tvos17.0"),
-        "tvos-simulator" => ("appletvsimulator", "arm64-apple-tvos17.0-simulator"),
-        "watchos" => ("watchos", "arm64_32-apple-watchos10.0"),
-        "watchos-simulator" => ("watchsimulator", "arm64-apple-watchos10.0-simulator"),
-        "visionos" => ("xros", "arm64-apple-xros1.0"),
-        "visionos-simulator" => ("xrsimulator", "arm64-apple-xros1.0-simulator"),
-        _ => return None,
-    })
+    Some(return None)
 }
 
 /// Resolve an Apple SDK sysroot via `xcrun`.

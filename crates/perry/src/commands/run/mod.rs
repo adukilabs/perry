@@ -132,37 +132,16 @@ pub fn run(args: RunArgs, format: OutputFormat, use_color: bool, verbose: u8) ->
     let (target, device_udid) = resolve_target(platform, &args)?;
 
     // 3. Decide local vs remote compilation
-    let needs_cross = matches!(
-        target.as_deref(),
-        Some("ios-simulator")
-            | Some("ios")
-            | Some("visionos-simulator")
-            | Some("visionos")
-            | Some("android")
-            | Some("wearos")
-            | Some("watchos-simulator")
-            | Some("watchos")
-            | Some("tvos-simulator")
-            | Some("tvos")
-    );
-    let can_local = !needs_cross || can_compile_locally(target.as_deref());
+    let needs_cross = false;
+    let can_local = true;
 
     let use_remote = if args.remote {
         true
     } else if args.local {
-        if !can_local {
-            bail!(
-                "Local compilation for {:?} requires cross-compiled runtime libraries.\n\
-                 Build with: cargo build --release -p perry-runtime -p perry-stdlib --target {}\n\
-                 Or use --remote to compile via Perry Hub.",
-                target.as_deref().unwrap_or("native"),
-                rust_target_triple(target.as_deref()).unwrap_or("unknown")
-            );
-        }
         false
     } else {
         // Auto-detect: use remote when local isn't possible
-        needs_cross && !can_local
+        false
     };
 
     if use_remote {
@@ -213,7 +192,7 @@ pub fn run(args: RunArgs, format: OutputFormat, use_color: bool, verbose: u8) ->
         asset_module: Vec::new(),
         module_alias: Vec::new(),
         type_check: args.type_check,
-        minify: target.as_deref() == Some("web"),
+        minify: false,
         features: None,
         enable_geisterhand: args.enable_geisterhand || args.geisterhand_port.is_some(),
         geisterhand_port: args.geisterhand_port,
@@ -262,12 +241,6 @@ pub fn run(args: RunArgs, format: OutputFormat, use_color: bool, verbose: u8) ->
     let result = super::compile::run(compile_args, format, use_color, verbose)?;
 
     // Local iOS device builds need code signing before install
-    if matches!(target.as_deref(), Some("ios") | Some("visionos")) {
-        if let Some(udid) = device_udid.as_deref() {
-            let config = super::publish::load_config();
-            resign_for_development(&result.output_path, &config, udid, format)?;
-        }
-    }
 
     launch(&result, device_udid.as_deref(), &args.program_args, format)
 }

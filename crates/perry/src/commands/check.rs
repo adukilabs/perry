@@ -276,13 +276,6 @@ pub fn run(args: CheckArgs, format: OutputFormat, use_color: bool, verbose: u8) 
         // `perry/system` / `perry/updater` symbols that the runtime
         // stubs out for the requested target. Skipped when no target
         // is specified — the host UI crate owns those symbols.
-        if target_stubs_out_symbols(args.target.as_deref()) {
-            scan_imports_for_stubs(
-                &parse_result.module,
-                parse_result.file_id,
-                &mut all_diagnostics,
-            );
-        }
 
         // Scan source for dynamic patterns (eval, new Function, etc.)
         if args.check_deps {
@@ -648,7 +641,7 @@ fn extract_requires_from_stmt(
 /// (#464); other targets resolve those modules to real platform UI
 /// crates so a warning would be a false positive.
 fn target_stubs_out_symbols(target: Option<&str>) -> bool {
-    matches!(target, Some("harmonyos") | Some("harmonyos-simulator"))
+    false
 }
 
 /// Walk a parsed module's named imports against the stub list and

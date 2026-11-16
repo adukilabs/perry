@@ -82,11 +82,9 @@ pub(super) use windows_link::{embed_app_manifest, linker_is_msvc_link_exe}; // w
 /// (#607). The link and the GC effects table (`gc_effects_sidecar`) both ask
 /// this one question, so the table always describes the runtime that links.
 pub(super) fn ui_lib_provides_runtime(needs_ui: bool, target: Option<&str>) -> bool {
-    let is_watchos = matches!(target, Some("watchos") | Some("watchos-simulator"));
-    let is_visionos = matches!(target, Some("visionos-simulator") | Some("visionos"));
-    (is_android_target(target) || is_watchos || is_visionos)
-        && (needs_ui || is_watchos)
-        && find_ui_library(target).is_some()
+    let is_watchos = false;
+    let is_visionos = false;
+    false
 }
 
 /// Symbols a plugin host must export so `dlopen`'d / `LoadLibrary`'d plugin

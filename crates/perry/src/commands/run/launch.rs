@@ -10,63 +10,6 @@ pub fn launch(
     format: OutputFormat,
 ) -> Result<()> {
     match result.target.as_str() {
-        "web" => launch_web(&result.output_path, format),
-        "ios-simulator" => {
-            let udid =
-                device_udid.ok_or_else(|| anyhow!("No simulator UDID — use --simulator <UDID>"))?;
-            let bundle_id = result
-                .bundle_id
-                .as_deref()
-                .ok_or_else(|| anyhow!("No bundle ID found for iOS app"))?;
-            launch_ios_simulator(&result.output_path, bundle_id, udid, format)
-        }
-        "ios" => {
-            let udid =
-                device_udid.ok_or_else(|| anyhow!("No device UDID — use --device <UDID>"))?;
-            let bundle_id = result
-                .bundle_id
-                .as_deref()
-                .ok_or_else(|| anyhow!("No bundle ID found for iOS app"))?;
-            launch_ios_device(&result.output_path, bundle_id, udid, format)
-        }
-        "visionos-simulator" => {
-            let udid =
-                device_udid.ok_or_else(|| anyhow!("No simulator UDID — use --simulator <UDID>"))?;
-            let bundle_id = result
-                .bundle_id
-                .as_deref()
-                .ok_or_else(|| anyhow!("No bundle ID found for visionOS app"))?;
-            launch_ios_simulator(&result.output_path, bundle_id, udid, format)
-        }
-        "visionos" => {
-            let udid =
-                device_udid.ok_or_else(|| anyhow!("No device UDID — use --device <UDID>"))?;
-            let bundle_id = result
-                .bundle_id
-                .as_deref()
-                .ok_or_else(|| anyhow!("No bundle ID found for visionOS app"))?;
-            launch_ios_device(&result.output_path, bundle_id, udid, format)
-        }
-        "watchos-simulator" => {
-            let udid =
-                device_udid.ok_or_else(|| anyhow!("No simulator UDID — use --simulator <UDID>"))?;
-            let bundle_id = result
-                .bundle_id
-                .as_deref()
-                .ok_or_else(|| anyhow!("No bundle ID found for watchOS app"))?;
-            // Reuse iOS simulator launch — simctl install/launch works the same for watchOS
-            launch_ios_simulator(&result.output_path, bundle_id, udid, format)
-        }
-        "tvos-simulator" => {
-            let udid =
-                device_udid.ok_or_else(|| anyhow!("No simulator UDID — use --simulator <UDID>"))?;
-            let bundle_id = result
-                .bundle_id
-                .as_deref()
-                .ok_or_else(|| anyhow!("No bundle ID found for tvOS app"))?;
-            // Reuse iOS simulator launch — simctl install/launch works the same for tvOS
-            launch_ios_simulator(&result.output_path, bundle_id, udid, format)
-        }
         target @ ("android" | "wearos") => {
             bail!("this fork builds and runs for Linux only: it has no {target} packaging")
         }

@@ -1394,21 +1394,8 @@ pub(super) fn apply_pkg_and_toml_config(
         let target = args.target.as_deref().unwrap_or("native");
         let unsupported = matches!(
             target,
-            "web"
-                | "wasm"
-                | "android"
-                | "android-arm64"
+            "android-arm64"
                 | "android-x64"
-                | "harmonyos"
-                | "harmonyos-simulator"
-                | "ios"
-                | "ios-simulator"
-                | "tvos"
-                | "tvos-simulator"
-                | "watchos"
-                | "watchos-simulator"
-                | "visionos"
-                | "visionos-simulator"
         );
         if unsupported {
             anyhow::bail!(

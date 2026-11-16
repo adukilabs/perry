@@ -228,16 +228,8 @@ pub(super) fn bundle_for_watchos(
     // arm64_32 device builds (PERRY_WATCHOS_ARM64_32) reach pre-S9 watches and
     // use a low floor (overridable via PERRY_WATCHOS_MIN); the simulator target
     // keeps the lower floor too.
-    let arm64_32 = target == Some("watchos") && std::env::var("PERRY_WATCHOS_ARM64_32").is_ok();
-    let min_os_owned;
-    let min_os = if target == Some("watchos-simulator") {
-        "10.0"
-    } else if arm64_32 {
-        min_os_owned = std::env::var("PERRY_WATCHOS_MIN").unwrap_or_else(|_| "11.0".to_string());
-        min_os_owned.as_str()
-    } else {
-        "26.0"
-    };
+    let arm64_32 = false;
+    let min_os = "26.0";
 
     // Declare the app's localizations so NSBundle's language negotiation
     // can pick a non-default locale (and per-app language settings appear
@@ -364,7 +356,7 @@ pub(super) fn bundle_for_watchos(
     // returns `Some(())`; a plain watch app has no app_group, so nothing is
     // written and the bundle stays unsigned exactly as before. This must be
     // the last mutation of the bundle — codesign seals its contents.
-    let is_watch_sim = target == Some("watchos-simulator");
+    let is_watch_sim = false;
     if inject_app_group_entitlement(&app_dir, ctx.app_metadata.app_group.as_deref(), format)
         .is_some()
     {
@@ -372,7 +364,7 @@ pub(super) fn bundle_for_watchos(
         codesign_apple_bundle(
             &app_dir,
             &app_dir.join("app.entitlements"),
-            is_watch_sim,
+            false,
             &signing_cfg,
             format,
         )?;
@@ -441,21 +433,9 @@ pub(super) fn bundle_for_tvos(
     // shared DT* block (SDK version from the sysroot, build strings from
     // PERRY_DT_* env / GM fallback) and the CFBundleSupportedPlatforms /
     // package-type keys the iOS bundler already carries.
-    let is_sim = matches!(target, Some("tvos-simulator"));
-    let plist_supported_platform = if is_sim {
-        "AppleTVSimulator"
-    } else {
-        "AppleTVOS"
-    };
-    let (dt_platform_name, dt_sysroot_env, dt_default_sysroot) = if is_sim {
-        (
-            "appletvsimulator",
-            "PERRY_TVOS_SIMULATOR_SYSROOT",
-            "/opt/apple-sysroot/tvos-simulator",
-        )
-    } else {
-        ("appletvos", "PERRY_TVOS_SYSROOT", "/opt/apple-sysroot/tvos")
-    };
+    let is_sim = false;
+    let plist_supported_platform = "AppleTVOS";
+    let (dt_platform_name, dt_sysroot_env, dt_default_sysroot) = ("appletvos", "PERRY_TVOS_SYSROOT", "/opt/apple-sysroot/tvos");
     let dt_block = apple_dt_plist_block(dt_platform_name, dt_sysroot_env, dt_default_sysroot);
 
     // CFBundleDisplayName — name shown under the icon on the tvOS Home Screen.
@@ -679,11 +659,7 @@ pub(super) fn bundle_for_visionos(
     let (app_version, app_build_number, deployment_target, encryption_exempt, custom_plist_entries) =
         read_visionos_app_metadata(input);
 
-    let platform_name = if target == Some("visionos-simulator") {
-        "XRSimulator"
-    } else {
-        "XROS"
-    };
+    let platform_name = "XROS";
 
     let mut info_plist = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>

@@ -55,7 +55,6 @@ pub(super) fn stdlib_on_link_line(
     let is_linux = matches!(target, Some(t) if t.starts_with("linux"))
         || (target.is_none());
     needs_stdlib
-        || super::is_windows_target(target)
         || (is_linux && needs_ui && super::find_ui_library(target).is_some())
 }
 

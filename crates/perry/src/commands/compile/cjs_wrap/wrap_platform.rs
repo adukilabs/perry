@@ -2,28 +2,12 @@
 
 use super::extract_require_specifiers;
 fn target_node_platform(target: Option<&str>) -> Option<&'static str> {
-    if crate::commands::compile::is_windows_target(target) {
-        return Some("win32");
-    }
     match target {
         Some("linux") | Some("linux-x86_64") | Some("linux-arm64") | Some("linux-aarch64")
         // musl shares node's `process.platform === "linux"` (#4826).
         | Some("linux-musl") | Some("linux-x86_64-musl") | Some("linux-aarch64-musl") => {
             Some("linux")
         }
-        Some("macos")
-        | Some("ios")
-        | Some("ios-simulator")
-        | Some("ios-widget")
-        | Some("ios-widget-simulator")
-        | Some("visionos")
-        | Some("visionos-simulator")
-        | Some("watchos")
-        | Some("watchos-simulator")
-        | Some("watchos-widget")
-        | Some("watchos-widget-simulator")
-        | Some("tvos")
-        | Some("tvos-simulator") => Some("darwin"),
         Some(_) => None,
         None => {
             {
@@ -37,7 +21,7 @@ fn target_node_arch(target: Option<&str>) -> Option<&'static str> {
     match target {
         Some(value) if value.contains("x86_64") || value.contains("x64") => Some("x64"),
         Some(value) if value.contains("aarch64") || value.contains("arm64") => Some("arm64"),
-        Some("windows") | Some("linux") | Some("linux-musl") | Some("macos") => host_node_arch(),
+        Some("linux") | Some("linux-musl") => host_node_arch(),
         Some(_) => None,
         None => host_node_arch(),
     }

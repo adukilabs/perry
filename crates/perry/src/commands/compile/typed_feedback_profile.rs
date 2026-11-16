@@ -9,21 +9,6 @@ pub(super) fn prepare(args: &CompileArgs) -> Result<Option<Session>> {
     if args.typed_feedback_profile.is_none() && args.typed_feedback_sites.is_none() {
         return Ok(None);
     }
-    if matches!(
-        args.target.as_deref(),
-        Some(
-            "web"
-                | "wasm"
-                | "ios-widget"
-                | "ios-widget-simulator"
-                | "watchos-widget"
-                | "watchos-widget-simulator"
-                | "android-widget"
-                | "wearos-tile"
-        )
-    ) {
-        anyhow::bail!("typed-feedback capture/replay requires a native LLVM target");
-    }
     let profile = args
         .typed_feedback_profile
         .as_deref()

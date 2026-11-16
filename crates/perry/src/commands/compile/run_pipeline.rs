@@ -1007,7 +1007,7 @@ pub fn run_with_parse_cache(
         format,
         args.target.as_deref(),
         &mut next_class_id,
-        skip_transforms,
+        false,
         &progress,
         parse_cache.as_deref_mut(),
         collect_modules::WalkSources::Keep(&mut prepared_sources),
@@ -1022,7 +1022,7 @@ pub fn run_with_parse_cache(
                 &mut ctx,
                 &mut visited,
                 &mut next_class_id,
-                skip_transforms,
+                false,
                 &progress,
                 parse_cache.as_deref_mut(),
                 format,
@@ -1041,7 +1041,7 @@ pub fn run_with_parse_cache(
         &mut ctx,
         &mut visited,
         &mut next_class_id,
-        skip_transforms,
+        false,
         &progress,
         parse_cache.as_deref_mut(),
         format,
@@ -2835,26 +2835,6 @@ pub fn run_with_parse_cache(
     // harmonyos runtime is already on disk (the npm-distribution case, once
     // that ships). `find_runtime_library` is a borrowed-result, so we inspect
     // without propagating errors.
-    if matches!(
-        target.as_deref(),
-        Some("harmonyos") | Some("harmonyos-simulator")
-    ) && find_harmonyos_sdk().is_none()
-        && find_runtime_library(target.as_deref()).is_err()
-    {
-        anyhow::bail!(
-            "OHOS SDK not found. --target {} needs the OpenHarmony native SDK \
-             (clang + musl sysroot) to cross-compile perry-runtime.\n\n\
-             Install DevEco Studio from https://developer.huawei.com/consumer/en/develop \
-             (the SDK ships under Preferences → SDK Platforms → OpenHarmony), or \
-             download the standalone \"OpenHarmony SDK\" bundle.\n\n\
-             Then export OHOS_SDK_HOME pointing at the SDK root — the directory \
-             that contains `native/llvm/bin/clang` and `native/sysroot/`.\n\n\
-             Common defaults already probed:\n  \
-             - $HOME/Library/Huawei/Sdk  (macOS DevEco default)\n  \
-             - $HOME/Huawei/Sdk          (Linux DevEco default)",
-            target.as_deref().unwrap()
-        );
-    }
 
     // Pre-compute feature flags (moved out of parallel loop to avoid ctx mutation)
     // Whole-program: may `main` end without the event loop (binary size)?
@@ -2865,43 +2845,14 @@ pub fn run_with_parse_cache(
             .map(|f| f.trim().to_string())
             .filter(|f| !f.is_empty())
             .collect();
-        let is_mobile = is_android_target(target.as_deref())
-            || matches!(
-                target.as_deref(),
-                Some("ios")
-                    | Some("ios-simulator")
-                    | Some("visionos")
-                    | Some("visionos-simulator")
-                    | Some("watchos")
-                    | Some("watchos-simulator")
-                    | Some("tvos")
-                    | Some("tvos-simulator")
-                    | Some("harmonyos")
-                    | Some("harmonyos-simulator")
-            );
-        if is_mobile {
-            features.retain(|f| f != "plugins");
-        }
+        let is_mobile = false;
         if features.iter().any(|f| f == "plugins") {
             ctx.needs_plugins = true;
         }
         // Auto-enable the HarmonyOS NAPI entry wrapper. Without this the
         // linked .so has no `napi_module_register` call and the ArkTS shim
         // fails at import time with "module entry not found".
-        if matches!(
-            target.as_deref(),
-            Some("harmonyos") | Some("harmonyos-simulator")
-        ) && !features.iter().any(|f| f == "ohos-napi")
-        {
-            features.push("ohos-napi".to_string());
-        }
         features
-    } else if matches!(
-        target.as_deref(),
-        Some("harmonyos") | Some("harmonyos-simulator")
-    ) {
-        // User didn't pass --features at all; still auto-enable ohos-napi.
-        vec!["ohos-napi".to_string()]
     } else {
         Vec::new()
     };
@@ -2938,7 +2889,7 @@ pub fn run_with_parse_cache(
     // Android UI also calls the perry-ffi async shims, even when the TS
     // program imports only perry/ui. Decide this before optimized-library
     // selection and the undefined-symbol scan, not just at the final link.
-    if !ctx.native_libraries.is_empty() || (ctx.needs_ui && is_android_target(target.as_deref())) {
+    if !ctx.native_libraries.is_empty() {
         ctx.needs_stdlib = true;
     }
 
@@ -3779,7 +3730,7 @@ pub fn run_with_parse_cache(
         ctx.needs_wasm_runtime = true;
     }
     let use_wasm_host = ctx.needs_wasm_runtime;
-    let wasm_host_lib_resolved = if use_wasm_host && !native_link_set_skipped {
+    let wasm_host_lib_resolved = if use_wasm_host {
         find_wasm_host_library(target.as_deref())
     } else {
         None
@@ -3790,17 +3741,13 @@ pub fn run_with_parse_cache(
     // program needs, and the linker drops the rest. `--no-auto-optimize` and
     // the legacy `--minimal-stdlib` are accepted no-ops: nothing is rebuilt.
     let _ = args.no_auto_optimize;
-    let mut optimized_libs: Option<OptimizedLibs> = if native_link_set_skipped {
-        None
-    } else {
-        Some(build_optimized_libs(
-            &ctx,
-            target.as_deref(),
-            &compiled_features,
-            format,
-            verbose,
-        ))
-    };
+    let mut optimized_libs: Option<OptimizedLibs> = Some(build_optimized_libs(
+        &ctx,
+        target.as_deref(),
+        &compiled_features,
+        format,
+        verbose,
+    ));
     let component_host_lib = super::component_host::library(&ctx, target.as_deref())?;
     if let (Some(libs), Some(component)) = (&mut optimized_libs, &component_host_lib) {
         // Reuse the optional-archive path: symbol scanning, deduplication,
@@ -3815,9 +3762,7 @@ pub fn run_with_parse_cache(
         use super::gc_effects_sidecar::{
             compilation_gc_effects, stdlib_on_link_line, EffectsLinkSet,
         };
-        let link_set = if native_link_set_skipped {
-            EffectsLinkSet::Undescribed("no native link set (WASI)")
-        } else if ctx.needs_geisterhand {
+        let link_set = if ctx.needs_geisterhand {
             // Geisterhand builds its runtime with cargo after codegen.
             EffectsLinkSet::Undescribed("Geisterhand builds its runtime after codegen")
         } else if super::link::ui_lib_provides_runtime(ctx.needs_ui, target.as_deref()) {
@@ -7619,8 +7564,8 @@ pub fn run_with_parse_cache(
         let runtime_lib_path = find_runtime_library(target.as_deref()).ok();
         let stdlib_lib_path = stdlib_lib_resolved.clone();
         // Check if stdlib will be linked - if so, it provides perry_runtime symbols (no stubs needed)
-        let target_is_windows = is_windows_target(target.as_deref());
-        let will_link_stdlib = (ctx.needs_stdlib || target_is_windows) && stdlib_lib_path.is_some();
+        let target_is_windows = false;
+        let will_link_stdlib = (ctx.needs_stdlib) && stdlib_lib_path.is_some();
         // Issue #76 — when the wasm host is
         // being linked, scan its archive so the `perry_wasm_host_*` symbols
         // are recognised as defined and we don't synthesise empty stubs that
@@ -7659,43 +7604,21 @@ pub fn run_with_parse_cache(
             }
         }
         // Platform detection for nm tool and symbol prefix
-        let _is_ios = matches!(target.as_deref(), Some("ios-simulator") | Some("ios"));
-        let is_android = is_android_target(target.as_deref());
-        let is_harmonyos = matches!(
-            target.as_deref(),
-            Some("harmonyos") | Some("harmonyos-simulator")
-        );
+        let _is_ios = false;
+        let is_android = false;
+        let is_harmonyos = false;
         let is_linux = matches!(target.as_deref(), Some(t) if t.starts_with("linux"))
             || (target.is_none());
-        let is_windows = is_windows_target(target.as_deref());
+        let is_windows = false;
         // Symbol prefix depends on object format:
         // Mach-O targets (macOS, iOS, watchOS, tvOS): nm shows `_` prefix
         // COFF (Windows targets): no prefix
         // ELF (Linux/Android/HarmonyOS targets): no prefix
         // Use TARGET (what we're compiling to), not HOST (what we're running on)
-        let is_macho = matches!(
-            target.as_deref(),
-            Some("ios")
-                | Some("ios-simulator")
-                | Some("ios-widget")
-                | Some("ios-widget-simulator")
-                | Some("visionos")
-                | Some("visionos-simulator")
-                | Some("macos")
-                | Some("watchos")
-                | Some("watchos-simulator")
-                | Some("tvos")
-                | Some("tvos-simulator")
-        );
+        let is_macho = false;
         // Find the nm tool: use llvm-nm when cross-compiling (host nm can't read foreign object formats)
-        let needs_llvm_nm = is_windows || (is_macho);
-        let nm_cmd = if needs_llvm_nm {
-            find_llvm_tool("llvm-nm")
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(|| "nm".to_string())
-        } else {
-            "nm".to_string()
-        };
+        let needs_llvm_nm = false;
+        let nm_cmd = "nm".to_string();
         // Scan object files in parallel for symbol resolution
         let scan_results: Vec<(HashSet<String>, HashSet<String>, HashSet<String>)> = all_scan_paths
             .par_iter()
@@ -7717,11 +7640,7 @@ pub fn run_with_parse_cache(
                             } else {
                                 (parts[0], parts[1])
                             };
-                            let cn = if is_macho {
-                                sn.strip_prefix('_').unwrap_or(sn)
-                            } else {
-                                sn
-                            };
+                            let cn = sn;
                             if st == "U" {
                                 // Wrapper-private references do not need the
                                 // app's generated missing-symbol stubs.
@@ -7746,13 +7665,6 @@ pub fn run_with_parse_cache(
                                         || cn == "js_set_property"
                                         || cn == "js_get_export"
                                         || cn == "js_await_js_promise")
-                                {
-                                    local_undef.insert(cn.to_string());
-                                } else if is_windows
-                                    && (cn.starts_with("perry_ui_")
-                                        || cn.starts_with("perry_system_")
-                                        || cn.starts_with("perry_plugin_")
-                                        || cn.starts_with("perry_get_"))
                                 {
                                     local_undef.insert(cn.to_string());
                                 }
@@ -7892,12 +7804,8 @@ pub fn run_with_parse_cache(
         // `-o app.appx` is respected verbatim). Non-Windows targets keep the
         // bare name — Unix executables are conventionally extension-less.
         Some(p) => {
-            let is_windows_output = is_windows_target(target.as_deref());
-            if is_windows_output && p.extension().is_none() {
-                p.with_extension(windows_default_output_extension(is_dylib, is_staticlib))
-            } else {
-                p
-            }
+            let is_windows_output = false;
+            p
         }
         // The default output path when no `-o` is given. Lives in
         // `compile/output_path.rs` so the build cache fingerprints the same
@@ -8149,19 +8057,13 @@ pub fn run_with_parse_cache(
         OutputFormat::Json => {}
     }
 
-    let is_ios = matches!(target.as_deref(), Some("ios-simulator") | Some("ios"));
-    let is_visionos = matches!(
-        target.as_deref(),
-        Some("visionos-simulator") | Some("visionos")
-    );
-    let is_android = is_android_target(target.as_deref());
-    let is_harmonyos = matches!(
-        target.as_deref(),
-        Some("harmonyos") | Some("harmonyos-simulator")
-    );
+    let is_ios = false;
+    let is_visionos = false;
+    let is_android = false;
+    let is_harmonyos = false;
     let is_linux = matches!(target.as_deref(), Some(t) if t.starts_with("linux"))
         || (target.is_none());
-    let _is_windows = is_windows_target(target.as_deref());
+    let _is_windows = false;
     // is_watchos / is_tvos are defined below (near the per-platform link step).
     // The is_cross_* bindings used to live here, but they're now derived
     // inside `link::build_and_run_link` which is the only consumer.
@@ -8177,38 +8079,11 @@ pub fn run_with_parse_cache(
         if let Some(runtime) = &runtime_lib_for_manifest {
             ensure_runtime_library_compatible(runtime)?;
         }
-        let windows_target = is_windows_target(target.as_deref());
+        let windows_target = false;
         // Best-effort: drop a stale archive first so `ar` doesn't append to a
         // previous build's contents.
         let _ = fs::remove_file(&exe_path);
-        let mut cmd = if windows_target {
-            // Archiver precedence (2026-07 audit): MSVC `lib.exe` when a
-            // Visual Studio install (or a vcvars prompt) provides one, else
-            // LLVM's `llvm-lib` — a drop-in lib.exe replacement that ships
-            // with `winget install LLVM.LLVM`, i.e. the lightweight-toolchain
-            // path from `perry setup windows` — else `llvm-ar --format=coff`
-            // as a last resort (rustup's llvm-tools carries llvm-ar but not
-            // llvm-lib). Previously this spawned `lib.exe` unconditionally,
-            // so LLVM+xwin users got a raw "program not found" spawn error.
-            let Some(archiver) = find_windows_archiver() else {
-                return Err(anyhow!(
-                    "No Windows archiver found for --output-type staticlib. Perry needs \
-                     MSVC lib.exe, or LLVM's llvm-lib / llvm-ar. Pick whichever is \
-                     lighter for you:\n\
-                     \n\
-                     \x20  A) Lightweight (LLVM, no Visual Studio needed):\n\
-                     \x20       winget install LLVM.LLVM\n\
-                     \n\
-                     \x20  B) MSVC (Visual Studio Build Tools + C++ workload):\n\
-                     \x20       Visual Studio Installer → Modify → \"Desktop development with C++\"\n\
-                     \x20       or: winget install Microsoft.VisualStudio.2022.BuildTools --override \
-                     \"--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended\"\n\
-                     \n\
-                     Then open a new terminal and retry. Run `perry doctor` to verify."
-                ));
-            };
-            windows_archiver_command(&archiver, &exe_path)
-        } else {
+        let mut cmd = {
             let mut c = Command::new("ar");
             // `c` create, `r` insert/replace, `s` write index. Matches what
             // rustc invokes via cc-rs for `crate-type = staticlib`.
@@ -8333,91 +8208,12 @@ pub fn run_with_parse_cache(
         // #6222: the link below runs the HOST toolchain. Reject a target it cannot
         // honour rather than emitting a host-arch dylib from a cross-compiled object.
         verify_dylib_target_linkable(target.as_deref())?;
-        let is_dylib_windows = is_windows_target(target.as_deref());
+        let is_dylib_windows = false;
         let has_plugin_deactivate = ctx
             .native_modules
             .values()
             .any(|m| m.exported_functions.iter().any(|(n, _)| n == "deactivate"));
-        let mut cmd = if is_dylib_windows {
-            // Windows — emit a .dll via lld-link. The plugin DLL's external
-            // references to `perry_*` / `js_*` resolve against the host
-            // process at LoadLibrary time, just like macOS
-            // `-flat_namespace -undefined dynamic_lookup`.
-            //
-            // A .def file IS still needed here — lld-link's default is to
-            // emit an empty export table, and the host's `loadPlugin` calls
-            // `GetProcAddress(handle, "plugin_activate")` to find the
-            // plugin's entry point. The `LIBRARY` directive names the DLL
-            // and the `EXPORTS` section lists the three plugin ABI symbols
-            // that the codegen layer emits for the dylib's entry module
-            // (see `compile_module_entry`). `plugin_deactivate` is
-            // optional and only listed when the user's `deactivate`
-            // function is actually exported.
-            //
-            // `/FORCE:UNRESOLVED` lets the linker produce the DLL even though
-            // every `perry_*` / `js_*` symbol is undefined; the loader fills
-            // them in from the host at LoadLibrary time. Without it, the
-            // link fails with LNK2019 on the first unresolved `js_*` symbol
-            // and no DLL is emitted.
-            //
-            // lld-link is preferred here: it has always honored
-            // /FORCE:UNRESOLVED on the LLVM .o files that Perry emits
-            // (treating the missing symbols as warnings that produce a
-            // runnable DLL). MSVC link.exe was historically excluded because
-            // it returned 0 WITHOUT writing the DLL on this input; re-tested
-            // 2026-07 against MSVC 14.50 (VS 2026 Build Tools), link.exe now
-            // writes a loadable DLL (exit 0 + LNK4088, exports resolve via
-            // GetProcAddress), so it is accepted as a fallback when lld-link
-            // is absent. The post-link existence check below turns any older
-            // toolset that still silently drops the output into an
-            // actionable error instead of a mystery "file not found" later.
-            // See also the cross-linker note in `select_linker_command`.
-            let Some(linker) = find_lld_link()
-                .or_else(|| find_llvm_tool("lld-link"))
-                .or_else(|| find_msvc_link_exe(target.as_deref()))
-            else {
-                return Err(anyhow!(
-                    "Building a Windows plugin .dll requires a COFF linker and none was \
-                     found. Preferred: LLVM's lld-link — install via:\n\
-                     \x20  winget install LLVM.LLVM\n\
-                     then open a new terminal and retry (or set PERRY_LLD_LINK to an \
-                     existing lld-link.exe).\n\
-                     MSVC link.exe from Visual Studio Build Tools (\"Desktop development \
-                     with C++\" workload) also works as a fallback."
-                ));
-            };
-            let mut c = Command::new(linker);
-            // Both linkers need the CRT + SDK lib dirs for /defaultlib:libcmt.
-            // Mirror `select_linker_command`: a host-architecture LIB is valid
-            // only for a native Windows target.
-            if std::env::var("LIB").is_err() || !is_native_windows_target(target.as_deref()) {
-                if let Some(lib_paths) = find_msvc_lib_paths(target.as_deref()) {
-                    c.env("LIB", lib_paths);
-                }
-            }
-            c.arg("/NOLOGO").arg("/DLL").arg("/FORCE:UNRESOLVED");
-            let stem = exe_path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("perry_plugin");
-            let def_path = std::env::temp_dir().join(format!(
-                "perry_plugin_dylib_{}_{}.def",
-                std::process::id(),
-                stem
-            ));
-            if let Ok(mut def_file) = std::fs::File::create(&def_path) {
-                use std::io::Write;
-                let _ = writeln!(def_file, "LIBRARY {}", stem);
-                let _ = writeln!(def_file, "EXPORTS");
-                let _ = writeln!(def_file, "    plugin_activate");
-                let _ = writeln!(def_file, "    perry_plugin_abi_version");
-                if has_plugin_deactivate {
-                    let _ = writeln!(def_file, "    plugin_deactivate");
-                }
-            }
-            c.arg(format!("/DEF:{}", def_path.display()));
-            c
-        } else if is_linux {
+        let mut cmd = if is_linux {
             let mut c = Command::new("cc");
             c.arg("-shared");
             c
@@ -8450,47 +8246,19 @@ pub fn run_with_parse_cache(
         }
         cmd.args(link::link_pad_args());
 
-        if is_dylib_windows {
-            // MSVC link.exe takes the output path as `/OUT:<path>`, not `-o`.
-            cmd.arg(format!("/OUT:{}", exe_path.display()));
-            // Pull in the MSVC static C runtime (libcmt) so the CRT
-            // auto-generated DllMain + `_fltused` etc. resolve. Without
-            // this, `LoadLibraryW` of the plugin DLL returns
-            // `ERROR_DLL_INIT_FAILED` (Win32 error 1114) because the
-            // plugin's auto-emitted `DllMain` references unresolved
-            // CRT symbols. `/FORCE:UNRESOLVED` lets the link succeed
-            // with those still-unresolved entries, but the loader
-            // fails DLL_PROCESS_ATTACH. Linking libcmt resolves
-            // everything in the plugin itself.
-            cmd.arg("/defaultlib:libcmt");
-        } else {
-            // Linux also needs the system libraries the executable link has
-            // always carried (`-lm -lpthread -ldl`): LLVM lowers the math
-            // intrinsics in generated closures to libm calls, and glibc's
-            // `floor`/`log10` live in libm.so, so a real-app ELF dylib link
-            // failed with `undefined reference to 'floor'` (#8942). They go
-            // AFTER the objects — GNU ld only resolves what precedes a `-l`.
-            // macOS gets libm through the implicit `-lSystem`.
-            link::push_unix_dylib_output(&mut cmd, is_linux, &exe_path);
-        }
+        // Linux also needs the system libraries the executable link has
+        // always carried (`-lm -lpthread -ldl`): LLVM lowers the math
+        // intrinsics in generated closures to libm calls, and glibc's
+        // `floor`/`log10` live in libm.so, so a real-app ELF dylib link
+        // failed with `undefined reference to 'floor'` (#8942). They go
+        // AFTER the objects — GNU ld only resolves what precedes a `-l`.
+        // macOS gets libm through the implicit `-lSystem`.
+        link::push_unix_dylib_output(&mut cmd, is_linux, &exe_path);
         cmd.args(link::extra_link_args());
 
         let status = tool_output::run_internal_tool(&mut cmd, verbose)?;
         if !status.success() {
             return Err(anyhow!("Linking dylib failed"));
-        }
-        if is_dylib_windows && !exe_path.exists() {
-            // Guard for the legacy MSVC link.exe failure mode: some toolsets
-            // exit 0 under /FORCE:UNRESOLVED yet never write the DLL (the
-            // reason lld-link is preferred above).
-            return Err(anyhow!(
-                "The linker reported success but did not write {}.\n\
-                 This is a known MSVC link.exe behavior with /FORCE:UNRESOLVED on \
-                 some toolsets. Install LLVM's lld-link and retry:\n\
-                 \x20  winget install LLVM.LLVM\n\
-                 (or set PERRY_LLD_LINK to an existing lld-link.exe).",
-                exe_path.display()
-            ));
         }
 
         match format {
@@ -8565,11 +8333,8 @@ pub fn run_with_parse_cache(
     } else {
         stdlib_lib_resolved.clone()
     };
-    let is_watchos = matches!(
-        target.as_deref(),
-        Some("watchos") | Some("watchos-simulator")
-    );
-    let is_tvos = matches!(target.as_deref(), Some("tvos") | Some("tvos-simulator"));
+    let is_watchos = false;
+    let is_tvos = false;
 
     // Issue #76 — locate the wasmi-based host library when WebAssembly runtime
     // support is requested. Absence is
@@ -8705,131 +8470,10 @@ pub fn run_with_parse_cache(
     // HarmonyOS: emit the ArkTS EntryAbility + Index page next to the .so,
     // then bundle everything into a .hap. The ArkTS shim's import name is
     // templated off the actual .so filename so it matches at dlopen time.
-    if is_harmonyos {
-        if let Some(output_dir) = exe_path.parent() {
-            let so_filename = exe_path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("libperry_app.so");
-            let stem = exe_path
-                .file_stem()
-                .and_then(|n| n.to_str())
-                .unwrap_or("app")
-                .trim_start_matches("lib");
-            // Phase 2 v1 caveat: the destructive Index.ets harvest now happens
-            // BEFORE codegen (see the harmonyos branch right after the i18n
-            // transform pass). By the time we reach the post-link block here,
-            // ctx.harmonyos_index_ets has the harvested ArkUI (if any). We just
-            // pass it through to the EntryAbility/Index.ets writer.
-            let index_ets = ctx.harmonyos_index_ets.as_deref();
-            resources::stage_native_library_artifacts(&ctx, output_dir, format)?;
-            let native_resources_dir = output_dir.join("NativeLibraries");
-            match emit_harmonyos_arkts_stubs(output_dir, so_filename, index_ets) {
-                Err(e) => eprintln!("Warning: failed to emit ArkTS shim: {}", e),
-                Ok(()) => {
-                    if matches!(format, OutputFormat::Text) {
-                        println!("Wrote ArkTS shim: {}/ets/", output_dir.display());
-                    }
-                    let sdk = find_harmonyos_sdk();
-                    // Locate the user's `assets/` folder so harmonyos_hap can
-                    // copy it into the HAP's `resources/rawfile/`. Walk up
-                    // from the entry file's directory looking for `assets/`
-                    // — handles the common shape `<root>/src/app.ts` +
-                    // `<root>/assets/icon.png` and the simpler in-root case.
-                    let assets_dir = {
-                        let mut probe = project_root.clone();
-                        let mut found: Option<PathBuf> = None;
-                        for _ in 0..4 {
-                            let candidate = probe.join("assets");
-                            if candidate.is_dir() {
-                                found = Some(candidate);
-                                break;
-                            }
-                            if !probe.pop() {
-                                break;
-                            }
-                        }
-                        found
-                    };
-                    let hap_args = crate::commands::harmonyos_hap::HapBuildArgs {
-                        so_path: &exe_path,
-                        ets_dir: &output_dir.join("ets"),
-                        stem,
-                        sdk_native: sdk.as_deref(),
-                        quiet: !matches!(format, OutputFormat::Text),
-                        // Phase 2 v7: forward CLI signing flags through to
-                        // sign_hap. Each is None when the user didn't pass
-                        // the flag; sign_hap then falls through to env var
-                        // → saved config → bail.
-                        p12_keystore: args.p12_keystore.as_deref(),
-                        p12_password: args.p12_password.as_deref(),
-                        cert_chain: args.harmonyos_cert.as_deref(),
-                        profile: args.harmonyos_profile.as_deref(),
-                        key_alias: args.harmonyos_key_alias.as_deref(),
-                        assets_dir: assets_dir.as_deref(),
-                        native_resources_dir: Some(native_resources_dir.as_path()),
-                    };
-                    match crate::commands::harmonyos_hap::build_hap(&hap_args) {
-                        Ok(res) => {
-                            if matches!(format, OutputFormat::Text) {
-                                println!(
-                                    "Wrote HAP: {} ({}, ets: {})",
-                                    res.hap_path.display(),
-                                    if res.signed { "signed" } else { "unsigned" },
-                                    if res.abc_compiled {
-                                        "bytecode"
-                                    } else {
-                                        "source"
-                                    },
-                                );
-                            }
-                        }
-                        Err(e) => eprintln!("Warning: HAP assembly failed: {}", e),
-                    }
-                }
-            }
-        }
-    }
 
     // For Android and HarmonyOS, copy companion shared libraries (.so) next to
     // the output binary so the downstream bundler (APK/AAB for Android, HAP for
     // HarmonyOS in PR B.3) can pick them up from the staging dir.
-    if is_android || is_harmonyos {
-        if let Some(output_dir) = exe_path.parent() {
-            for native_lib in &ctx.native_libraries {
-                if let Some(ref target_config) = native_lib.target_config {
-                    let lib_name = &target_config.lib_name;
-                    if lib_name.ends_with(".so") {
-                        // Refs #564: use the shared probe helper so we also
-                        // catch `target/<host-triple>/release/` when cargo
-                        // is configured with a pinned default target.
-                        let crate_target_dir = target_config.crate_path.join("target");
-                        let candidate = library_search::locate_native_lib_artifact(
-                            &crate_target_dir,
-                            target.as_deref(),
-                            lib_name,
-                        );
-                        if let Some(candidate) = candidate {
-                            let dest = output_dir.join(lib_name);
-                            if let Err(e) = fs::copy(&candidate, &dest) {
-                                eprintln!(
-                                    "Warning: failed to copy companion library {}: {}",
-                                    lib_name, e
-                                );
-                            } else {
-                                match format {
-                                    OutputFormat::Text => {
-                                        println!("Copied companion library: {}", lib_name)
-                                    }
-                                    OutputFormat::Json => {}
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     if let Some(report) = &reach_report {
         report.finish(&exe_path)?;
@@ -8846,11 +8490,11 @@ pub fn run_with_parse_cache(
             &exe_path,
             target.as_deref(),
             is_dylib,
-            is_ios,
-            is_visionos,
-            is_tvos,
-            is_watchos,
-            is_harmonyos,
+            false,
+            false,
+            false,
+            false,
+            false,
         )?;
     }
 
@@ -8859,59 +8503,7 @@ pub fn run_with_parse_cache(
     let mut result_app_dir: Option<PathBuf> = None;
 
     // For iOS targets, create a .app bundle
-    if is_ios {
-        let (app_dir, bundle_id) = build_ios_app_bundle(
-            &input_path_owned,
-            app_bundle_id_owned.as_deref(),
-            &ctx,
-            &exe_path,
-            stem,
-            target.as_deref(),
-            &compiled_features,
-            i18n_table.as_ref(),
-            i18n_config.as_ref(),
-            format,
-        )?;
-        result_bundle_id = Some(bundle_id);
-        result_app_dir = Some(app_dir);
-    } else if is_visionos {
-        let (app_dir, bundle_id) = bundle_for_visionos(
-            &exe_path,
-            stem,
-            target.as_deref(),
-            &args.input,
-            &ctx,
-            i18n_table.as_ref(),
-            i18n_config.as_ref(),
-            format,
-        )?;
-        result_bundle_id = Some(bundle_id);
-        result_app_dir = Some(app_dir);
-    } else if is_watchos {
-        let (app_dir, bundle_id) = bundle_for_watchos(
-            &exe_path,
-            stem,
-            target.as_deref(),
-            &args.input,
-            &ctx,
-            i18n_table.as_ref(),
-            i18n_config.as_ref(),
-            format,
-        )?;
-        result_bundle_id = Some(bundle_id);
-        result_app_dir = Some(app_dir);
-    } else if is_tvos {
-        let (app_dir, bundle_id) = bundle_for_tvos(
-            &exe_path,
-            stem,
-            target.as_deref(),
-            &args.input,
-            &ctx,
-            format,
-        )?;
-        result_bundle_id = Some(bundle_id);
-        result_app_dir = Some(app_dir);
-    } else if let Some(layout) = macos_bundle_layout.as_ref() {
+    if let Some(layout) = macos_bundle_layout.as_ref() {
         if exe_path != layout.executable {
             post_link::emit_sandbox_sidecar(&ctx, &exe_path, format);
         }
@@ -8932,9 +8524,7 @@ pub fn run_with_parse_cache(
         // so that resolve_asset_path can find them relative to the executable.
         if let Some(output_dir) = exe_path.parent() {
             resources::copy_standalone_resource_dirs(&args.input, output_dir);
-            if !is_harmonyos {
-                resources::stage_native_library_artifacts(&ctx, output_dir, format)?;
-            }
+            resources::stage_native_library_artifacts(&ctx, output_dir, format)?;
         }
 
         match format {
@@ -8983,7 +8573,7 @@ pub fn run_with_parse_cache(
     }
 
     emit_android_i18n_resources(
-        is_android,
+        false,
         i18n_table.as_ref(),
         i18n_config.as_ref(),
         &exe_path,

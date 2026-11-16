@@ -46,30 +46,8 @@ pub(super) fn layout_for_compile(
     target: Option<&str>,
     output: &Path,
 ) -> Result<Option<MacosBundleLayout>> {
-    let macos = target == Some("macos");
-    if !needs_ui || output_type != "executable" || !macos {
-        return Ok(None);
-    }
-    let explicit_bundle = output.extension().is_some_and(|ext| ext == "app");
-    let executable_name = if explicit_bundle {
-        output.file_stem()
-    } else {
-        output.file_name()
-    }
-    .filter(|name| !name.is_empty())
-    .ok_or_else(|| anyhow!("macOS app output needs a filename: {}", output.display()))?;
-    let app_dir = if explicit_bundle {
-        output.to_path_buf()
-    } else {
-        let mut name = executable_name.to_os_string();
-        name.push(".app");
-        output.with_file_name(name)
-    };
-    let executable = app_dir.join("Contents/MacOS").join(executable_name);
-    Ok(Some(MacosBundleLayout {
-        app_dir,
-        executable,
-    }))
+    let macos = false;
+    return Ok(None);
 }
 
 /// The embedded and bundle plists must agree on executable and app identity.

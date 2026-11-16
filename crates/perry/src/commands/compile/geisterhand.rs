@@ -48,10 +48,6 @@ fn build_command(workspace: &Path, ui_crate: &str, target: Option<&str>) -> Comm
         cmd.args(["--target", triple]);
     }
     // The runtime also lands in Android's dlopen'd libperry_app.so (#1529).
-    if is_android_target(target) {
-        let flags = super::optimized_libs::android_global_dynamic_tls_rustflag(&mut cmd);
-        cmd.env("RUSTFLAGS", flags);
-    }
     cmd
 }
 
@@ -145,15 +141,8 @@ pub(super) fn build_geisterhand_libs(
     format: OutputFormat,
     verbose: u8,
 ) -> Result<GeisterhandLibs> {
-    if matches!(target, Some("visionos" | "visionos-simulator")) {
-        bail!("Geisterhand is not supported on visionOS yet.");
-    }
     let ui_crate = match target {
-        Some("ios-simulator" | "ios") => "perry-ui-ios",
-        target if is_android_target(target) => "perry-ui-android",
         Some("linux") => "perry-ui-gtk4",
-        Some("windows-winui") => "perry-ui-windows-winui",
-        target if is_windows_target(target) => "perry-ui-windows",
         _ => "perry-ui-gtk4",
     };
     let workspace = find_perry_workspace_root().ok_or_else(|| {

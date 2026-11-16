@@ -72,12 +72,7 @@ pub(super) fn deploy_winui_runtime_assets(
     needs_ui: bool,
     exe_path: &Path,
 ) -> Result<()> {
-    if !needs_ui || !matches!(target, Some("windows-winui")) {
-        return Ok(());
-    }
-    let ui_library = find_ui_library(target)
-        .ok_or_else(|| anyhow!("WinUI library disappeared before runtime asset deployment"))?;
-    copy_winui_runtime_assets(&ui_library, exe_path)
+    return Ok(());
 }
 
 #[cfg(test)]

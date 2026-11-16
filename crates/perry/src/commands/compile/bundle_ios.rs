@@ -199,29 +199,14 @@ pub(super) fn build_ios_app_bundle(
     // "iphonesimulator" when the binary was built for -target
     // aarch64-apple-ios-sim) causes simctl to refuse launch with
     // `FBSOpenApplicationServiceErrorDomain code=4`.
-    let is_sim = matches!(target, Some("ios-simulator"));
-    let plist_supported_platform = if is_sim {
-        "iPhoneSimulator"
-    } else {
-        "iPhoneOS"
-    };
-    let plist_platform_name = if is_sim {
-        "iphonesimulator"
-    } else {
-        "iphoneos"
-    };
+    let is_sim = false;
+    let plist_supported_platform = "iPhoneOS";
+    let plist_platform_name = "iphoneos";
     // #4849: emit the shared DT* block (SDK version from the sysroot, build
     // strings from PERRY_DT_* env / GM fallback) instead of hardcoded beta SDK
     // markers (was 26.4 / 23E237, which is neither the SDK that links the
     // binary nor a current public-GM build).
-    let (dt_sysroot_env, dt_default_sysroot) = if is_sim {
-        (
-            "PERRY_IOS_SIMULATOR_SYSROOT",
-            "/opt/apple-sysroot/ios-simulator",
-        )
-    } else {
-        ("PERRY_IOS_SYSROOT", "/opt/apple-sysroot/ios")
-    };
+    let (dt_sysroot_env, dt_default_sysroot) = ("PERRY_IOS_SYSROOT", "/opt/apple-sysroot/ios");
     let dt_block = super::bundle_apple::apple_dt_plist_block(
         plist_platform_name,
         dt_sysroot_env,
@@ -709,8 +694,8 @@ pub(super) fn build_ios_app_bundle(
     // iOS-only for v1 — watchOS / Android Glance variants warn-and-skip
     // inside the helper.
     let widgets_built = {
-        let is_ios_sim = matches!(target, Some("ios-simulator"));
-        widget_build::build_declared_widgets_ios(input, &app_dir, is_ios_sim, &bundle_id, format)?
+        let is_ios_sim = false;
+        widget_build::build_declared_widgets_ios(input, &app_dir, false, &bundle_id, format)?
     };
 
     match format {
@@ -724,39 +709,9 @@ pub(super) fn build_ios_app_bundle(
                 );
             }
             println!();
-            if matches!(target, Some("ios")) {
-                // Physical-device target: dev-sign the bundle when a development
-                // profile + matching identity are already provisioned locally
-                // (via `perry setup ios --development`), then print the on-device
-                // install/launch path. A plain compile without those materials
-                // leaves the bundle unsigned and just prints instructions.
-                let config = crate::commands::publish::load_config();
-                let signed =
-                    crate::commands::run::try_sign_existing_dev_profile(&app_dir, &config, format)
-                        .unwrap_or(false);
-                if !signed {
-                    println!(
-                        "Bundle is unsigned — `perry run --target ios` dev-signs it automatically."
-                    );
-                    println!("First-time device provisioning: perry setup ios --development");
-                    println!();
-                }
-                println!("To install + launch on a connected device:");
-                println!("  perry run --target ios");
-                println!("Or manually (find <UDID> with `xcrun devicectl list devices`):");
-                println!(
-                    "  xcrun devicectl device install app --device <UDID> {}",
-                    app_dir.display()
-                );
-                println!(
-                    "  xcrun devicectl device process launch --device <UDID> {}",
-                    bundle_id
-                );
-            } else {
-                println!("To run on iOS Simulator:");
-                println!("  xcrun simctl install booted {}", app_dir.display());
-                println!("  xcrun simctl launch booted {}", bundle_id);
-            }
+            println!("To run on iOS Simulator:");
+            println!("  xcrun simctl install booted {}", app_dir.display());
+            println!("  xcrun simctl launch booted {}", bundle_id);
         }
         OutputFormat::Json => {
             let result = serde_json::json!({

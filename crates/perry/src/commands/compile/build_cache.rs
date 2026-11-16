@@ -609,19 +609,6 @@ fn eligibility(args: &CompileArgs, project_root: &Path) -> Result<(), String> {
     if args.output_type != "executable" {
         return Err("library-output".to_string());
     }
-    if matches!(
-        args.target.as_deref(),
-        Some("web")
-            | Some("wasm")
-            | Some("ios-widget")
-            | Some("ios-widget-simulator")
-            | Some("watchos-widget")
-            | Some("watchos-widget-simulator")
-            | Some("android-widget")
-            | Some("wearos-tile")
-    ) {
-        return Err("non-native-target".to_string());
-    }
     if args.bundle_extensions.is_some() {
         return Err("bundle-extensions".to_string());
     }

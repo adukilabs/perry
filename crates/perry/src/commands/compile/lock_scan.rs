@@ -142,31 +142,13 @@ fn derive_target_key(target: Option<&str>) -> String {
         "x86" => "i686",
         other => other,
     };
-    if is_android_target(target) {
-        return "android".to_string();
-    }
-    if let Some(windows) = windows_target_arch(target) {
-        return format!("windows-{}", windows.lock_token());
-    }
     match target {
         None => format!("{}-{}", std::env::consts::OS, arch),
-        Some("macos") => format!("macos-{}", arch),
         Some("linux") => format!("linux-{}", arch),
         // musl: keep the linux-<arch> lock key (#4826).
         Some("linux-musl") | Some("linux-x86_64-musl") | Some("linux-aarch64-musl") => {
             format!("linux-{}", arch)
         }
-        Some("ios") => "ios".to_string(),
-        Some("ios-simulator") => "ios-simulator".to_string(),
-        Some("tvos") => "tvos".to_string(),
-        Some("tvos-simulator") => "tvos-simulator".to_string(),
-        Some("watchos") => "watchos".to_string(),
-        Some("watchos-simulator") => "watchos-simulator".to_string(),
-        Some("visionos") => "visionos".to_string(),
-        Some("visionos-simulator") => "visionos-simulator".to_string(),
-        Some("harmonyos") => "harmonyos".to_string(),
-        Some("harmonyos-simulator") => "harmonyos-simulator".to_string(),
-        Some("web") => "web".to_string(),
         Some(other) => other.to_string(),
     }
 }

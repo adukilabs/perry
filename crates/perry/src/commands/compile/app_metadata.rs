@@ -13,18 +13,7 @@ use super::wasi_flavour::Flavour;
 use super::{android_target, is_android_target, is_windows_target, windows_target_arch};
 
 pub(super) fn target_bundle_section(target: Option<&str>) -> Option<&'static str> {
-    if is_android_target(target) {
-        return Some("android");
-    }
-    if is_windows_target(target) {
-        return Some("windows");
-    }
     match target {
-        Some("ios") | Some("ios-simulator") => Some("ios"),
-        Some("visionos") | Some("visionos-simulator") => Some("visionos"),
-        Some("watchos") | Some("watchos-simulator") => Some("watchos"),
-        Some("tvos") | Some("tvos-simulator") => Some("tvos"),
-        Some("macos") => Some("macos"),
         // musl variants share the [linux] perry.toml section (#4826).
         Some("linux")
         | Some("linux-musl")
@@ -187,37 +176,17 @@ pub(super) fn read_app_metadata(
 
 /// Get the Rust target triple for a given perry target string
 pub(super) fn rust_target_triple(target: Option<&str>) -> Option<&'static str> {
-    if let Some(android) = android_target(target) {
-        return Some(android.rust_triple);
-    }
-    if let Some(windows) = windows_target_arch(target) {
-        return Some(windows.rust_triple());
-    }
     match target {
-        Some("ios-simulator") | Some("ios-widget-simulator") => Some("aarch64-apple-ios-sim"),
-        Some("ios") | Some("ios-widget") => Some("aarch64-apple-ios"),
-        Some("visionos-simulator") => Some("aarch64-apple-visionos-sim"),
-        Some("visionos") => Some("aarch64-apple-visionos"),
-        Some("watchos-simulator") => Some("aarch64-apple-watchos-sim"),
         // arm64_32 watchOS (Series 4-8 / SE) when opted in; otherwise arm64
         // (S9+). Governs the rust target used for the auto-optimize runtime
         // rebuild and for building/resolving native libraries, so all three
         // must agree with the link triple in platform_cmd.rs / link/mod.rs.
-        Some("watchos") if std::env::var("PERRY_WATCHOS_ARM64_32").is_ok() => {
-            Some("arm64_32-apple-watchos")
-        }
-        Some("watchos") => Some("aarch64-apple-watchos"),
-        Some("tvos-simulator") => Some("aarch64-apple-tvos-sim"),
-        Some("tvos") => Some("aarch64-apple-tvos"),
-        Some("harmonyos") => Some("aarch64-unknown-linux-ohos"),
-        Some("harmonyos-simulator") => Some("x86_64-unknown-linux-ohos"),
         Some("linux") | Some("linux-x86_64") => Some("x86_64-unknown-linux-gnu"),
         Some("linux-arm64") | Some("linux-aarch64") => Some("aarch64-unknown-linux-gnu"),
         // Fully-static musl targets (#4826). The perry-runtime / perry-stdlib
         // .a files for these triples are built by release-packages.yml.
         Some("linux-musl") | Some("linux-x86_64-musl") => Some("x86_64-unknown-linux-musl"),
         Some("linux-aarch64-musl") => Some("aarch64-unknown-linux-musl"),
-        Some("macos") => Some("aarch64-apple-darwin"),
         // Standalone WASI (#11375): the runtime archive is built for this triple.
         Some(t) => Flavour::from_target(t).map(Flavour::triple),
         _ => None,

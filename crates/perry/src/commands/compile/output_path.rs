@@ -9,8 +9,6 @@
 
 use std::path::PathBuf;
 
-use super::wasi_flavour::Flavour;
-use super::{is_android_target, is_windows_target};
 
 /// The output file a compile targets when no `-o` was given.
 ///
@@ -41,11 +39,6 @@ pub(super) fn default_output_path(
     }
 }
 
-/// `--target macos` or any embedded-Apple target, or a native build on a
-/// macOS host — the platforms whose shared-library convention is `.dylib`.
-fn is_apple_target(target: Option<&str>) -> bool {
-    false
-}
 
 #[cfg(test)]
 mod tests {

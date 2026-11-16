@@ -92,147 +92,14 @@ fn sandbox_enabled() -> bool {
     )
 }
 
-/// Locate the `cargo` binary on PATH. sandbox-exec doesn't search
-/// PATH the way the shell does — it runs the literal argv[0] — so
-/// we need an absolute path. Falls back to `"cargo"` if `which`
-/// fails (lets the OS produce a clearer error than us swallowing it).
-fn which_cargo() -> std::path::PathBuf {
-    if let Ok(output) = Command::new("which").arg("cargo").output() {
-        if output.status.success() {
-            let trimmed = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !trimmed.is_empty() {
-                return std::path::PathBuf::from(trimmed);
-            }
-        }
-    }
-    std::path::PathBuf::from("cargo")
-}
 
-/// Write a per-build sandbox-exec profile to
-/// `<cache_dir>/buildrs-<pkg>.sandbox` (default
-/// `<project>/node_modules/.cache/perry/buildrs-<pkg>.sandbox`).
-/// Returns the absolute path so `sandbox-exec -f <path>` can pick it up.
-fn write_macos_buildrs_profile(
-    ctx: &CompilationContext,
-    package_name: &str,
-) -> std::io::Result<std::path::PathBuf> {
-    let dir = &ctx.cache_dir;
-    std::fs::create_dir_all(dir)?;
-    // Sanitize the package name into a single path component so a
-    // hostile `name: "../etc/passwd"` can't escape the cache dir.
-    let safe = package_name
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-        .collect::<String>();
-    let path = dir.join(format!("buildrs-{}.sandbox", safe));
-    std::fs::write(&path, build_macos_buildrs_profile())?;
-    Ok(path)
-}
 
-/// Static profile body. Could be parameterised per-package in the
-/// future (HIR-driven refinement is a #505 follow-up); for now the
-/// same profile is reused across packages.
-pub(super) fn build_macos_buildrs_profile() -> String {
-    let mut s = String::new();
-    s.push_str(";; perry build.rs sandbox profile (auto-generated, #505 MVP)\n");
-    s.push_str(";;\n");
-    s.push_str(";; Applied by Perry's compile driver when\n");
-    s.push_str(";; PERRY_SANDBOX_BUILDRS=1 is set and the package isn't in\n");
-    s.push_str(";; perry.allowUnsandboxedBuild. Tighten/relax this if your\n");
-    s.push_str(";; specific build.rs needs broader access — but consider\n");
-    s.push_str(";; whether the package should be in `allowUnsandboxedBuild`\n");
-    s.push_str(";; instead so the exemption is recorded in the host's\n");
-    s.push_str(";; package.json (auditable in code review).\n\n");
-
-    s.push_str("(version 1)\n");
-    s.push_str("(deny default)\n\n");
-
-    // Cargo + rustc need basic process info / signal / sysctl access.
-    s.push_str(";; --- process basics ---\n");
-    s.push_str("(allow process-info-pidinfo)\n");
-    s.push_str("(allow process-info-pidfdinfo)\n");
-    s.push_str("(allow signal)\n");
-    s.push_str("(allow sysctl-read)\n");
-    s.push_str("(allow mach-lookup)\n");
-    s.push_str("(allow iokit-open)\n\n");
-
-    // build.rs scripts spawn rustc, cc, ld, etc. Allowed.
-    s.push_str(";; --- process spawn (rustc, cc, ld, build.rs binaries) ---\n");
-    s.push_str("(allow process-fork)\n");
-    s.push_str("(allow process-exec)\n\n");
-
-    // Reads: cargo source tree + system libs + crates cache.
-    s.push_str(";; --- file read (system libs + source + crates cache) ---\n");
-    s.push_str("(allow file-read*)\n\n");
-
-    // Writes: tightly scoped to expected destinations. We don't try
-    // to encode the project root here (sandbox-exec profile language
-    // doesn't easily template, and we'd have to escape paths) — we
-    // allow writes under any `target/` segment + `~/.cargo` + tmp.
-    s.push_str(";; --- file write (target/, ~/.cargo, ~/.rustup, /tmp) ---\n");
-    s.push_str("(allow file-write*\n");
-    s.push_str("    (regex \"/target/\")\n");
-    s.push_str("    (regex \"/\\\\.cargo/\")\n");
-    s.push_str("    (regex \"/\\\\.rustup/\")\n");
-    s.push_str("    (subpath \"/tmp\")\n");
-    s.push_str("    (subpath \"/private/tmp\")\n");
-    s.push_str("    (subpath \"/private/var/folders\"))\n\n");
-
-    s.push_str(";; --- network denied (build.rs cannot phone home) ---\n");
-    s.push_str(";; --- run `cargo fetch` outside the sandbox first if your ---\n");
-    s.push_str(";; --- build needs to download fresh deps. ---\n");
-    s.push_str("(deny network*)\n");
-
-    s
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn profile_denies_network_allows_build_dirs() {
-        let p = build_macos_buildrs_profile();
-        assert!(p.contains("(deny default)"), "default-deny missing:\n{p}");
-        assert!(
-            p.contains("(deny network*)"),
-            "network must be denied:\n{p}"
-        );
-        assert!(
-            p.contains("(allow process-fork)") && p.contains("(allow process-exec)"),
-            "must allow rustc/cc spawn:\n{p}"
-        );
-        assert!(
-            p.contains("(allow file-read*)"),
-            "must allow file-read (system libs, source, crates):\n{p}"
-        );
-        assert!(
-            p.contains("(regex \"/target/\")"),
-            "must allow writes to target/:\n{p}"
-        );
-        assert!(
-            p.contains("(regex \"/\\\\.cargo/\")"),
-            "must allow writes to ~/.cargo:\n{p}"
-        );
-        assert!(
-            p.contains("(regex \"/\\\\.rustup/\")"),
-            "must allow writes to ~/.rustup:\n{p}"
-        );
-    }
 
-    #[test]
-    fn profile_header_documents_usage_and_escape_hatch() {
-        let p = build_macos_buildrs_profile();
-        assert!(
-            p.contains("PERRY_SANDBOX_BUILDRS=1"),
-            "must mention env opt-in:\n{p}"
-        );
-        assert!(
-            p.contains("allowUnsandboxedBuild"),
-            "must mention escape hatch:\n{p}"
-        );
-        assert!(p.contains("#505"), "must cite tracker:\n{p}");
-    }
 
     #[test]
     fn wrap_cargo_falls_through_when_sandbox_disabled() {

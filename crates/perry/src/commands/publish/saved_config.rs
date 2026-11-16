@@ -296,20 +296,6 @@ pub(super) fn sanitize_error_for_report(error: &str) -> String {
     result
 }
 
-/// Prompt user for text input with an optional default value.
-/// Returns None if the user enters empty string.
-pub(crate) fn prompt_input(prompt: &str, default: Option<&str>) -> Option<String> {
-    let mut builder = Input::<String>::new().with_prompt(prompt);
-    if let Some(d) = default {
-        builder = builder.default(d.to_string());
-    }
-    builder = builder.allow_empty(true);
-    match builder.interact_text() {
-        Ok(val) if val.is_empty() => None,
-        Ok(val) => Some(val),
-        Err(_) => None,
-    }
-}
 
 #[cfg(test)]
 mod saved_config_tests {

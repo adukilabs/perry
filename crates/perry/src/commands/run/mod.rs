@@ -9,28 +9,18 @@ use std::process::Command;
 use super::compile::{CompileArgs, CompileResult};
 use crate::{OutputFormat, Platform};
 
-mod devices;
 mod entry;
 mod launch;
 mod metadata;
 mod remote;
 mod resign;
 
-pub use devices::{
-    detect_android_devices, detect_booted_simulators, detect_booted_tv_simulators,
-    detect_booted_visionos_simulators, detect_booted_watch_simulators, detect_ios_devices,
-    is_wear_os_device, pick_device, pick_from_list, DeviceInfo,
-};
-pub use entry::{can_compile_locally, resolve_entry_file, resolve_target, rust_target_triple};
-pub use launch::{launch, launch_ios_device, launch_ios_simulator, launch_native};
+pub use entry::{resolve_entry_file, resolve_target};
+pub use launch::{launch, launch_native};
 pub use metadata::{
-    build_device_credentials, find_project_root, read_app_metadata, read_perry_toml_ios,
+    find_project_root, read_app_metadata, read_perry_toml_ios,
 };
-pub use remote::{copy_dir_recursive, remote_build_and_launch};
-pub use resign::{
-    create_dev_profile_via_api, read_ios_app_group_from_toml,
-    read_ios_push_notifications_from_toml, resign_for_development, try_sign_existing_dev_profile,
-};
+pub use remote::{remote_build_and_launch};
 
 #[derive(Args, Debug)]
 pub struct RunArgs {
@@ -132,8 +122,6 @@ pub fn run(args: RunArgs, format: OutputFormat, use_color: bool, verbose: u8) ->
     let (target, device_udid) = resolve_target(platform, &args)?;
 
     // 3. Decide local vs remote compilation
-    let needs_cross = false;
-    let can_local = true;
 
     let use_remote = if args.remote {
         true

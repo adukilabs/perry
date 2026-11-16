@@ -10,7 +10,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use super::{find_perry_workspace_root, is_android_target, is_windows_target, rust_target_triple};
+use super::{find_perry_workspace_root, rust_target_triple};
 use crate::OutputFormat;
 
 #[derive(Debug)]

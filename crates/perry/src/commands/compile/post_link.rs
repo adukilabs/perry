@@ -6,11 +6,10 @@
 //! verbatim copy of an inline block from `run_with_parse_cache`.
 
 use crate::OutputFormat;
-use perry_codegen::target_os_of;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::{is_android_target, CompilationContext, ObjectCache};
+use super::{CompilationContext, ObjectCache};
 
 /// Strip debug symbols from the final binary (reduces size
 /// significantly). Skipped for: dylib output, every cross-

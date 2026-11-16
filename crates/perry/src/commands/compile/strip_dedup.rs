@@ -483,30 +483,6 @@ fn is_rust_codegen_unit(member: &str) -> bool {
     member.ends_with(".rcgu.o")
 }
 
-/// On Windows, build a trimmed UI lib using the rlib (not staticlib).
-///
-/// perry-ui-windows builds as both rlib and staticlib. The staticlib bundles
-/// ALL transitive deps (std, alloc, core, perry-runtime -- 314 objects).
-/// perry-stdlib also bundles these. Linking both causes hundreds of duplicate
-/// symbols, and /FORCE:MULTIPLE produces corrupt binaries.
-///
-/// The rlib contains only the UI crate's own code (one or more CGU objects).
-/// We extract it and combine with UI-only deps (windows, serde, regex...) from the staticlib.
-/// All shared deps come from perry-stdlib. No /FORCE:MULTIPLE needed.
-///
-/// **Dedup decision** (Tier 3.1, v0.5.331): when `llvm-nm` is available, drop a
-/// staticlib member only if **every** defined symbol it carries is also
-/// defined in (a) the rlib (when present) or (b) one of the standalone
-/// `libperry_stdlib.a` / `libperry_runtime.a` archives. Members with any
-/// unique symbol — typical for crate-specific generic monomorphizations
-/// like `hashbrown::raw::RawTable<HashMap<i64, gtk4::Widget>>::reserve_rehash`
-/// — are kept. The previous name-pattern approach (e.g. `m.contains(
-/// "perry_runtime-")`) was evidence-free and over-pruned on Linux when the
-/// bundling staticlib carried unique CGUs (#181 part B). Falls back to the
-/// legacy name-pattern when `llvm-nm` isn't installed.
-pub(super) fn strip_duplicate_objects_from_lib(lib_path: &PathBuf) -> Result<PathBuf> {
-    strip_duplicate_objects_from_lib_with_evidence(lib_path, StdlibEvidence::Locate)
-}
 
 /// Where the dedup evidence for `libperry_stdlib.a` comes from — i.e. whether
 /// its symbols may be counted as "provided elsewhere" when deciding to DROP a
@@ -1797,7 +1773,6 @@ mod nm_command;
 mod stub_symbols;
 use nm_command::nm_command;
 pub(super) use stub_symbols::localize_stdlib_stub_symbols;
-use stub_symbols::strip_members_present_in_reference;
 
 /// Tier-3 (tvOS/watchOS, no prebuilt std): perry-stdlib is built with
 /// `-Zbuild-std` and bundles its own copy of std's allocator/panic runtime

@@ -10,7 +10,7 @@ use perry_api_manifest::{
 };
 
 use super::super::{
-    android_target, is_android_target, NativeBackend, NativeBackendConfig,
+    NativeBackend, NativeBackendConfig,
     NativeBackendPackageMetadata, NativeFunctionDecl, NativeLibraryManifest, TargetNativeConfig,
 };
 

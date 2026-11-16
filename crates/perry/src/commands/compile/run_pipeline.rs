@@ -983,7 +983,6 @@ pub fn run_with_parse_cache(
 
     let mut visited = HashSet::new();
     let mut next_class_id: perry_hir::ClassId = 1; // Start at 1, 0 is reserved for "no parent"
-    let skip_transforms = false;
     let progress = VerboseProgress::new(format, verbose);
 
     // Issue #444: canonicalize the user's entry path once so collect_modules
@@ -2845,7 +2844,6 @@ pub fn run_with_parse_cache(
             .map(|f| f.trim().to_string())
             .filter(|f| !f.is_empty())
             .collect();
-        let is_mobile = false;
         if features.iter().any(|f| f == "plugins") {
             ctx.needs_plugins = true;
         }
@@ -3716,7 +3714,6 @@ pub fn run_with_parse_cache(
 
     // A standalone WASI build links against the wasm32 runtime after
     // codegen and has no native link set.
-    let native_link_set_skipped = false;
 
     // Issue #76 — the wasmi host archive. A program that references
     // `WebAssembly.*` sets `ctx.needs_wasm_runtime` (feature_detect.rs);
@@ -7564,7 +7561,6 @@ pub fn run_with_parse_cache(
         let runtime_lib_path = find_runtime_library(target.as_deref()).ok();
         let stdlib_lib_path = stdlib_lib_resolved.clone();
         // Check if stdlib will be linked - if so, it provides perry_runtime symbols (no stubs needed)
-        let target_is_windows = false;
         let will_link_stdlib = (ctx.needs_stdlib) && stdlib_lib_path.is_some();
         // Issue #76 — when the wasm host is
         // being linked, scan its archive so the `perry_wasm_host_*` symbols
@@ -7605,19 +7601,14 @@ pub fn run_with_parse_cache(
         }
         // Platform detection for nm tool and symbol prefix
         let _is_ios = false;
-        let is_android = false;
-        let is_harmonyos = false;
         let is_linux = matches!(target.as_deref(), Some(t) if t.starts_with("linux"))
             || (target.is_none());
-        let is_windows = false;
         // Symbol prefix depends on object format:
         // Mach-O targets (macOS, iOS, watchOS, tvOS): nm shows `_` prefix
         // COFF (Windows targets): no prefix
         // ELF (Linux/Android/HarmonyOS targets): no prefix
         // Use TARGET (what we're compiling to), not HOST (what we're running on)
-        let is_macho = false;
         // Find the nm tool: use llvm-nm when cross-compiling (host nm can't read foreign object formats)
-        let needs_llvm_nm = false;
         let nm_cmd = "nm".to_string();
         // Scan object files in parallel for symbol resolution
         let scan_results: Vec<(HashSet<String>, HashSet<String>, HashSet<String>)> = all_scan_paths
@@ -7804,7 +7795,6 @@ pub fn run_with_parse_cache(
         // `-o app.appx` is respected verbatim). Non-Windows targets keep the
         // bare name — Unix executables are conventionally extension-less.
         Some(p) => {
-            let is_windows_output = false;
             p
         }
         // The default output path when no `-o` is given. Lives in
@@ -8057,10 +8047,6 @@ pub fn run_with_parse_cache(
         OutputFormat::Json => {}
     }
 
-    let is_ios = false;
-    let is_visionos = false;
-    let is_android = false;
-    let is_harmonyos = false;
     let is_linux = matches!(target.as_deref(), Some(t) if t.starts_with("linux"))
         || (target.is_none());
     let _is_windows = false;
@@ -8079,7 +8065,6 @@ pub fn run_with_parse_cache(
         if let Some(runtime) = &runtime_lib_for_manifest {
             ensure_runtime_library_compatible(runtime)?;
         }
-        let windows_target = false;
         // Best-effort: drop a stale archive first so `ar` doesn't append to a
         // previous build's contents.
         let _ = fs::remove_file(&exe_path);
@@ -8208,7 +8193,6 @@ pub fn run_with_parse_cache(
         // #6222: the link below runs the HOST toolchain. Reject a target it cannot
         // honour rather than emitting a host-arch dylib from a cross-compiled object.
         verify_dylib_target_linkable(target.as_deref())?;
-        let is_dylib_windows = false;
         let has_plugin_deactivate = ctx
             .native_modules
             .values()
@@ -8333,8 +8317,6 @@ pub fn run_with_parse_cache(
     } else {
         stdlib_lib_resolved.clone()
     };
-    let is_watchos = false;
-    let is_tvos = false;
 
     // Issue #76 — locate the wasmi-based host library when WebAssembly runtime
     // support is requested. Absence is

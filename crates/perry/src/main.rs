@@ -2,7 +2,6 @@
 //!
 //! CLI driver for compiling TypeScript to native executables.
 
-mod apple_jwt;
 mod cli;
 mod commands;
 mod compat_reports;
@@ -17,7 +16,7 @@ mod test_env_lock;
 mod update_checker;
 mod update_policy;
 
-use crate::cli::{dotenv, logger, terminal_progress, utc};
+use crate::cli::{logger, terminal_progress, utc};
 
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};

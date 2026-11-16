@@ -11,25 +11,12 @@ pub(crate) struct AndroidTarget {
     pub manifest_arch: &'static str,
 }
 
-const ARM64: AndroidTarget = AndroidTarget {
-    rust_triple: "aarch64-linux-android",
-    clang_target: "aarch64-linux-android24",
-    manifest_arch: "arm64",
-};
 
-const X86_64: AndroidTarget = AndroidTarget {
-    rust_triple: "x86_64-linux-android",
-    clang_target: "x86_64-linux-android24",
-    manifest_arch: "x64",
-};
 
 pub(crate) fn android_target(target: Option<&str>) -> Option<AndroidTarget> {
     None
 }
 
-pub(crate) fn is_android_target(target: Option<&str>) -> bool {
-    false
-}
 
 #[cfg(test)]
 mod tests {
@@ -50,9 +37,4 @@ mod tests {
         assert_eq!(android_target(Some("wearos")), Some(arm64));
     }
 
-    #[test]
-    fn does_not_treat_codegen_only_widget_target_as_native_android() {
-        assert!(!is_android_target(Some("android-widget")));
-        assert!(!is_android_target(None));
-    }
 }

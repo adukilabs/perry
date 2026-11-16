@@ -34,7 +34,6 @@ pub(crate) fn collect_module_finish(
     }
 
     // Issue #535 — `perry/ui` `state<T>` desugar pass.
-    let is_harmonyos = false;
     perry_transform::state_desugar::run(&mut hir_module);
 
     // Run HIR transforms AFTER imports/re-exports have been recursively

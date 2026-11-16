@@ -27,7 +27,7 @@ use std::process::Command;
 // the compile.rs orchestrator. Pull them in as private parent-module
 // items so the search helpers below can reach them.
 use super::{
-    android_target, is_android_target, is_windows_target, rust_target_triple, windows_target_arch,
+    rust_target_triple, windows_target_arch,
     WindowsTargetArch,
 };
 
@@ -95,8 +95,6 @@ pub(crate) fn locate_native_lib_artifact(
 /// cargo lib name (refs issue #792).
 fn lib_name_variants(lib_name: &str, target: Option<&str>) -> Vec<String> {
     let mut out = vec![lib_name.to_string()];
-    let is_windows = false;
-    let is_macos = false;
 
     if std::path::Path::new(lib_name).extension().is_some() {
         // A wrapper may hard-code the Unix static-lib filename (e.g.
@@ -296,72 +294,10 @@ pub(super) fn find_lld_link() -> Option<PathBuf> {
 }
 
 
-pub(super) fn find_msvc_lib_exe() -> Option<PathBuf> {
-    None
-}
 
-/// The archiver selected for bundling a Windows `--output-type staticlib`
-/// (#1088). Selection is split from discovery so the precedence is
-/// unit-testable off-Windows (`windows_link_tests`).
-#[derive(Debug, PartialEq, Eq)]
-pub(super) enum WindowsArchiver {
-    /// MSVC `lib.exe`, or LLVM's `llvm-lib` — a drop-in lib.exe replacement
-    /// (same `/OUT:` command line) that ships with `winget install LLVM.LLVM`.
-    LibExe(PathBuf),
-    /// LLVM's generic `ar` — last resort (rustup's llvm-tools component
-    /// carries llvm-ar but not llvm-lib). `--format=coff` makes it emit the
-    /// MSVC-compatible archive flavor.
-    LlvmAr(PathBuf),
-}
 
-/// Pick the Windows archiver from the tools that resolved, in precedence
-/// order: MSVC `lib.exe` → `llvm-lib` → `llvm-ar`. `None` when no archiver
-/// is installed at all — the caller emits the two-toolchain install hint.
-pub(super) fn choose_windows_archiver(
-    msvc_lib_exe: Option<PathBuf>,
-    llvm_lib: Option<PathBuf>,
-    llvm_ar: Option<PathBuf>,
-) -> Option<WindowsArchiver> {
-    if let Some(p) = msvc_lib_exe {
-        return Some(WindowsArchiver::LibExe(p));
-    }
-    if let Some(p) = llvm_lib {
-        return Some(WindowsArchiver::LibExe(p));
-    }
-    llvm_ar.map(WindowsArchiver::LlvmAr)
-}
 
-/// Locate the archiver for a Windows-target staticlib. `find_llvm_tool`
-/// contributes the `PERRY_LLVM_LIB` / `PERRY_LLVM_AR` env overrides, the
-/// rustup-sysroot probe, and the PATH lookup for free, so all three rungs
-/// follow the established lookup precedence.
-pub(super) fn find_windows_archiver() -> Option<WindowsArchiver> {
-    choose_windows_archiver(
-        find_msvc_lib_exe(),
-        find_llvm_tool("llvm-lib"),
-        find_llvm_tool("llvm-ar"),
-    )
-}
 
-/// Build the archive command for the selected archiver. The caller appends
-/// the object files.
-pub(super) fn windows_archiver_command(archiver: &WindowsArchiver, out: &Path) -> Command {
-    match archiver {
-        WindowsArchiver::LibExe(path) => {
-            let mut c = Command::new(path);
-            c.arg(format!("/OUT:{}", out.display()));
-            c
-        }
-        WindowsArchiver::LlvmAr(path) => {
-            let mut c = Command::new(path);
-            // `c` create, `r` insert/replace, `s` write index — same as the
-            // Unix `ar crs` branch; `--format=coff` selects the MSVC archive
-            // flavor so `link.exe` / `lld-link` consume the result.
-            c.arg("--format=coff").arg("crs").arg(out);
-            c
-        }
-    }
-}
 
 /// Location where `perry setup windows` writes the xwin'd Microsoft CRT +
 /// Windows SDK. Returns `Some(root)` only when a supported architecture's CRT
@@ -421,21 +357,6 @@ pub(super) fn windows_subsystem_needs_ui(subsystem: &str, needs_ui: bool) -> boo
     }
 }
 
-/// The conventional output-file extension for a Windows target, by output
-/// type (#4771): executables are `.exe`, shared libraries `.dll`, static
-/// libraries `.lib`. Used to default the extension on a Windows `-o NAME`
-/// that the user gave without one, so the produced file is runnable from
-/// PowerShell/cmd (which won't launch an extension-less file) and linkable
-/// under the platform's library conventions.
-pub(super) fn windows_default_output_extension(is_dylib: bool, is_staticlib: bool) -> &'static str {
-    if is_dylib {
-        "dll"
-    } else if is_staticlib {
-        "lib"
-    } else {
-        "exe"
-    }
-}
 
 pub(super) fn windows_pe_subsystem_flag(needs_ui: bool, min_windows_version: &str) -> String {
     let base = if needs_ui {
@@ -1201,136 +1122,11 @@ pub(super) fn find_harmonyos_sdk() -> Option<PathBuf> {
     None
 }
 
-/// Build the `CC_*` / `CXX_*` / `CARGO_TARGET_*_LINKER` env vars that
-/// point cc-rs and rustc at the Android NDK toolchain. Issue #1508 —
-/// without these, `cargo build --target aarch64-linux-android` falls
-/// back to the host `cc`, which fails outright on Windows (`clang.exe
-/// not found`) and produces architecturally-mismatched objects on Unix.
-///
-/// Mirrors `harmonyos_cross_env` below. The NDK API level is fixed at
-/// 24 (Android 7.0) — matches the existing `platform_cmd.rs` /
-/// `link/mod.rs` JNI stub compile invocations.
-pub(super) fn android_cross_env(ndk_home: &Path, target: Option<&str>) -> Vec<(String, String)> {
-    let android = android_target(target)
-        .expect("android_cross_env must only be called for an Android target");
-    let triple = android.rust_triple;
-    let clang_target = android.clang_target;
 
-    // NDK ships per-host prebuilt toolchains. Tag must match the build
-    // machine, NOT the target — Windows-host builds were falling through
-    // to `linux-x86_64` and erroring out before this fix landed.
-    let host_tag = "linux-x86_64";
-
-    let bin = ndk_home
-        .join("toolchains")
-        .join("llvm")
-        .join("prebuilt")
-        .join(host_tag)
-        .join("bin");
-    // On Windows the NDK's wrapper scripts are `.cmd` files.
-    let ext = "";
-    let clang = bin.join(format!("{}-clang{}", clang_target, ext));
-    let clangpp = bin.join(format!("{}-clang++{}", clang_target, ext));
-    // NDK r27+ removed the per-target `aarch64-linux-android-ar` wrapper that
-    // cc-rs probes for by default; the archiver is now the unprefixed
-    // `llvm-ar`. Without an explicit `AR_<triple>` the runtime/stdlib C
-    // dependencies (e.g. mimalloc) fail to build with
-    // `failed to find tool "aarch64-linux-android-ar"`. `llvm-ar` has no `.cmd`
-    // wrapper on Windows — it's the bare executable (+`.exe`).
-    let ar_ext = "";
-    let llvm_ar = bin.join(format!("llvm-ar{}", ar_ext));
-
-    let triple_upper = triple.to_uppercase().replace('-', "_");
-    let triple_under = triple.replace('-', "_");
-
-    vec![
-        (format!("CC_{}", triple), clang.display().to_string()),
-        (format!("CC_{}", triple_under), clang.display().to_string()),
-        (format!("CXX_{}", triple), clangpp.display().to_string()),
-        (
-            format!("CXX_{}", triple_under),
-            clangpp.display().to_string(),
-        ),
-        (format!("AR_{}", triple), llvm_ar.display().to_string()),
-        (
-            format!("AR_{}", triple_under),
-            llvm_ar.display().to_string(),
-        ),
-        (
-            format!("CARGO_TARGET_{}_LINKER", triple_upper),
-            clang.display().to_string(),
-        ),
-    ]
-}
-
-#[cfg(test)]
-mod android_cross_env_tests;
 
 #[cfg(test)]
 mod harmonyos_sdk_tests;
 
-/// Cross-compile env vars to pass to `cargo build` so `cc-rs` picks up the
-/// OHOS SDK's clang + musl sysroot for any C source in dependency build.rs
-/// scripts (notably `libmimalloc-sys`, which needs `pthread.h`).
-///
-/// Cargo reads both `CC_<triple>` and the underscored `CC_<TRIPLE>` form —
-/// `cc-rs` prefers the latter. We set both for robustness. Same for linker.
-pub(super) fn harmonyos_cross_env(
-    sdk_native: &Path,
-    target: Option<&str>,
-) -> Vec<(String, String)> {
-    let (triple, clang_target) = ("aarch64-unknown-linux-ohos", "aarch64-linux-ohos");
-    let bin = sdk_native.join("llvm").join("bin");
-    let clang = if bin.join("clang").is_file() {
-        bin.join("clang")
-    } else {
-        bin.join("clang.exe")
-    };
-    let clangpp = if bin.join("clang++").is_file() {
-        bin.join("clang++")
-    } else {
-        bin.join("clang++.exe")
-    };
-    let sysroot = sdk_native.join("sysroot");
-    let cflags = format!(
-        "--target={} --sysroot={} -D__MUSL__",
-        clang_target,
-        sysroot.display()
-    );
-    let rustflags = format!(
-        "-C link-arg=--target={} -C link-arg=--sysroot={}",
-        clang_target,
-        sysroot.display()
-    );
-    let triple_upper = triple.to_uppercase().replace('-', "_");
-    let triple_under = triple.replace('-', "_");
-
-    // CC + CXX: libmimalloc-sys compiles .c via CC and can fall into C++ paths
-    // via CXX for some builds — we set both to the OHOS SDK toolchain so neither
-    // escapes to the host `c++` (which lacks --sysroot and would fail with
-    // "'pthread.h' file not found").
-    vec![
-        (format!("CC_{}", triple), clang.display().to_string()),
-        (format!("CC_{}", triple_under), clang.display().to_string()),
-        (format!("CXX_{}", triple), clangpp.display().to_string()),
-        (
-            format!("CXX_{}", triple_under),
-            clangpp.display().to_string(),
-        ),
-        (format!("CFLAGS_{}", triple), cflags.clone()),
-        (format!("CFLAGS_{}", triple_under), cflags.clone()),
-        (format!("CXXFLAGS_{}", triple), cflags.clone()),
-        (format!("CXXFLAGS_{}", triple_under), cflags),
-        (
-            format!("CARGO_TARGET_{}_LINKER", triple_upper),
-            clang.display().to_string(),
-        ),
-        (
-            format!("CARGO_TARGET_{}_RUSTFLAGS", triple_upper),
-            rustflags,
-        ),
-    ]
-}
 
 #[cfg(test)]
 mod apple_lib_name_tests;

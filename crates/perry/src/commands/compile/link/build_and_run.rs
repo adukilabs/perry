@@ -66,11 +66,7 @@ pub(crate) fn build_and_run_link(
     // inherits the gate from one chokepoint.
     super::super::run_lock_verify_for_compile(ctx, target)?;
 
-    let is_ios = false;
-    let is_visionos = false;
     // Wear OS and every Android architecture share the NDK/cdylib link path.
-    let is_android = false;
-    let is_harmonyos = false;
     let is_linux = matches!(target, Some(t) if t.starts_with("linux"))
         || (target.is_none());
     // Fully-static musl Linux target (#4826) — a sub-case of is_linux. The
@@ -95,13 +91,6 @@ pub(crate) fn build_and_run_link(
         );
     }
     let is_windows = false;
-    let is_cross_windows = false;
-    let is_cross_ios = false;
-    let is_cross_visionos = false;
-    let is_cross_macos = false;
-    let is_watchos = false;
-    let is_tvos = false;
-    let is_cross_tvos = false;
 
     let mut cmd = select_linker_command(
         args_input,
@@ -324,8 +313,6 @@ pub(crate) fn build_and_run_link(
     // (#8930), Mach-O's linker already revisits archives, and COFF registers
     // lazy archive symbols globally. An unknown future linker stays
     // conservative and keeps the wrapper-local provider.
-    let is_macos =
-        false;
     let stdlib_resolves_retained_wrapper_refs = (ctx.needs_stdlib)
         && (is_linux);
     let prepare_well_known = || {
@@ -622,7 +609,6 @@ pub(crate) fn build_and_run_link(
     // link line — leaving those four symbols undefined and the link
     // failing. Forcing the UI lib for watchOS adds ~MBs but unblocks
     // `console.log("ok")`-only programs from compiling.
-    let force_ui = false;
     if ctx.needs_ui {
         // When geisterhand is enabled, prefer the geisterhand-enabled UI lib
         // (it contains widget registration calls that the normal lib doesn't have)
@@ -865,7 +851,6 @@ pub(crate) fn build_and_run_link(
                 let cargo_toml = target_config.crate_path.join("Cargo.toml");
                 if cargo_toml.exists() {
                     // Tier 3 targets (tvOS, watchOS) need nightly + build-std
-                    let is_tier3 = false;
 
                     // #505: optionally wrap the cargo invocation in
                     // `sandbox-exec` on macOS to deny network and
@@ -961,7 +946,6 @@ pub(crate) fn build_and_run_link(
                         {
                             // When building a plugin host on macOS, force-load plugin-related native
                             // libraries so their symbols are available for dlopen'd plugin dylibs.
-                            let force_load = false;
                             cmd.arg(&lib);
                         }
                         match format {
@@ -1163,8 +1147,6 @@ pub(crate) fn build_and_run_link(
     // bundle metadata; the standalone executable remains available as well.
     // Without this, WKWebView media capture can be denied by the platform even
     // when WKUIDelegate grants the web-origin permission.
-    let is_macos_executable =
-        false;
     let mut embedded_info_plist_path: Option<PathBuf> = None;
 
     let link_cache_status = prepare_link_cache_status(
@@ -1202,7 +1184,6 @@ pub(crate) fn build_and_run_link(
     {
         // MSVC-style quoting for the native-Windows linker (link.exe/lld-link);
         // GNU-style for a clang/cc driver (the forced-test path on macOS/Linux).
-        let msvc_quoting = false;
         if let Some((rsp_cmd, rsp_path)) = rewrite_link_with_response_file(&cmd, false) {
             cmd = rsp_cmd;
             response_file_to_clean = Some(rsp_path);
@@ -1245,42 +1226,7 @@ pub(crate) fn build_and_run_link(
     Ok(link_cache_status)
 }
 
-/// `-Zbuild-std` / `-Zbuild-std-features` exactly as the workspace's
-/// `.cargo/config.toml` `[unstable]` table sets them for every perry archive.
-/// A native crate built outside the workspace gets them on its command line.
-fn workspace_build_std_args() -> Vec<String> {
-    const CONFIG: &str = include_str!("../../../../../../.cargo/config.toml");
-    let config: toml::Table = CONFIG.parse().expect("workspace .cargo/config.toml parses");
-    let list = |key: &str| -> String {
-        config
-            .get("unstable")
-            .and_then(|unstable| unstable.get(key))
-            .and_then(|value| value.as_array())
-            .map(|items| {
-                items
-                    .iter()
-                    .filter_map(|item| item.as_str())
-                    .collect::<Vec<_>>()
-                    .join(",")
-            })
-            .unwrap_or_else(|| panic!("workspace .cargo/config.toml lacks [unstable] {key}"))
-    };
-    vec![
-        format!("-Zbuild-std={}", list("build-std")),
-        format!("-Zbuild-std-features={}", list("build-std-features")),
-    ]
-}
 
 #[cfg(test)]
 mod workspace_build_std_tests {
-    #[test]
-    fn native_crates_get_the_workspace_std() {
-        assert_eq!(
-            super::workspace_build_std_args(),
-            vec![
-                "-Zbuild-std=std,panic_abort".to_string(),
-                "-Zbuild-std-features=".to_string(),
-            ]
-        );
-    }
 }

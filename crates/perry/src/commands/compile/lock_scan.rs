@@ -21,7 +21,7 @@ use anyhow::Result;
 use crate::OutputFormat;
 
 use super::resolve::{has_perry_native_library, parse_native_library_manifest};
-use super::{is_android_target, windows_target_arch, CompilationContext};
+use super::{CompilationContext};
 
 /// #498 - discover every `perry.nativeLibrary` archive a build of
 /// the project at `project_root` would consume. Scans every

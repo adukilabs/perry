@@ -2,21 +2,7 @@
 
 use super::*;
 
-/// Check if we have the cross-compiled runtime libraries for a target.
-/// Use the compiler's lookup so prebuilt installs, compressed archives, and
-/// explicit library-directory overrides are available to `run` as well.
-pub fn can_compile_locally(target: Option<&str>) -> bool {
-    if rust_target_triple(target).is_none() {
-        return true; // host build, always available
-    }
-    crate::commands::compile::find_library("libperry_runtime.a", target).is_some()
-}
 
-/// Map perry target names to Rust target triples
-pub fn rust_target_triple(target: Option<&str>) -> Option<&'static str> {
-
-    None
-}
 
 /// Resolve the entry TypeScript file
 pub fn resolve_entry_file(input: Option<&Path>) -> Result<PathBuf> {
@@ -85,112 +71,8 @@ pub fn resolve_target(
 
 #[cfg(test)]
 mod tests {
-    use super::{can_compile_locally, resolve_entry_file, rust_target_triple};
+    use super::{resolve_entry_file};
 
-    #[test]
-    fn local_runtime_discovery_uses_install_layouts() {
-        const CHILD_TARGET: &str = "PERRY_TEST_LOCAL_RUNTIME_TARGET";
-        const CHILD_EXPECTED: &str = "PERRY_TEST_LOCAL_RUNTIME_EXPECTED";
-        if let Ok(target) = std::env::var(CHILD_TARGET) {
-            let expected = std::env::var(CHILD_EXPECTED).unwrap() == "true";
-            // Check the fixture is visible to the linker before checking the
-            // run command's decision. No Android SDK or device is needed.
-            assert_eq!(
-                crate::commands::compile::find_library("libperry_runtime.a", Some(&target))
-                    .is_some(),
-                expected
-            );
-            assert_eq!(can_compile_locally(Some(&target)), expected);
-            return;
-        }
-
-        // Re-execute the test binary from a temporary install, with an empty
-        // project directory. This exercises current_exe() and isolates the
-        // environment overrides from other tests in this process.
-        let install = tempfile::tempdir().unwrap();
-        let project = tempfile::tempdir().unwrap();
-        let executable = std::env::current_exe().unwrap();
-        let installed_exe = install.path().join(executable.file_name().unwrap());
-        std::fs::copy(&executable, &installed_exe).unwrap();
-        let run = |target: &str, expected: bool, override_dir: Option<(&str, &std::path::Path)>| {
-            let mut command = std::process::Command::new(&installed_exe);
-            command
-                .args([
-                    "--exact",
-                    "commands::run::entry::tests::local_runtime_discovery_uses_install_layouts",
-                    "--nocapture",
-                ])
-                .current_dir(project.path())
-                .env_remove("PERRY_RUNTIME_DIR")
-                .env_remove("PERRY_LIB_DIR")
-                .env("PERRY_LIB_CACHE_DIR", install.path().join("cache"))
-                .env(CHILD_TARGET, target)
-                .env(CHILD_EXPECTED, expected.to_string());
-            if let Some((name, dir)) = override_dir {
-                command.env(name, dir);
-            }
-            // The copy above held a write fd; a sibling test thread that
-            // forked in that window leaves the fd open in its child until the
-            // child execs, and exec'ing the copy meanwhile fails with ETXTBSY
-            // on Linux. Retry briefly, as cargo does for the same race.
-            let output = {
-                let mut attempts = 0;
-                loop {
-                    match command.output() {
-                        Err(e)
-                            if e.kind() == std::io::ErrorKind::ExecutableFileBusy
-                                && attempts < 100 =>
-                        {
-                            attempts += 1;
-                            std::thread::sleep(std::time::Duration::from_millis(20));
-                        }
-                        other => break other.unwrap(),
-                    }
-                }
-            };
-            assert!(
-                String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
-                "the installed test binary must execute the discovery probe"
-            );
-            assert!(
-                output.status.success(),
-                "target={target}, expected={expected}:\n{}\n{}",
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            );
-        };
-
-        let bundled = install.path().join("aarch64-linux-android/release");
-        std::fs::create_dir_all(&bundled).unwrap();
-        let runtime = bundled.join("libperry_runtime.a");
-        std::fs::write(&runtime, b"!<arch>\n").unwrap();
-        run("android", true, None);
-        run("wearos", true, None);
-        // A different architecture must not pick up the ARM64 archive.
-        run("android-x86_64", false, None);
-
-        std::fs::remove_file(&runtime).unwrap();
-        run("android", false, None);
-        // npm's compressed archive layout goes through the same discovery.
-        let compressed = zstd::stream::encode_all(&b"!<arch>\n"[..], 1).unwrap();
-        std::fs::write(runtime.with_extension("a.zst"), compressed).unwrap();
-        run("android", true, None);
-
-        let overrides = tempfile::tempdir().unwrap();
-        std::fs::write(overrides.path().join("libperry_runtime.a"), b"!<arch>\n").unwrap();
-        for name in ["PERRY_RUNTIME_DIR", "PERRY_LIB_DIR"] {
-            run("android-x86_64", true, Some((name, overrides.path())));
-        }
-
-        // Flat Apple bundles use target-suffixed archive names.
-        std::fs::write(
-            install.path().join("libperry_runtime_ios_sim.a"),
-            b"!<arch>\n",
-        )
-        .unwrap();
-        run("ios-simulator", true, None);
-        assert!(can_compile_locally(None));
-    }
 
     #[test]
     fn directory_input_resolves_default_entry() {
@@ -217,11 +99,4 @@ mod tests {
         assert_eq!(resolve_entry_file(Some(project.path())).unwrap(), entry);
     }
 
-    #[test]
-    fn android_x86_64_uses_its_cross_runtime() {
-        assert_eq!(
-            rust_target_triple(Some("android-x86_64")),
-            Some("x86_64-linux-android")
-        );
-    }
 }

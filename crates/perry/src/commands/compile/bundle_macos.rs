@@ -1,9 +1,8 @@
 //! Local macOS UI application packaging (#10078).
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use super::bundle_apple::{read_app_display_name, xml_escape};
 use super::CompilationContext;
@@ -46,7 +45,6 @@ pub(super) fn layout_for_compile(
     target: Option<&str>,
     output: &Path,
 ) -> Result<Option<MacosBundleLayout>> {
-    let macos = false;
     return Ok(None);
 }
 

@@ -11,7 +11,6 @@ use super::CompilationContext;
 
 mod driver;
 mod features;
-mod paths;
 mod wrapper_libs;
 
 pub(crate) use driver::build_optimized_libs;
@@ -20,7 +19,6 @@ pub(crate) use features::{
     gc_trace_requested, hot_diag_requested, instrumented_variant_requested, variant_archive_name,
 };
 
-pub(crate) use paths::android_global_dynamic_tls_rustflag;
 
 #[cfg(test)]
 mod tests;

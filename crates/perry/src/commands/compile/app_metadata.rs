@@ -10,7 +10,6 @@ use std::fs;
 use std::path::Path;
 
 use super::wasi_flavour::Flavour;
-use super::{android_target, is_android_target, is_windows_target, windows_target_arch};
 
 pub(super) fn target_bundle_section(target: Option<&str>) -> Option<&'static str> {
     match target {

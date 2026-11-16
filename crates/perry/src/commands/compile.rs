@@ -11,7 +11,6 @@ use crate::OutputFormat;
 // changes don't churn this file.
 pub(crate) mod android_target;
 mod app_metadata;
-mod apple_codesign;
 mod apple_info_plist;
 mod asset_manifest;
 mod asset_modules;
@@ -19,7 +18,6 @@ mod audit_manifest;
 mod bootstrap;
 mod build_cache;
 mod bundle_apple;
-mod bundle_ios;
 mod bundle_macos;
 mod compile_env;
 mod defines;
@@ -47,7 +45,6 @@ mod fn_infer;
 mod foreign_native_census;
 mod gc_effects_sidecar;
 mod geisterhand;
-mod harmonyos_shim;
 mod host_config;
 mod i18n_emit;
 mod init_order;
@@ -87,7 +84,7 @@ mod tool_output;
 mod wasi_flavour;
 pub mod well_known;
 pub(crate) mod widget_build;
-use android_target::{android_target, is_android_target};
+use android_target::{android_target};
 use app_metadata::rust_target_triple;
 // apple_info_plist helpers used through bundle_ios (no direct uses in
 // compile.rs anymore now that the iOS bundle code moved out).
@@ -99,21 +96,17 @@ use bootstrap::{
 };
 // HarmonyOS ArkTS harvest only exists when the arkts backend is compiled in.
 use build_cache::BuildCacheProbe;
-use bundle_apple::{bundle_for_tvos, bundle_for_visionos, bundle_for_watchos};
-use bundle_ios::build_ios_app_bundle;
 #[cfg(test)]
 use collect_modules::collect_modules;
-use harmonyos_shim::emit_harmonyos_arkts_stubs;
 use host_config::apply_pkg_and_toml_config;
 use i18n_emit::{emit_android_i18n_resources, write_i18n_key_registry};
 use init_order::{classify_eager_modules, topo_sort_non_entry_modules};
 pub use library_search::find_library;
 pub(crate) use library_search::host_target_triple;
 use library_search::{
-    find_harmonyos_sdk, find_lld_link, find_llvm_tool, find_msvc_lib_paths, find_msvc_link_exe,
+    find_lld_link, find_llvm_tool, find_msvc_lib_paths, find_msvc_link_exe,
     find_perry_windows_sdk, find_runtime_library, find_stdlib_library, find_ui_library,
-    find_wasm_host_library, find_windows_archiver, windows_archiver_command,
-    windows_default_output_extension, windows_pe_subsystem_flag, windows_subsystem_needs_ui,
+    find_wasm_host_library, windows_pe_subsystem_flag, windows_subsystem_needs_ui,
 };
 use link::{build_and_run_link, write_link_cache_manifest};
 pub use lock_scan::collect_native_archives_for_lock;
@@ -155,7 +148,7 @@ use targets::{
     generate_embedded_js_object, generate_js_bundle,
 };
 use windows_target::{
-    is_native_windows_target, is_windows_target, windows_target_arch, WindowsTargetArch,
+    windows_target_arch, WindowsTargetArch,
 };
 // Codegen-backend entrypoints (#5422) — only present when their backend feature
 // is compiled in. The matching `--target` routing below errors cleanly when a

@@ -3,8 +3,7 @@
 use anyhow::{anyhow, Result};
 use clap::Args;
 use perry_diagnostics::{
-    Diagnostic, DiagnosticCode, DiagnosticEmitter, Diagnostics, JsonEmitter, SourceCache, Span,
-    TerminalEmitter,
+    Diagnostic, DiagnosticCode, DiagnosticEmitter, Diagnostics, JsonEmitter, SourceCache, TerminalEmitter,
 };
 use std::collections::HashSet;
 use std::fs;
@@ -635,85 +634,7 @@ fn extract_requires_from_stmt(
     // require() support can be added later if needed
 }
 
-/// Returns true when the requested compile target stubs out
-/// `perry/ui` / `perry/system` / `perry/updater` symbols at runtime —
-/// currently only harmonyos. This is what gates the static stub scan
-/// (#464); other targets resolve those modules to real platform UI
-/// crates so a warning would be a false positive.
-fn target_stubs_out_symbols(target: Option<&str>) -> bool {
-    false
-}
 
-/// Walk a parsed module's named imports against the stub list and
-/// emit a `NoOpStub` warning for each one that maps to a stubbed
-/// symbol on the requested target.
-fn scan_imports_for_stubs(
-    module: &perry_parser::swc_ecma_ast::Module,
-    file_id: perry_diagnostics::FileId,
-    diagnostics: &mut Diagnostics,
-) {
-    use perry_parser::swc_ecma_ast::{ImportSpecifier, ModuleDecl, ModuleExportName, ModuleItem};
-    let stubs = perry_runtime_manifest::stubs();
-
-    for item in &module.body {
-        let ModuleItem::ModuleDecl(ModuleDecl::Import(import)) = item else {
-            continue;
-        };
-        let source = match import.src.value.as_str() {
-            Some(s) => s,
-            None => continue,
-        };
-        // Only `perry/ui` / `perry/system` / `perry/updater` /
-        // `perry/background` imports can resolve to stubbed symbols.
-        // Cheap pre-filter avoids walking the manifest for every import.
-        if !matches!(
-            source,
-            "perry/ui" | "perry/system" | "perry/updater" | "perry/background"
-        ) {
-            continue;
-        }
-
-        for spec in &import.specifiers {
-            let (local_name, span) = match spec {
-                ImportSpecifier::Named(named) => {
-                    let imported_name = match &named.imported {
-                        Some(ModuleExportName::Ident(id)) => id.sym.as_str(),
-                        Some(ModuleExportName::Str(s)) => s.value.as_str().unwrap_or(""),
-                        None => named.local.sym.as_str(),
-                    };
-                    (imported_name.to_string(), named.span)
-                }
-                // `import * as X` and `import X` (default) bring the
-                // whole module — we don't know which symbols the user
-                // actually calls, so skip rather than warn for every
-                // entry in the module's stub list.
-                ImportSpecifier::Namespace(_) | ImportSpecifier::Default(_) => continue,
-            };
-
-            for entry in &stubs {
-                if entry.module != source {
-                    continue;
-                }
-                if entry.ts_name != Some(local_name.as_str()) {
-                    continue;
-                }
-                let issue_tag = entry
-                    .issue
-                    .map(|t| format!(" (tracking: {})", t))
-                    .unwrap_or_default();
-                let msg = format!(
-                    "`{}` from `{}` is a no-op stub on this target — {}{}",
-                    local_name, source, entry.reason, issue_tag,
-                );
-                let diag = Diagnostic::warning(DiagnosticCode::NoOpStub, msg)
-                    .with_span(Span::new(file_id, span.lo.0, span.hi.0))
-                    .build();
-                diagnostics.push(diag);
-                break;
-            }
-        }
-    }
-}
 
 /// Convert a CompatibilityIssue to a Diagnostic
 fn issue_to_diagnostic(issue: &CompatibilityIssue) -> Diagnostic {

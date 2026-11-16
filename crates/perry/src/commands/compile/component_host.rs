@@ -1,6 +1,5 @@
 //! Selection of the optional native Component Model engine. Guest adapters
 //! target WASI and never link this native archive.
-use super::wasi_flavour::Flavour;
 use super::{library_search, types::CompilationContext};
 use anyhow::{bail, Result};
 use std::path::PathBuf;

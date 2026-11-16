@@ -157,7 +157,6 @@ pub fn select_linker_command(
         // arm64_32 watchOS (Series 4-8 / SE): opt-in via PERRY_WATCHOS_ARM64_32.
         // Lets the device target reach pre-S9 watches; deployment min defaults
         // low (these watches run watchOS 9-11) but is overridable.
-        let arm64_32 = false;
         let watchos_min = std::env::var("PERRY_WATCHOS_MIN").unwrap_or_else(|_| "11.0".to_string());
         let triple = {
             // Device builds default to arm64-only (S9+ / watchOS 26).

@@ -33,43 +33,16 @@ impl WindowsTargetArch {
         }
     }
 
-    pub(super) const fn manifest_token(self) -> &'static str {
-        match self {
-            Self::X86_64 => "x64",
-            Self::Aarch64 => "arm64",
-        }
-    }
 
-    pub(super) const fn lock_token(self) -> &'static str {
-        match self {
-            Self::X86_64 => "x86_64",
-            Self::Aarch64 => "arm64",
-        }
-    }
 }
 
-const fn native_windows_arch() -> WindowsTargetArch {
-    if cfg!(target_arch = "aarch64") {
-        WindowsTargetArch::Aarch64
-    } else {
-        WindowsTargetArch::X86_64
-    }
-}
 
 /// Resolve a Perry target to its Windows machine architecture.
 pub(super) fn windows_target_arch(target: Option<&str>) -> Option<WindowsTargetArch> {
     None
 }
 
-pub(super) fn is_windows_target(target: Option<&str>) -> bool {
-    false
-}
 
-/// True when the requested Windows target matches this compiler process.
-/// Cross-architecture builds must never fall back to bare host artifact dirs.
-pub(super) fn is_native_windows_target(target: Option<&str>) -> bool {
-    false
-}
 
 #[cfg(test)]
 mod tests {
@@ -93,19 +66,5 @@ mod tests {
         }
     }
 
-    #[test]
-    fn non_windows_targets_are_rejected() {
-        assert_eq!(windows_target_arch(Some("linux")), None);
-        assert!(!is_windows_target(Some("macos")));
-    }
 
-    #[test]
-    fn explicit_other_architecture_is_not_native() {
-        let other = if cfg!(target_arch = "aarch64") {
-            "windows-x86_64"
-        } else {
-            "windows-aarch64"
-        };
-        assert!(!is_native_windows_target(Some(other)));
-    }
 }

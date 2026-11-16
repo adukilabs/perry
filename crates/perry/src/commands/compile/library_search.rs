@@ -302,13 +302,6 @@ pub(super) fn find_lld_link() -> Option<PathBuf> {
 
 
 
-// #854: cfg-symmetric stub — the Windows build calls this (line ~482); the
-// non-Windows build keeps the same signature so callers compile cross-platform.
-#[allow(dead_code)]
-fn read_registry_kits_root_10() -> Option<PathBuf> {
-    None
-}
-
 
 /// Given a Windows SDK `bin` root, return the arch dir holding `mt.exe`: the
 /// newest versioned subdir's native architecture (then compatible fallbacks),
@@ -424,10 +417,6 @@ pub fn find_library(name: &str, target: Option<&str>) -> Option<PathBuf> {
     find_library_with_candidates(name, target).ok()
 }
 
-
-fn winget_lib_candidates(_name: &str) -> Vec<PathBuf> {
-    Vec::new()
-}
 
 /// Compose the platform-suffixed name for an Apple / HarmonyOS cross-compile
 /// lib in a flat install dir (Homebrew bottle, hand-staged install, etc.).
@@ -759,7 +748,6 @@ pub(super) fn collect_library_candidates_from(
         candidates.push(PathBuf::from(format!("/usr/local/lib/{}", name)));
         // Debian/Ubuntu: libs installed in /usr/lib/perry
         candidates.push(PathBuf::from(format!("/usr/lib/perry/{}", name)));
-        candidates.extend(winget_lib_candidates(name));
         push_package_candidates(
             &mut candidates,
             name,
@@ -945,4 +933,3 @@ mod llvm_tool_discovery_tests;
 
 #[cfg(all(test, target_os = "linux"))]
 mod linux_host_candidate_tests;
-

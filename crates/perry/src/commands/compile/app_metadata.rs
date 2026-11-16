@@ -9,8 +9,6 @@
 use std::fs;
 use std::path::Path;
 
-use super::wasi_flavour::Flavour;
-
 pub(super) fn target_bundle_section(target: Option<&str>) -> Option<&'static str> {
     match target {
         // musl variants share the [linux] perry.toml section (#4826).
@@ -120,18 +118,6 @@ pub(super) fn read_app_metadata(
             });
     }
 
-    // A macOS app without a Perry version should use its package version in
-    // both the embedded and external Info.plist, as well as at runtime.
-    if target_bundle_section(target) == Some("macos")
-        && perry_toml
-            .and_then(|doc| toml_string(doc, "project", "version"))
-            .is_none_or(|version| version.trim().is_empty())
-    {
-        if let Some(version) = package_version_from_input(input) {
-            metadata.version = version;
-        }
-    }
-
     metadata.bundle_id = cli_bundle_id
         .map(|raw| {
             // #999: CLI `--app-bundle-id` flag goes straight to codesign argv;
@@ -186,8 +172,6 @@ pub(super) fn rust_target_triple(target: Option<&str>) -> Option<&'static str> {
         // .a files for these triples are built by release-packages.yml.
         Some("linux-musl") | Some("linux-x86_64-musl") => Some("x86_64-unknown-linux-musl"),
         Some("linux-aarch64-musl") => Some("aarch64-unknown-linux-musl"),
-        // Standalone WASI (#11375): the runtime archive is built for this triple.
-        Some(t) => Flavour::from_target(t).map(Flavour::triple),
         _ => None,
     }
 }

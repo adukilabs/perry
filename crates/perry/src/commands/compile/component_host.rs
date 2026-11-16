@@ -7,9 +7,7 @@ use std::path::PathBuf;
 pub(super) const REGISTER: &str = "perry_component_host_register";
 
 pub(super) fn library(ctx: &CompilationContext, target: Option<&str>) -> Result<Option<PathBuf>> {
-    if target.is_some_and(|t| false)
-        || !ctx.native_module_imports.contains("perry/component")
-    {
+    if !ctx.native_module_imports.contains("perry/component") {
         return Ok(None);
     }
     let name = "libperry_component_host.a";

@@ -38,7 +38,6 @@ pub(super) fn strip_final_binary(
         text.push('\n');
         std::fs::write(path, text)?;
     }
-    emit_macos_dsym();
     if is_dylib
         || std::env::var("PERRY_DEBUG_SYMBOLS").is_ok()
         // #7803 tooling: keep the symbol table WITHOUT asking for DWARF.
@@ -67,18 +66,6 @@ pub(super) fn strip_final_binary(
         let _ = std::process::Command::new("strip").arg(exe_path).status();
     }
     Ok(())
-}
-
-/// #9856: under `--debug-symbols` on a macOS host building a macOS binary,
-/// gather the DWARF into `<exe>.dSYM`.
-///
-/// Apple's linker does not copy DWARF into the executable; it records a debug
-/// map pointing at the input `.o` files, and Perry deletes those right after
-/// linking (`cleanup_intermediates`). Without a dSYM, lldb — and so Xcode and
-/// VS Code's CodeLLDB — finds no line table and cannot bind a breakpoint.
-/// Runs before the strip decision and the cleanup, while the objects exist.
-fn emit_macos_dsym() {
-    return;
 }
 
 /// Emit the optional profile before an app bundle is signed.

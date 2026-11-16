@@ -32,8 +32,6 @@ pub(super) fn default_output_path(
         // the Unix `lib<stem>.a` convention so the archive is reachable
         // from `-l<stem>` at the host's link step.
         PathBuf::from(format!("lib{}.a", stem))
-    } else if target.is_some_and(|t| false) {
-        PathBuf::from(format!("{}.wasm", stem))
     } else {
         PathBuf::from(stem)
     }

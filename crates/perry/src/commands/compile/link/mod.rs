@@ -36,8 +36,8 @@ use super::{
     find_ui_library, localize_stdlib_stub_symbols, rust_target_triple,
     strip_bundled_runtime_from_well_known_lib, strip_bundled_shared_deps_from_well_known_lib,
     strip_duplicate_objects_from_lib_with_evidence, strip_duplicate_objects_from_well_known_lib,
-    windows_target_arch, CompilationContext,
-    StdlibEvidence, WindowsTargetArch,
+    CompilationContext,
+    StdlibEvidence,
 };
 
 mod archive_cache;
@@ -47,16 +47,12 @@ mod function_layout;
 mod glibc_version;
 mod hot_data_order;
 mod hot_text_order;
-mod hot_text_order_macho;
 mod link_cache;
 mod linux_dylib_libs;
 mod linux_ui_libs;
 mod native_features;
 mod pkg_config;
 mod platform_cmd;
-mod runtime_layouts;
-mod windows_link;
-mod winui_assets;
 mod wrapper_hooks;
 
 use archive_cache::{prepare_well_known_archives, PreparedArchiveInputs};
@@ -65,8 +61,6 @@ use link_cache::prepare_link_cache_status;
 pub(super) use link_cache::{write_link_cache_manifest, LinkCacheStatus};
 pub(super) use linux_dylib_libs::push_unix_dylib_output;
 pub use platform_cmd::select_linker_command;
- // consumed only by windows_link_tests
- // windows_link_tests (#6023)
 
 
 

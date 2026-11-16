@@ -21,9 +21,6 @@ use crate::OutputFormat;
 mod codegen_helpers;
 use codegen_helpers::{configured_module_codegen_threads, namespace_local_function_wrapper_symbol};
 
-mod dylib_target;
-use dylib_target::{verify_dylib_target_linkable};
-
 /// #5916: how many `export { X } from "src"` hops to follow when resolving an
 /// imported name back to the module that actually declares it. Barrel chains in
 /// the wild are a handful of levels deep at most; the cap is a belt-and-braces
@@ -7593,8 +7590,6 @@ pub fn run_with_parse_cache(
                 defined_syms.insert(func.name.clone());
             }
         }
-        // Platform detection for nm tool and symbol prefix
-        let _is_ios = false;
         // Symbol prefix depends on object format:
         // Mach-O targets (macOS, iOS, watchOS, tvOS): nm shows `_` prefix
         // COFF (Windows targets): no prefix
@@ -7777,8 +7772,6 @@ pub fn run_with_parse_cache(
     // Per the saved feedback note on this file: any helper extracted
     // from `run_with_parse_cache` after this point must take individual
     // fields, not `&CompileArgs`.
-    let input_path_owned: PathBuf = args.input.clone();
-    let app_bundle_id_owned: Option<String> = args.app_bundle_id.clone();
     let exe_path = match args.output {
         // #4771: a user-supplied `-o NAME` without an extension won't launch
         // from PowerShell/cmd on a Windows target (and `.dll`/`.lib` are the
@@ -7793,19 +7786,6 @@ pub fn run_with_parse_cache(
         // `compile/output_path.rs` so the build cache fingerprints the same
         // file this link is about to write (#5740).
         None => output_path::default_output_path(is_dylib, is_staticlib, target.as_deref(), stem),
-    };
-    let macos_bundle_layout = bundle_macos::layout_for_compile(
-    )?;
-    // An explicit `-o Name.app` is a directory destination. Other output
-    // names keep the linked binary and also produce the sibling app bundle.
-    let exe_path = if let Some(layout) = macos_bundle_layout
-        .as_ref()
-        .filter(|l| l.app_dir == exe_path)
-    {
-        fs::create_dir_all(layout.executable.parent().unwrap())?;
-        layout.executable.clone()
-    } else {
-        exe_path
     };
 
     if !failed_modules.is_empty() {
@@ -8035,11 +8015,6 @@ pub fn run_with_parse_cache(
         OutputFormat::Json => {}
     }
 
-    let _is_windows = false;
-    // is_watchos / is_tvos are defined below (near the per-platform link step).
-    // The is_cross_* bindings used to live here, but they're now derived
-    // inside `link::build_and_run_link` which is the only consumer.
-
     // #1088 — staticlib output: bundle the object files into a `.a` / `.lib`
     // archive. Skip runtime / stdlib linking entirely; the Rust/C/C++ host
     // is expected to link `libperry_runtime.a` (and any extension archives
@@ -8176,13 +8151,6 @@ pub fn run_with_parse_cache(
 
     // For dylib output, skip runtime/stdlib linking — symbols resolve from host at dlopen time
     if is_dylib {
-        // #6222: the link below runs the HOST toolchain. Reject a target it cannot
-        // honour rather than emitting a host-arch dylib from a cross-compiled object.
-        verify_dylib_target_linkable(target.as_deref())?;
-        let has_plugin_deactivate = ctx
-            .native_modules
-            .values()
-            .any(|m| m.exported_functions.iter().any(|(n, _)| n == "deactivate"));
         let mut cmd = {
             let mut c = Command::new("cc");
             c.arg("-shared");
@@ -8436,29 +8404,8 @@ pub fn run_with_parse_cache(
         )?;
     }
 
-    // Track Apple bundle info for CompileResult
-    let mut result_bundle_id: Option<String> = None;
-    let mut result_app_dir: Option<PathBuf> = None;
-
-    // For iOS targets, create a .app bundle
-    if let Some(layout) = macos_bundle_layout.as_ref() {
-        if exe_path != layout.executable {
-            post_link::emit_sandbox_sidecar(&ctx, &exe_path, format);
-        }
-        let (app_dir, bundle_id) = bundle_macos::bundle_for_macos(
-            layout,
-            &exe_path,
-            &args.input,
-            &ctx,
-            target.as_deref(),
-            i18n_table.as_ref(),
-            i18n_config.as_ref(),
-            format,
-        )?;
-        result_bundle_id = Some(bundle_id);
-        result_app_dir = Some(app_dir);
-    } else {
-        // For Windows/Linux (non-bundle targets), copy asset directories next to the exe
+    {
+        // Copy asset directories next to the executable,
         // so that resolve_asset_path can find them relative to the executable.
         if let Some(output_dir) = exe_path.parent() {
             resources::copy_standalone_resource_dirs(&args.input, output_dir);
@@ -8510,9 +8457,6 @@ pub fn run_with_parse_cache(
         post_link::emit_sandbox_sidecar(&ctx, &exe_path, format);
     }
 
-    emit_android_i18n_resources(
-    );
-
     if link_cache_status.stats().linked {
         write_link_cache_manifest(&link_cache_status, &exe_path);
     }
@@ -8539,11 +8483,6 @@ pub fn run_with_parse_cache(
     );
 
     emit_attestation_sidecar(&ctx, &exe_path, format);
-    if let Some(layout) = macos_bundle_layout.as_ref() {
-        if exe_path != layout.executable {
-            emit_attestation_sidecar(&ctx, &layout.executable, format);
-        }
-    }
 
     print_binary_size(format, &exe_path);
 
@@ -8561,13 +8500,13 @@ pub fn run_with_parse_cache(
     // (JSON consumers get a clean machine-readable result on stdout).
     print_deferred_eval_notice(format);
 
-    let final_output_path = result_app_dir.unwrap_or(exe_path);
+    let final_output_path = exe_path;
     let codegen_cache_stats = summarize_codegen_cache_stats(&object_cache);
 
     Ok(CompileResult {
         output_path: final_output_path,
         target: target.unwrap_or_else(|| "native".to_string()),
-        bundle_id: result_bundle_id,
+        bundle_id: None,
         is_dylib,
         codegen_cache_stats,
         link_cache_stats: Some(link_cache_status.stats()),

@@ -9,16 +9,12 @@ use crate::OutputFormat;
 // `compile/` directory. The `compile.rs` orchestrator stays as the
 // public API surface; helpers move to focused modules so unrelated
 // changes don't churn this file.
-pub(crate) mod android_target;
 mod app_metadata;
-mod apple_info_plist;
 mod asset_manifest;
 mod asset_modules;
 mod audit_manifest;
 mod bootstrap;
 mod build_cache;
-mod bundle_apple;
-mod bundle_macos;
 mod compile_env;
 mod defines;
 mod module_aliases;
@@ -71,7 +67,6 @@ pub(crate) mod target_packages;
 mod tiny_program;
 mod typed_feedback_profile;
 mod update_config;
-mod windows_target;
 // pub(crate): commands/deps.rs (the `check --check-deps` dependency checker)
 // reuses the subpath-imports + tsconfig-paths resolvers for `#` specifiers.
 pub(crate) mod resolve;
@@ -81,9 +76,7 @@ mod sandbox_buildrs;
 mod strip_dedup;
 mod targets;
 mod tool_output;
-mod wasi_flavour;
 pub mod well_known;
-pub(crate) mod widget_build;
 use app_metadata::rust_target_triple;
 // apple_info_plist helpers used through bundle_ios (no direct uses in
 // compile.rs anymore now that the iOS bundle code moved out).
@@ -98,7 +91,7 @@ use build_cache::BuildCacheProbe;
 #[cfg(test)]
 use collect_modules::collect_modules;
 use host_config::apply_pkg_and_toml_config;
-use i18n_emit::{emit_android_i18n_resources, write_i18n_key_registry};
+use i18n_emit::write_i18n_key_registry;
 use init_order::{classify_eager_modules, topo_sort_non_entry_modules};
 pub use library_search::find_library;
 pub(crate) use library_search::host_target_triple;
@@ -143,9 +136,6 @@ use strip_dedup::{
 };
 use targets::{
     generate_embedded_js_object, generate_js_bundle,
-};
-use windows_target::{
-    windows_target_arch, WindowsTargetArch,
 };
 // Codegen-backend entrypoints (#5422) — only present when their backend feature
 // is compiled in. The matching `--target` routing below errors cleanly when a
@@ -204,9 +194,6 @@ pub fn run(
     }
     Ok(result)
 }
-
-#[cfg(test)]
-mod windows_link_tests;
 
 // `app_metadata_tests` moved to `compile/app_metadata.rs`.
 

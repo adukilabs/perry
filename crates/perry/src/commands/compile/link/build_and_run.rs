@@ -87,7 +87,6 @@ pub(crate) fn build_and_run_link(
              (glibc) Linux target, or drop perry/ui for a headless musl build."
         );
     }
-    let is_windows = false;
 
     let mut cmd = select_linker_command(
         target,
@@ -215,9 +214,6 @@ pub(crate) fn build_and_run_link(
                 && matches!(target, None | Some("linux")),
             verbose,
         )?;
-        super::runtime_layouts::add_link_args(
-            &mut cmd,
-        );
         super::wrapper_hooks::add_link_args(
             &mut cmd,
             well_known_libs,
@@ -412,12 +408,7 @@ pub(crate) fn build_and_run_link(
         } else {
             if ctx.needs_stdlib {
                 eprintln!(
-                    "Warning: stdlib required but {} not found, using runtime-only",
-                    if is_windows {
-                        "perry_stdlib.lib"
-                    } else {
-                        "libperry_stdlib.a"
-                    }
+                    "Warning: stdlib required but libperry_stdlib.a not found, using runtime-only"
                 );
             }
             cmd.arg(runtime_lib);
@@ -615,14 +606,6 @@ pub(crate) fn build_and_run_link(
                 OutputFormat::Json => {}
             }
         } else {
-            let windows_rust_triple = windows_target_arch()
-                .map(WindowsTargetArch::rust_triple)
-                .unwrap_or("x86_64-pc-windows-msvc");
-            let windows_ui_build_cmd =
-                format!("cargo build --release -p perry-ui-windows --target {windows_rust_triple}");
-            let windows_winui_build_cmd = format!(
-                "cargo build --release -p perry-ui-windows-winui --target {windows_rust_triple}"
-            );
             let (lib_name, build_cmd) = (
                 "libperry_ui_gtk4.a",
                 "cargo build --release -p perry-ui-gtk4 --target x86_64-unknown-linux-gnu",
@@ -651,12 +634,6 @@ pub(crate) fn build_and_run_link(
     }
 
     // Build and link external native libraries from perry.nativeLibrary manifests.
-    // Swift sources are deduplicated across the loop — modules sharing the same
-    // package.json all see the same swift_sources entries, but each file should
-    // be compiled + linked once. Without this, swift's mangled symbols for
-    // structs/classes duplicate N times.
-    let mut seen_swift_sources: std::collections::HashSet<PathBuf> =
-        std::collections::HashSet::new();
     for native_lib in &ctx.native_libraries {
         if let Some(ref target_config) = native_lib.target_config {
             if !target_config.available {
@@ -998,14 +975,6 @@ pub(crate) fn build_and_run_link(
         }
     }
 
-    // macOS privacy APIs (including camera/microphone requests made by
-    // WKWebView) consult the process Info.plist for usage-description keys.
-    // Keep the linked binary's embedded metadata identical to its macOS app
-    // bundle metadata; the standalone executable remains available as well.
-    // Without this, WKWebView media capture can be denied by the platform even
-    // when WKUIDelegate grants the web-origin permission.
-    let mut embedded_info_plist_path: Option<PathBuf> = None;
-
     let link_cache_status = prepare_link_cache_status(
         &ctx.cache_dir,
         target,
@@ -1015,10 +984,6 @@ pub(crate) fn build_and_run_link(
         exe_path,
     );
     if !link_cache_status.linked {
-        if let Some(path) = embedded_info_plist_path {
-            let _ = fs::remove_file(path);
-        }
-        winui_assets::deploy_winui_runtime_assets()?;
         return Ok(link_cache_status);
     }
 
@@ -1069,16 +1034,11 @@ pub(crate) fn build_and_run_link(
     if let Some(path) = response_file_to_clean {
         let _ = fs::remove_file(path);
     }
-    if let Some(path) = embedded_info_plist_path {
-        let _ = fs::remove_file(path);
-    }
     let status = status_result?;
 
     if !status.success() {
         return Err(anyhow!("Linking failed"));
     }
-
-    winui_assets::deploy_winui_runtime_assets()?;
 
     Ok(link_cache_status)
 }

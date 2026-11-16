@@ -13,7 +13,6 @@ mod entry;
 mod launch;
 mod metadata;
 mod remote;
-mod resign;
 
 pub use entry::{resolve_entry_file, resolve_target};
 pub use launch::{launch, launch_native};

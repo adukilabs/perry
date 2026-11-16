@@ -85,7 +85,7 @@ fn merging_first_entry_alloca_keeps_the_builder_position_valid() {
         .run_passes(STATEPOINT_REWRITE_PASSES, &tm, PassBuilderOptions::create())
         .unwrap();
     module
-        .run_passes("default<Os>", &tm, PassBuilderOptions::create())
+        .run_passes("default<O2>", &tm, PassBuilderOptions::create())
         .unwrap();
     publish(&module).expect("first managed alloca can be erased safely");
     module.verify().expect("merged homes verify");
@@ -616,7 +616,7 @@ fn split_text(ir: &str, homes: bool) -> String {
         .run_passes(STATEPOINT_REWRITE_PASSES, &tm, PassBuilderOptions::create())
         .unwrap();
     module
-        .run_passes("default<Os>", &tm, PassBuilderOptions::create())
+        .run_passes("default<O2>", &tm, PassBuilderOptions::create())
         .unwrap();
     if homes {
         publish(&module).expect("split homes publish");

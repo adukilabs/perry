@@ -90,9 +90,13 @@ fn mark(module: &Module<'_>) -> (usize, usize) {
             }
             let branch = |block: LLVMBasicBlockRef| {
                 let terminator = LLVMGetBasicBlockTerminator(block);
+                // LLVM 23 split the branch opcode in two; either is a branch.
                 (!terminator.is_null()
-                    && LLVMGetInstructionOpcode(terminator) == LLVMOpcode::LLVMBr)
-                    .then_some(terminator)
+                    && matches!(
+                        LLVMGetInstructionOpcode(terminator),
+                        LLVMOpcode::LLVMCondBr | LLVMOpcode::LLVMUncondBr
+                    ))
+                .then_some(terminator)
             };
             // A block whose every way on leads into a cold block cannot avoid
             // the call either.

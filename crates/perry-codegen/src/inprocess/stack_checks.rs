@@ -155,8 +155,7 @@ fn drop_dominated(module: &Module<'_>, fewest: usize) -> Recognized {
                     let first = LLVMGetFirstInstruction(block);
                     !first.is_null()
                         && first == LLVMGetBasicBlockTerminator(block)
-                        && LLVMGetInstructionOpcode(first) == LLVMOpcode::LLVMBr
-                        && LLVMIsConditional(first) == 0
+                        && LLVMGetInstructionOpcode(first) == LLVMOpcode::LLVMUncondBr
                 })
                 .collect();
             let mut checks = Vec::new();
@@ -252,10 +251,8 @@ unsafe fn lookup_is_the_checks_own(
 unsafe fn stack_check_branch(block: LLVMBasicBlockRef) -> Option<LLVMValueRef> {
     unsafe {
         let branch = LLVMGetBasicBlockTerminator(block);
-        if branch.is_null()
-            || LLVMGetInstructionOpcode(branch) != LLVMOpcode::LLVMBr
-            || LLVMIsConditional(branch) == 0
-        {
+        // LLVM 23: a conditional branch is its own opcode.
+        if branch.is_null() || LLVMGetInstructionOpcode(branch) != LLVMOpcode::LLVMCondBr {
             return None;
         }
         let deep = LLVMGetCondition(branch);

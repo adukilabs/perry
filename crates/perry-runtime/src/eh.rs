@@ -46,7 +46,12 @@ pub(crate) const _URC_FATAL_PHASE1_ERROR: UnwindReasonCode = 3;
 type UnwindAction = c_int;
 const _UA_SEARCH_PHASE: UnwindAction = 1;
 
-#[repr(C)]
+// The Itanium C++ ABI declares `_Unwind_Exception` with the platform's
+// maximum useful alignment (`__attribute__((__aligned__))`, 16 on x86-64 and
+// aarch64). LLVM's libunwind relies on it: `_Unwind_RaiseException` clears the
+// private words with an aligned SSE store (`movaps %xmm0,0x10(%r12)`), which
+// faults when the object sits at 8 modulo 16.
+#[repr(C, align(16))]
 pub struct UnwindException {
     pub class: u64,
     pub cleanup: Option<extern "C" fn(UnwindReasonCode, *mut UnwindException)>,

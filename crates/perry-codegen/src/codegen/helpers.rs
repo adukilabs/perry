@@ -855,12 +855,10 @@ pub(crate) fn unique_class_keys_global(
 /// function main` even though the .ll says `target triple =
 /// "x86_64-pc-windows-msvc"`.)
 pub(crate) fn default_target_triple() -> String {
-    if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        "x86_64-unknown-linux-gnu".to_string()
-    } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+    if cfg!(target_arch = "aarch64") {
         "aarch64-unknown-linux-gnu".to_string()
     } else {
-        "arm64-apple-macosx15.0.0".to_string()
+        "x86_64-unknown-linux-gnu".to_string()
     }
 }
 
@@ -869,53 +867,14 @@ pub(crate) fn default_target_triple() -> String {
 /// names are the public `--target` surface exposed by the CLI;
 /// returning `None` leaves the triple to the host default.
 ///
-/// Supported:
-///  * `ios`, `ios-simulator`           → aarch64-apple-ios
-///  * `visionos`, `visionos-simulator` → arm64-apple-xros1.0{,-simulator}
-///  * `watchos`                        → aarch64-apple-watchos (arm64, S9+ / watchOS 26)
-///  * `watchos-simulator`              → arm64-apple-watchos10.0-simulator
-///  * `tvos`, `tvos-simulator`         → aarch64-apple-tvos
-///  * `android`                        → aarch64-unknown-linux-android
+/// This fork compiles for Linux only. Supported:
 ///  * `linux` / `linux-x86_64`         → x86_64-unknown-linux-gnu
 ///  * `linux-aarch64` / `linux-arm64`  → aarch64-unknown-linux-gnu
 ///  * `linux-musl` (x86_64 alias)      → x86_64-unknown-linux-musl (fully static)
 ///  * `linux-aarch64-musl`             → aarch64-unknown-linux-musl (fully static)
-///  * `macos` (aarch64 alias)          → arm64-apple-macosx15.0.0
-///  * `macos-x86_64`                   → x86_64-apple-macosx15.0.0
-///  * `windows`                        → x86_64-pc-windows-msvc
 ///  * anything else                    → None (use host default)
 pub fn resolve_target_triple(name: &str) -> Option<String> {
     match name {
-        "ios" => Some("aarch64-apple-ios".to_string()),
-        "ios-simulator" => Some("arm64-apple-ios17.0-simulator".to_string()),
-        "visionos" => Some("arm64-apple-xros1.0".to_string()),
-        "visionos-simulator" => Some("arm64-apple-xros1.0-simulator".to_string()),
-        // arm64_32 (Series 4-8 / SE) when opted in via PERRY_WATCHOS_ARM64_32;
-        // otherwise arm64 (S9+). Sets the arch of the emitted TS object files,
-        // which must match the runtime/native-lib/link triples.
-        "watchos" if std::env::var("PERRY_WATCHOS_ARM64_32").is_ok() => {
-            Some("arm64_32-apple-watchos".to_string())
-        }
-        "watchos" => Some("aarch64-apple-watchos".to_string()),
-        "watchos-simulator" => Some("arm64-apple-watchos10.0-simulator".to_string()),
-        // Standalone WASI (#11375): only a compiler built with `target-wasi`
-        // knows the name; a default build keeps resolving it to None.
-        // The WASI preview1 flavour: a core module for hosts without the
-        // component model. The runtime and the link use `wasm32-wasip1`.
-        "tvos" => Some("aarch64-apple-tvos".to_string()),
-        "tvos-simulator" => Some("arm64-apple-tvos17.0-simulator".to_string()),
-        "harmonyos" => Some("aarch64-unknown-linux-ohos".to_string()),
-        "harmonyos-simulator" => Some("x86_64-unknown-linux-ohos".to_string()),
-        "android" => Some("aarch64-unknown-linux-android".to_string()),
-        // #5742: Android x86_64 (emulator / x86_64 devices). Without this arm
-        // `resolve_target_triple` returned None for `--target android-x86_64`,
-        // so codegen fell back to the host triple (e.g. x86_64-pc-windows-msvc)
-        // and emitted COFF objects, which the Android linker rejects with
-        // `unknown file type`. Mirrors the `-unknown-` LLVM-triple form of the
-        // arm64 `android` arm above (cf. harmonyos / harmonyos-simulator).
-        "android-x86_64" => Some("x86_64-unknown-linux-android".to_string()),
-        // Wear OS is Android-on-a-watch: same arm64 Android object format.
-        "wearos" => Some("aarch64-unknown-linux-android".to_string()),
         "linux" | "linux-x86_64" => Some("x86_64-unknown-linux-gnu".to_string()),
         "linux-aarch64" | "linux-arm64" => Some("aarch64-unknown-linux-gnu".to_string()),
         // musl targets — fully static binaries that run on Lambda
@@ -924,35 +883,13 @@ pub fn resolve_target_triple(name: &str) -> Option<String> {
         // `-static` musl link path and #4826.
         "linux-musl" | "linux-x86_64-musl" => Some("x86_64-unknown-linux-musl".to_string()),
         "linux-aarch64-musl" => Some("aarch64-unknown-linux-musl".to_string()),
-        "macos" => Some("arm64-apple-macosx15.0.0".to_string()),
-        "macos-x86_64" => Some("x86_64-apple-macosx15.0.0".to_string()),
-        "windows" | "windows-winui" | "windows-x86_64" => {
-            Some("x86_64-pc-windows-msvc".to_string())
-        }
-        "windows-aarch64" | "windows-arm64" => Some("aarch64-pc-windows-msvc".to_string()),
         _ => None,
     }
 }
 
-/// Public `--target` aliases accepted by [`resolve_target_triple`]. Includes
-/// feature-gated targets, which the resolver may reject when disabled. Keep
+/// Public `--target` aliases accepted by [`resolve_target_triple`]. Keep
 /// this beside the resolver so target coverage cannot drift.
 pub const TARGET_NAMES: &[&str] = &[
-    "ios",
-    "ios-simulator",
-    "visionos",
-    "visionos-simulator",
-    "watchos",
-    "watchos-simulator",
-    "wasi",
-    "wasip1",
-    "tvos",
-    "tvos-simulator",
-    "harmonyos",
-    "harmonyos-simulator",
-    "android",
-    "android-x86_64",
-    "wearos",
     "linux",
     "linux-x86_64",
     "linux-aarch64",
@@ -960,13 +897,6 @@ pub const TARGET_NAMES: &[&str] = &[
     "linux-musl",
     "linux-x86_64-musl",
     "linux-aarch64-musl",
-    "macos",
-    "macos-x86_64",
-    "windows",
-    "windows-winui",
-    "windows-x86_64",
-    "windows-aarch64",
-    "windows-arm64",
 ];
 
 /// Return rustc's `target_os` value for a rustc or LLVM triple, or an accepted
@@ -1050,29 +980,17 @@ mod target_os_tests {
     #[test]
     fn target_aliases_resolve_and_classify_to_the_rust_target_os() {
         for name in TARGET_NAMES {
-            let expected = match *name {
-                "ios" | "ios-simulator" => "ios",
-                "visionos" | "visionos-simulator" => "visionos",
-                "watchos" | "watchos-simulator" => "watchos",
-                "wasi" | "wasip1" => "wasi",
-                "tvos" | "tvos-simulator" => "tvos",
-                "harmonyos" | "harmonyos-simulator" => "ohos",
-                "android" | "android-x86_64" | "wearos" => "android",
-                "linux" | "linux-x86_64" | "linux-aarch64" | "linux-arm64" | "linux-musl"
-                | "linux-x86_64-musl" | "linux-aarch64-musl" => "linux",
-                "macos" | "macos-x86_64" => "macos",
-                "windows" | "windows-winui" | "windows-x86_64" | "windows-aarch64"
-                | "windows-arm64" => "windows",
-                _ => panic!("unclassified target alias {name}"),
-            };
-            assert_eq!(target_os_of(name), Some(expected), "alias {name}");
-            let Some(triple) = resolve_target_triple(name) else {
-                // WASI is deliberately available only in target-wasi builds.
-                assert!(matches!(*name, "wasi" | "wasip1"));
-                assert_eq!(target_os_of(name), Some(expected));
-                continue;
-            };
-            assert_eq!(target_os_of(&triple), Some(expected), "{name}: {triple}");
+            assert_eq!(target_os_of(name), Some("linux"), "alias {name}");
+            let triple = resolve_target_triple(name).expect(name);
+            assert_eq!(target_os_of(&triple), Some("linux"), "{name}: {triple}");
+        }
+    }
+
+    #[test]
+    fn names_of_other_systems_do_not_resolve() {
+        for name in ["macos", "windows", "ios", "android", "wasi", "harmonyos", "web"] {
+            assert_eq!(resolve_target_triple(name), None, "{name}");
+            assert!(!TARGET_NAMES.contains(&name), "{name}");
         }
     }
 

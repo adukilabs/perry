@@ -77,6 +77,7 @@ impl LockArgs {
 /// the project would consume at link time and runs the lock
 /// verify/write pass in the requested mode.
 pub fn run(args: LockArgs, format: crate::OutputFormat, _use_color: bool) -> Result<()> {
+    crate::commands::compile::validate_explicit_target(args.target.as_deref())?;
     let mode = args.mode();
 
     let archives = crate::commands::compile::collect_native_archives_for_lock(

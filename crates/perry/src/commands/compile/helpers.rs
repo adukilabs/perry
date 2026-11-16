@@ -13,18 +13,6 @@ use std::path::{Path, PathBuf};
 
 use crate::OutputFormat;
 
-/// Error text for a `--target` whose codegen backend was compiled out (#5422).
-/// Always defined so the `#[cfg(not(...))]` routing arms can call it; unused in
-/// a full-cli build, hence the allow.
-#[allow(dead_code)]
-pub(crate) fn backend_disabled_msg(target: &str, feature: &str) -> String {
-    format!(
-        "target '{target}' needs the '{feature}' codegen backend, but this perry \
-         was built without it. Rebuild with `--features {feature}` (or the default \
-         `full-cli` / `all-codegen-backends`)."
-    )
-}
-
 pub(crate) struct NativeObjectArtifact {
     pub(crate) path: PathBuf,
     pub(crate) bytes: Option<Vec<u8>>,

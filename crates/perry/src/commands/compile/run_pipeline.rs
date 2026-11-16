@@ -7,7 +7,6 @@
 
 use super::*;
 
-use super::helpers::backend_disabled_msg;
 
 use anyhow::{anyhow, bail, Context, Result};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -43,7 +42,7 @@ fn check_module_providers(
 
 #[cfg(test)]
 mod explicit_target_validation_tests {
-    use super::{validate_explicit_target, BACKEND_TARGET_NAME_GROUPS};
+    use super::validate_explicit_target;
 
     // Issue #13717: an unrecognized explicit --target used to fall through to
     // the host triple (e.g. Mach-O arm64 objects for linux-x86_64 misspellings
@@ -69,44 +68,48 @@ mod explicit_target_validation_tests {
         }
     }
 
-    // Union pin: every name on either side of the gate (resolver aliases and
-    // backend dispatch names) must be accepted. A target added to one side
-    // without the other then fails here instead of silently turning into "an
-    // unknown target at the CLI".
+    // Every name the resolver knows must be accepted.
     #[test]
     fn every_documented_target_name_is_accepted_by_the_gate() {
-        for name in perry_codegen::TARGET_NAMES.iter().chain(
-            BACKEND_TARGET_NAME_GROUPS
-                .iter()
-                .flat_map(|group| group.iter()),
-        ) {
+        for name in perry_codegen::TARGET_NAMES {
             assert!(validate_explicit_target(Some(*name)).is_ok(), "{name}");
         }
     }
 
-    // Regression specific to this fix: dispatch-only targets resolve to `None`
-    // in `resolve_target_triple` and must NOT be rejected for it.
+    // This fork compiles for Linux. Every other system upstream knows is
+    // refused here, before anything is compiled, and the message says so.
     #[test]
-    fn dispatch_only_target_names_are_not_rejected() {
-        assert!(validate_explicit_target(Some("web")).is_ok());
-        assert!(validate_explicit_target(Some("wearos-tile")).is_ok());
+    fn targets_of_other_systems_are_refused() {
+        for name in [
+            "macos",
+            "windows",
+            "windows-winui",
+            "ios",
+            "ios-simulator",
+            "android",
+            "wearos",
+            "tvos",
+            "watchos",
+            "visionos",
+            "harmonyos",
+            "wasi",
+            "wasip1",
+            "wasm32-wasip2",
+            "web",
+            "wasm",
+            "ios-widget",
+            "android-widget",
+            "wearos-tile",
+        ] {
+            let err = validate_explicit_target(Some(name)).unwrap_err().to_string();
+            assert!(err.contains("Linux only"), "{name}: {err}");
+        }
     }
 
     #[test]
     fn absent_and_known_target_names_are_accepted() {
         assert!(validate_explicit_target(None).is_ok());
-        for name in [
-            "linux",
-            "linux-x86_64",
-            "linux-arm64",
-            "wasi",
-            "wasip1",
-            "web",
-            "wasm",
-            "ios-widget",
-            "watchos-widget-simulator",
-            "wearos-tile",
-        ] {
+        for name in ["linux", "linux-x86_64", "linux-arm64", "linux-musl"] {
             assert!(validate_explicit_target(Some(name)).is_ok(), "{name}");
         }
     }
@@ -551,54 +554,22 @@ mod imported_class_return_type_tests {
     }
 }
 
-/// `--target` names routed to a dedicated codegen backend by the dispatch
-/// arms inside [`run_with_parse_cache`], instead of going through the
-/// [`perry_codegen::resolve_target_triple`] alias table. Each literal appears
-/// exactly once, here; the dispatch and [`validate_explicit_target`] both read
-/// these lists so backend target coverage cannot drift (#13717).
-const WEB_TARGET_NAMES: &[&str] = &["web", "wasm"];
-const IOS_WIDGET_TARGET_NAMES: &[&str] = &["ios-widget", "ios-widget-simulator"];
-const WATCHOS_WIDGET_TARGET_NAMES: &[&str] = &["watchos-widget", "watchos-widget-simulator"];
-const ANDROID_WIDGET_TARGET_NAMES: &[&str] = &["android-widget"];
-const WEAROS_TILE_TARGET_NAMES: &[&str] = &["wearos-tile"];
-
-const BACKEND_TARGET_NAME_GROUPS: &[&[&str]] = &[
-    WEB_TARGET_NAMES,
-    IOS_WIDGET_TARGET_NAMES,
-    WATCHOS_WIDGET_TARGET_NAMES,
-    ANDROID_WIDGET_TARGET_NAMES,
-    WEAROS_TILE_TARGET_NAMES,
-];
-
-/// #13717: reject an unknown explicit `--target NAME` before anything is
-/// compiled. `resolve_target_triple` returns `None` for unrecognized names, and
-/// every consumer then fell through to the host triple (e.g. a misspelled
-/// Linux target on an arm64 Mac emitted Mach-O arm64 objects). A name is
-/// accepted when it is a `perry_codegen::TARGET_NAMES` alias (a feature-gated
-/// one like `wasi` is still known; the resolver rejects it later, with the
-/// right diagnostic) or is dispatched to a dedicated backend. Absence of
-/// `--target` keeps the host default, unchanged.
-fn validate_explicit_target(target: Option<&str>) -> Result<()> {
+/// The one gate on `--target`. This fork compiles for Linux only: a name is
+/// accepted when it is a `perry_codegen::TARGET_NAMES` alias, and every other
+/// name is refused before anything is compiled (#13717 upstream: an unknown
+/// name used to fall through to the host triple). Absence of `--target` keeps
+/// the host default. Every command that takes a target calls this, so no code
+/// behind it can see a target of another system.
+pub(crate) fn validate_explicit_target(target: Option<&str>) -> Result<()> {
     let Some(name) = target else {
         return Ok(());
     };
-    let is_backend_target = BACKEND_TARGET_NAME_GROUPS
-        .iter()
-        .flat_map(|group| group.iter())
-        .any(|known| *known == name);
-    if is_backend_target || perry_codegen::TARGET_NAMES.contains(&name) {
+    if perry_codegen::TARGET_NAMES.contains(&name) {
         return Ok(());
     }
-    let mut supported = perry_codegen::TARGET_NAMES.to_vec();
-    supported.extend(
-        BACKEND_TARGET_NAME_GROUPS
-            .iter()
-            .flat_map(|group| group.iter())
-            .copied(),
-    );
     bail!(
-        "--target '{name}': unknown target name. Supported targets: {}.",
-        supported.join(", "),
+        "--target '{name}': this fork of perry compiles for Linux only. Supported targets: {}.",
+        perry_codegen::TARGET_NAMES.join(", "),
     )
 }
 
@@ -612,12 +583,9 @@ pub fn run_with_parse_cache(
     use_color: bool,
     verbose: u8,
 ) -> Result<CompileResult> {
-    // #13953: `wasm32-wasip2` / `wasip2` / `wasm32-wasip1` name Perry's WASI
-    // targets; fold them first so every later `args.target` read sees one name.
     let mut args = args;
-    args.target = super::wasi_flavour::canonical_target(args.target.take())?;
-    // #13717: fail an unrecognized explicit `--target` up-front, before any
-    // object is emitted for the host triple.
+    // Fail any `--target` that is not a Linux name up-front, before any object
+    // is emitted.
     validate_explicit_target(args.target.as_deref())?;
     if perry_codegen::verify_facts::enabled() {
         std::env::set_var("PERRY_NO_CACHE", "1");
@@ -1015,10 +983,7 @@ pub fn run_with_parse_cache(
 
     let mut visited = HashSet::new();
     let mut next_class_id: perry_hir::ClassId = 1; // Start at 1, 0 is reserved for "no parent"
-    let skip_transforms = args
-        .target
-        .as_deref()
-        .is_some_and(|t| WEB_TARGET_NAMES.contains(&t));
+    let skip_transforms = false;
     let progress = VerboseProgress::new(format, verbose);
 
     // Issue #444: canonicalize the user's entry path once so collect_modules
@@ -1190,58 +1155,6 @@ pub fn run_with_parse_cache(
         let activation = super::dynamic_reach::prune(&mut ctx, &roots)?;
         (activation, roots)
     };
-
-    // --- Web/WASM target: emit WASM binary + JS runtime bridge ---
-    if args
-        .target
-        .as_deref()
-        .is_some_and(|t| WEB_TARGET_NAMES.contains(&t))
-    {
-        {
-            anyhow::bail!(backend_disabled_msg(
-                args.target.as_deref().unwrap_or("wasm"),
-                "backend-wasm",
-            ));
-        }
-    }
-
-    // --- Widget targets: emit platform-specific source + optional native provider ---
-    if args
-        .target
-        .as_deref()
-        .is_some_and(|t| IOS_WIDGET_TARGET_NAMES.contains(&t))
-    {
-        {
-            anyhow::bail!(backend_disabled_msg("ios-widget", "backend-swiftui"));
-        }
-    }
-    if args
-        .target
-        .as_deref()
-        .is_some_and(|t| WATCHOS_WIDGET_TARGET_NAMES.contains(&t))
-    {
-        {
-            anyhow::bail!(backend_disabled_msg("watchos-widget", "backend-swiftui"));
-        }
-    }
-    if args
-        .target
-        .as_deref()
-        .is_some_and(|t| ANDROID_WIDGET_TARGET_NAMES.contains(&t))
-    {
-        {
-            anyhow::bail!(backend_disabled_msg("android-widget", "backend-glance"));
-        }
-    }
-    if args
-        .target
-        .as_deref()
-        .is_some_and(|t| WEAROS_TILE_TARGET_NAMES.contains(&t))
-    {
-        {
-            anyhow::bail!(backend_disabled_msg("wearos-tile", "backend-wear-tiles"));
-        }
-    }
 
     run_native_instance_fixups(&mut ctx);
 

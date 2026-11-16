@@ -178,6 +178,7 @@ pub(crate) use helpers::{
     object_cache_project_root, print_deferred_eval_notice, NativeObjectArtifact,
 };
 pub use run_pipeline::run_with_parse_cache;
+pub(crate) use run_pipeline::validate_explicit_target;
 
 // `inject_ios_deeplinks`, `inject_google_auth_info_plist`, and
 // `lookup_bundle_id_from_info_plist` moved to `apple_info_plist.rs`.

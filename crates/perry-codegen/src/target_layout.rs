@@ -681,14 +681,6 @@ mod tests {
                 "{triple}"
             );
         }
-        for name in ["harmonyos", "harmonyos-simulator"] {
-            let triple = crate::codegen::resolve_target_triple(name).expect(name);
-            assert_eq!(
-                heap_addr_lower_bound_inclusive(&triple),
-                0x200_0000_0000,
-                "{triple}"
-            );
-        }
     }
 
     /// Two emitters divide the header size by 8 to get a WORD index. #8047

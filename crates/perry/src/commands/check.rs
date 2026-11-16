@@ -110,6 +110,7 @@ fn is_checkable_ts_file(path: &Path) -> bool {
 }
 
 pub fn run(args: CheckArgs, format: OutputFormat, use_color: bool, verbose: u8) -> Result<()> {
+    super::compile::validate_explicit_target(args.target.as_deref())?;
     let project_root = if args.input.is_file() {
         args.input
             .parent()

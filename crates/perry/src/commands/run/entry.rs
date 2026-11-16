@@ -77,188 +77,20 @@ fn read_perry_toml_entry(project_dir: &Path) -> Option<PathBuf> {
     None
 }
 
-/// Resolve the compilation target and optional device UDID
+/// Resolve the compilation target and optional device UDID.
+///
+/// This fork builds and runs for Linux only, so the only platform accepted is
+/// `linux` (or none), and there is never a device.
 pub fn resolve_target(
     platform: Option<Platform>,
-    args: &RunArgs,
+    _args: &RunArgs,
 ) -> Result<(Option<String>, Option<String>)> {
     match platform {
-        Some(Platform::Web) => Ok((Some("web".to_string()), None)),
-        Some(Platform::Android) => {
-            let devices = detect_android_devices()?;
-            if devices.is_empty() {
-                return Err(anyhow!(
-                    "No Android devices found. Connect a device or start an emulator, then try again."
-                ));
-            }
-            let serial = if devices.len() == 1 {
-                devices[0].udid.clone()
-            } else {
-                pick_device(&devices, "Android device")?
-            };
-            Ok((Some("android".to_string()), Some(serial)))
-        }
-        Some(Platform::Wearos) => {
-            // Wear OS runs over adb just like a phone — the connected device is
-            // a watch or a Wear emulator. Same detection, but filter to actual
-            // watches (`ro.build.characteristics` contains `watch`) so a paired
-            // phone on the same adb isn't selected. The `wearos` target string
-            // routes packaging to the Wear Gradle template at launch.
-            let devices: Vec<DeviceInfo> = detect_android_devices()?
-                .into_iter()
-                .filter(|d| is_wear_os_device(&d.udid))
-                .collect();
-            if devices.is_empty() {
-                return Err(anyhow!(
-                    "No Wear OS devices found. Pair a watch over adb or start a Wear OS emulator, then try again.\n\
-                     Create one:  avdmanager create avd -n perry_wear \\\n               \
-                     -k \"system-images;android-34;android-wear;arm64-v8a\" -d wearos_large_round\n\
-                     Boot it:     emulator -avd perry_wear"
-                ));
-            }
-            let serial = if devices.len() == 1 {
-                devices[0].udid.clone()
-            } else {
-                pick_device(&devices, "Wear OS device")?
-            };
-            Ok((Some("wearos".to_string()), Some(serial)))
-        }
-        Some(Platform::Ios) => {
-            if let Some(ref udid) = args.simulator {
-                return Ok((Some("ios-simulator".to_string()), Some(udid.clone())));
-            }
-            if let Some(ref udid) = args.device {
-                return Ok((Some("ios".to_string()), Some(udid.clone())));
-            }
-
-            // Auto-detect: booted simulators + connected devices
-            let simulators = detect_booted_simulators().unwrap_or_default();
-            let devices = detect_ios_devices().unwrap_or_default();
-
-            let mut all: Vec<(DeviceInfo, &str)> = Vec::new();
-            for s in simulators {
-                all.push((s, "ios-simulator"));
-            }
-            for d in devices {
-                all.push((d, "ios"));
-            }
-
-            if all.is_empty() {
-                return Err(anyhow!(
-                    "No iOS simulators or devices found.\n\
-                     Boot a simulator:  xcrun simctl boot <UDID>\n\
-                     Or specify one:    perry run ios --simulator <UDID>"
-                ));
-            }
-
-            if all.len() == 1 {
-                let (dev, target) = all.remove(0);
-                return Ok((Some(target.to_string()), Some(dev.udid)));
-            }
-
-            // Multiple options: prompt
-            let names: Vec<String> = all
-                .iter()
-                .map(|(d, t)| format!("{} ({})", d.name, t))
-                .collect();
-            let selection = pick_from_list(&names, "Select iOS target")?;
-            let (dev, target) = all.remove(selection);
-            Ok((Some(target.to_string()), Some(dev.udid)))
-        }
-        Some(Platform::Visionos) => {
-            if let Some(ref udid) = args.simulator {
-                return Ok((Some("visionos-simulator".to_string()), Some(udid.clone())));
-            }
-            if let Some(ref udid) = args.device {
-                return Ok((Some("visionos".to_string()), Some(udid.clone())));
-            }
-
-            let simulators = detect_booted_visionos_simulators().unwrap_or_default();
-
-            if simulators.is_empty() {
-                return Err(anyhow!(
-                    "No Apple Vision Pro simulators found.\n\
-                     Boot a simulator:  xcrun simctl boot <UDID>\n\
-                     Or specify one:    perry run visionos --simulator <UDID>"
-                ));
-            }
-
-            if simulators.len() == 1 {
-                let dev = simulators.into_iter().next().unwrap();
-                return Ok((Some("visionos-simulator".to_string()), Some(dev.udid)));
-            }
-
-            let names: Vec<String> = simulators.iter().map(|d| d.name.clone()).collect();
-            let selection = pick_from_list(&names, "Select Apple Vision Pro simulator")?;
-            let dev = &simulators[selection];
-            Ok((
-                Some("visionos-simulator".to_string()),
-                Some(dev.udid.clone()),
-            ))
-        }
-        Some(Platform::Watchos) => {
-            if let Some(ref udid) = args.simulator {
-                return Ok((Some("watchos-simulator".to_string()), Some(udid.clone())));
-            }
-            if let Some(ref udid) = args.device {
-                return Ok((Some("watchos".to_string()), Some(udid.clone())));
-            }
-
-            // Auto-detect booted Apple Watch simulators
-            let simulators = detect_booted_watch_simulators().unwrap_or_default();
-
-            if simulators.is_empty() {
-                return Err(anyhow!(
-                    "No Apple Watch simulators found.\n\
-                     Boot a simulator:  xcrun simctl boot <UDID>\n\
-                     Or specify one:    perry run watchos --simulator <UDID>"
-                ));
-            }
-
-            if simulators.len() == 1 {
-                let dev = simulators.into_iter().next().unwrap();
-                return Ok((Some("watchos-simulator".to_string()), Some(dev.udid)));
-            }
-
-            let names: Vec<String> = simulators.iter().map(|d| d.name.clone()).collect();
-            let selection = pick_from_list(&names, "Select Apple Watch simulator")?;
-            let dev = &simulators[selection];
-            Ok((
-                Some("watchos-simulator".to_string()),
-                Some(dev.udid.clone()),
-            ))
-        }
-        Some(Platform::Tvos) => {
-            if let Some(ref udid) = args.simulator {
-                return Ok((Some("tvos-simulator".to_string()), Some(udid.clone())));
-            }
-            if let Some(ref udid) = args.device {
-                return Ok((Some("tvos".to_string()), Some(udid.clone())));
-            }
-
-            // Auto-detect booted Apple TV simulators
-            let simulators = detect_booted_tv_simulators().unwrap_or_default();
-
-            if simulators.is_empty() {
-                return Err(anyhow!(
-                    "No Apple TV simulators found.\n\
-                     Boot a simulator:  xcrun simctl boot <UDID>\n\
-                     Or specify one:    perry run tvos --simulator <UDID>"
-                ));
-            }
-
-            if simulators.len() == 1 {
-                let dev = simulators.into_iter().next().unwrap();
-                return Ok((Some("tvos-simulator".to_string()), Some(dev.udid)));
-            }
-
-            let names: Vec<String> = simulators.iter().map(|d| d.name.clone()).collect();
-            let selection = pick_from_list(&names, "Select Apple TV simulator")?;
-            let dev = &simulators[selection];
-            Ok((Some("tvos-simulator".to_string()), Some(dev.udid.clone())))
-        }
-        Some(Platform::Macos) | Some(Platform::Linux) | Some(Platform::Windows) => Ok((None, None)),
-        None => Ok((None, None)),
+        None | Some(Platform::Linux) => Ok((None, None)),
+        Some(other) => bail!(
+            "this fork of perry builds and runs for Linux only, not {}",
+            format!("{other:?}").to_lowercase()
+        ),
     }
 }
 

@@ -49,6 +49,9 @@ Perry already puts on app code.
 - The WebAssembly target of the code generator, and every script, test and fixture for it.
 - Every module compiled only for Windows, an Apple system or WASI, and the scripts, tests and
   documentation pages named for another operating system.
+- Inside the kept files, the items, fields, match arms and statements under a `cfg` condition
+  that cannot hold on x86-64 Linux, and the `if cfg!(...)` branches decided there. Six files
+  that do not parse on their own were left as they are.
 - Benchmarks, changelogs, CI workflows, packaging, vendored CI actions, and translated docs.
 - The compiler's default command set is the slim one (`compile`, `run`, `check`, `types`,
   `cache`, `dev`). The publish, mobile and updater commands are still in the source and are
@@ -56,17 +59,18 @@ Perry already puts on app code.
 
 | | Upstream `main` | This fork's `main` |
 |---|---|---|
-| Tracked files | 44,326 | 18,118 |
+| Tracked files | 44,326 | 18,109 |
 | Locked packages | 973 | 656 |
 | Size without `.git` | about 1.4 GB | 177 MB |
 
 **Not removed yet.**
 
-- About 990 functions, blocks and statements inside kept files that are marked for another
-  operating system or for WebAssembly. None is compiled on Linux.
+- 172 `cfg` attributes in 82 files that still name another system, against 2,960 in 429
+  upstream, by a text search. They sit inside macro definitions, in the six files that do
+  not parse on their own, or are one part of a wider condition.
 - The compiler's own link and run steps for Android, Apple systems, Windows and HarmonyOS.
   Those are chosen at run time by `--target`, so they are ordinary code in a Linux build.
-- `tests/parity`, 9,150 files of behaviour tests, kept whole.
+- `tests/parity`, 9,070 of upstream's 9,151 files of behaviour tests.
 
 ## Building
 
@@ -94,7 +98,7 @@ target/prod/perry-gc-effects sidecars target/prod
 ```
 
 Without the sidecar the compiler prints a warning and treats every runtime call as one that can
-throw, which is correct and slower. The sidecar tool refused the debug archives here.
+throw, which is correct and slower. On the debug archives the sidecar tool took 10 minutes here.
 
 ```bash
 target/debug/perry compile app.ts -o app                              # an executable
@@ -105,20 +109,35 @@ target/debug/perry compile app.ts --output-type staticlib -o libapp.a # a librar
 
 Checked on `main`, with a debug build on Debian with LLVM 23.1.6:
 
-- It builds with no errors, and the unit tests of the compiler, the code generator and the
-  runtime compile.
+- It builds with no errors.
+- Unit tests, run at `1405f4b8`. Where a suite failed it was also run on unmodified upstream
+  `main` at 7270b624, with LLVM 22, and the failures compared by name.
+
+  | Package | This fork | Upstream `main` |
+  |---|---|---|
+  | `perry-runtime` | 6,870 passed, 0 failed | not run |
+  | `perry-codegen` | 2,975 passed, 6 failed | 2,974 passed, the same 6 failed |
+  | `perry` (the compiler) | 1,575 passed, 16 failed | 1,627 passed, 0 failed |
+  | `perry-hir`, `perry-transform`, `perry-parser`, `perry-gc-effects` | 893, 395, 50 and 43 passed, 0 failed | not run |
+
+  **The 16 failing compiler tests are caused by this fork's cut and are not fixed.** Six need
+  the Android project template. Five fail because the compiler tells its own checkout by a
+  package that was removed (`crates/perry-ui-geisterhand`), so it no longer knows when it
+  runs from its workspace. The other five name removed packages or a removed CI file, or
+  require a minimum number of packages.
 - A static library linked plainly behaves the same as one linked with every member forced in,
   for six runtime features, and all twelve runs exit 0.
 - `worker.terminate()` stops a looping worker in executable and static library output, in 15
   of 15 runs. A debug build has no sidecar, so this run does not exercise the unwind table
   fix. That fix was checked on `platform-fixes` with an optimized build on LLVM 22, where the
   static library case went from an abort in 3 of 3 runs to stopping in 6 of 6.
+- The two checks above were last run at `e64eba56`. Later commits change test files and this
+  README only.
 
 Not checked:
 
-- Perry's own test suite has not been run on this branch, apart from 44 unit tests of the code
-  generator passes this fork changed (loop polls, stack checks, cold paths, native homes),
-  which pass.
+- The unit tests of `perry-stdlib`, the integration tests under `crates/*/tests`, and the
+  behaviour tests in `tests/parity`.
 - An optimized build on LLVM 23, and code size or speed against LLVM 22.
 - The fix for the exception object's alignment has been read from the built archive (the
   object's section asks for 16) but the fault itself has not been re-run against it.

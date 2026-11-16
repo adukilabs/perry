@@ -1079,8 +1079,8 @@ fn compile_ll_inprocess_in(
     bail!(
         "PERRY_LLVM_INPROCESS is set, but this perry was built without the \
          `llvm-inprocess` cargo feature. Rebuild with \
-         `cargo build -p perry --features llvm-inprocess` (needs LLVM 22: \
-         `brew install llvm`, and LLVM_SYS_221_PREFIX if llvm-config is not \
+         `cargo build -p perry --features llvm-inprocess` (needs LLVM 23: \
+         `brew install llvm`, and LLVM_SYS_231_PREFIX if llvm-config is not \
          on PATH). Native targets require this backend."
     )
 }

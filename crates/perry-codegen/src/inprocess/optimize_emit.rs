@@ -203,12 +203,17 @@ pub(super) fn optimize_and_emit(
         enforce_rs4gc_instruction_budget(module, budget, &pre_sizes, &rewritten_functions)?;
     }
 
+    // LLVM 23 removed the `Os` and `Oz` pipelines ("Use O2 in conjunction
+    // with the optsize attribute instead"). Size optimization is now carried
+    // by the function attributes alone, which Perry already stamps on every
+    // application body (`linker::application_size_function_attrs`: `optsize`
+    // for `-Os`, `optsize minsize` for `-Oz`). A function Perry defines
+    // without those attributes was size-optimized by the pipeline under
+    // LLVM 22 and is optimized as plain O2 here.
     let pipeline = match opt {
         '0' => "default<O0>",
         '1' => "default<O1>",
-        '2' => "default<O2>",
-        's' => "default<Os>",
-        'z' => "default<Oz>",
+        '2' | 's' | 'z' => "default<O2>",
         _ => "default<O3>",
     };
     let optimize_started = std::time::Instant::now();

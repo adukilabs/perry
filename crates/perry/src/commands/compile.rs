@@ -84,7 +84,6 @@ mod tool_output;
 mod wasi_flavour;
 pub mod well_known;
 pub(crate) mod widget_build;
-use android_target::{android_target};
 use app_metadata::rust_target_triple;
 // apple_info_plist helpers used through bundle_ios (no direct uses in
 // compile.rs anymore now that the iOS bundle code moved out).
@@ -104,9 +103,8 @@ use init_order::{classify_eager_modules, topo_sort_non_entry_modules};
 pub use library_search::find_library;
 pub(crate) use library_search::host_target_triple;
 use library_search::{
-    find_lld_link, find_llvm_tool, find_msvc_lib_paths, find_msvc_link_exe,
-    find_perry_windows_sdk, find_runtime_library, find_stdlib_library, find_ui_library,
-    find_wasm_host_library, windows_pe_subsystem_flag, windows_subsystem_needs_ui,
+    find_lld_link, find_llvm_tool, find_runtime_library, find_stdlib_library, find_ui_library,
+    find_wasm_host_library,
 };
 use link::{build_and_run_link, write_link_cache_manifest};
 pub use lock_scan::collect_native_archives_for_lock;
@@ -138,13 +136,12 @@ pub(crate) use runtime_compat::{
 use size_report::emit_size_report;
 use strip_dedup::{
     dedup_native_lib_for_tier3, dedup_runtime_for_tier3, dedup_stdlib_for_tier3,
-    dedup_ui_lib_against_linked_libs, localize_stdlib_stub_symbols,
+    localize_stdlib_stub_symbols,
     strip_bundled_runtime_from_well_known_lib, strip_bundled_shared_deps_from_well_known_lib,
     strip_duplicate_objects_from_lib_with_evidence, strip_duplicate_objects_from_well_known_lib,
     StdlibEvidence,
 };
 use targets::{
-    apple_sdk_version, find_visionos_swift_runtime, find_watchos_swift_runtime,
     generate_embedded_js_object, generate_js_bundle,
 };
 use windows_target::{

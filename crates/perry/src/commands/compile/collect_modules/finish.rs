@@ -12,7 +12,6 @@ pub(crate) fn collect_module_finish(
     prepared: PreparedModule,
     ctx: &mut CompilationContext,
     visited: &HashSet<PathBuf>,
-    target: Option<&str>,
     skip_transforms: bool,
     progress: &VerboseProgress,
 ) -> Result<()> {

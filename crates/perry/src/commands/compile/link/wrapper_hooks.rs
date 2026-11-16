@@ -22,9 +22,6 @@ const LAZY_RUNTIME_HOOK_LIB: &str = "perry_ext_net";
 
 pub(super) fn add_link_args(
     cmd: &mut Command,
-    darwin: bool,
-    direct_apple: bool,
-    xlinker_apple: bool,
     well_known_libs: &[PathBuf],
 ) {
     let prefix = "";
@@ -49,7 +46,7 @@ mod tests {
     fn arguments(darwin: bool, direct: bool, libs: &[&str]) -> Vec<String> {
         let mut cmd = Command::new("linker");
         let libs: Vec<PathBuf> = libs.iter().map(PathBuf::from).collect();
-        add_link_args(&mut cmd, darwin, direct, false, &libs);
+        add_link_args(&mut cmd, &libs);
         cmd.get_args()
             .map(|arg| arg.to_str().unwrap().to_owned())
             .collect()

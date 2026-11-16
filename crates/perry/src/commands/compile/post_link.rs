@@ -26,13 +26,7 @@ use super::{CompilationContext, ObjectCache};
 pub(super) fn strip_final_binary(
     ctx: &CompilationContext,
     exe_path: &Path,
-    target: Option<&str>,
     is_dylib: bool,
-    is_ios: bool,
-    is_visionos: bool,
-    is_tvos: bool,
-    is_watchos: bool,
-    is_harmonyos: bool,
 ) -> anyhow::Result<()> {
     super::fallback_diag::emit(exe_path)?;
     if perry_codegen::verify_facts::enabled() {
@@ -44,7 +38,7 @@ pub(super) fn strip_final_binary(
         text.push('\n');
         std::fs::write(path, text)?;
     }
-    emit_macos_dsym(exe_path, target);
+    emit_macos_dsym();
     if is_dylib
         || std::env::var("PERRY_DEBUG_SYMBOLS").is_ok()
         // #7803 tooling: keep the symbol table WITHOUT asking for DWARF.
@@ -83,7 +77,7 @@ pub(super) fn strip_final_binary(
 /// linking (`cleanup_intermediates`). Without a dSYM, lldb — and so Xcode and
 /// VS Code's CodeLLDB — finds no line table and cannot bind a breakpoint.
 /// Runs before the strip decision and the cleanup, while the objects exist.
-fn emit_macos_dsym(exe_path: &Path, target: Option<&str>) {
+fn emit_macos_dsym() {
     return;
 }
 

@@ -40,10 +40,6 @@ pub(super) struct MacosBundleLayout {
 }
 
 pub(super) fn layout_for_compile(
-    needs_ui: bool,
-    output_type: &str,
-    target: Option<&str>,
-    output: &Path,
 ) -> Result<Option<MacosBundleLayout>> {
     return Ok(None);
 }
@@ -160,12 +156,12 @@ mod tests {
             (true, "executable", "linux"),
             (true, "executable", "ios-simulator"),
         ] {
-            assert!(layout_for_compile(ui, kind, Some(target), output)
+            assert!(layout_for_compile()
                 .unwrap()
                 .is_none());
         }
         assert!(
-            layout_for_compile(true, "executable", Some("macos"), output)
+            layout_for_compile()
                 .unwrap()
                 .is_some()
         );
@@ -177,7 +173,7 @@ mod tests {
             ("out/My App.v2", "out/My App.v2.app"),
             ("out/My App.v2.app", "out/My App.v2.app"),
         ] {
-            let layout = layout_for_compile(true, "executable", Some("macos"), Path::new(output))
+            let layout = layout_for_compile()
                 .unwrap()
                 .unwrap();
             assert_eq!(layout.app_dir, Path::new(expected));
@@ -193,7 +189,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let raw = dir.path().join("demo");
         fs::write(&raw, b"linked executable").unwrap();
-        let layout = layout_for_compile(true, "executable", Some("macos"), &raw)
+        let layout = layout_for_compile()
             .unwrap()
             .unwrap();
         write_bundle_files(&layout, &raw, "first plist").unwrap();

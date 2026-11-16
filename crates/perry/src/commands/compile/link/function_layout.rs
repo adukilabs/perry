@@ -6,18 +6,12 @@ use std::{fs, path::Path, process::Command};
 pub(super) fn add_link_args(
     cmd: &mut Command,
     cache: &Path,
-    linux: bool,
-    android: bool,
-    harmony: bool,
-    direct_apple: bool,
-    xlinker_apple: bool,
     runtime_archives: &[&Path],
     lld: bool,
     data_order: bool,
     verbose: u8,
 ) -> Result<()> {
     let dir = cache.join("function-order");
-    let elf = true;
     let order = match perry_codegen::program_function_layout() {
         perry_codegen::FunctionLayout::Order(order) if !order.is_empty() => order,
         _ => {

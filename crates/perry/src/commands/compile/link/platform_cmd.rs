@@ -9,106 +9,11 @@
 
 use super::glibc_version::glibc_version_defsym;
 use super::*;
-use sha2::{Digest, Sha256};
 
-const FOUNDATION_MODELS_SWIFT: &str =
-    include_str!("../../../../../perry-ui-ios/swift/PerryFoundationModels.swift");
-const NOW_PLAYING_SWIFT: &str =
-    include_str!("../../../../../perry-ui-ios/swift/PerryNowPlaying.swift");
 
-fn needs_foundation_models_bridge(ctx: &CompilationContext) -> bool {
-    ctx.native_module_imports.contains("perry/ios")
-}
 
-fn framework_exists(sysroot: &str, name: &str) -> bool {
-    Path::new(sysroot)
-        .join("System/Library/Frameworks")
-        .join(format!("{name}.framework"))
-        .exists()
-}
 
-fn compile_swift_bridge(
-    ctx: &CompilationContext,
-    sdk: &str,
-    sysroot: &str,
-    triple: &str,
-    source_contents: &str,
-    source_stem: &str,
-    module_name: &str,
-) -> Result<PathBuf> {
-    let swiftc = String::from_utf8(
-        Command::new("xcrun")
-            .args(["--sdk", sdk, "--find", "swiftc"])
-            .output()?
-            .stdout,
-    )?
-    .trim()
-    .to_string();
-    if swiftc.is_empty() {
-        return Err(anyhow!("swiftc was not found for the {sdk} SDK"));
-    }
 
-    let mut hasher = Sha256::new();
-    hasher.update(source_contents.as_bytes());
-    hasher.update(sysroot.as_bytes());
-    hasher.update(triple.as_bytes());
-    let digest = perry_hex::encode(hasher.finalize());
-    let bridge_dir = ctx.cache_dir.join("swift-bridges");
-    fs::create_dir_all(&bridge_dir)?;
-    let source = bridge_dir.join(format!("{source_stem}-{}.swift", &digest[..16]));
-    let object = bridge_dir.join(format!("{source_stem}-{}.o", &digest[..16]));
-
-    if !object.exists() {
-        fs::write(&source, source_contents)?;
-        let output = Command::new(&swiftc)
-            .arg("-parse-as-library")
-            .arg("-emit-object")
-            .arg("-O")
-            .arg("-module-name")
-            .arg(module_name)
-            .arg("-target")
-            .arg(triple)
-            .arg("-sdk")
-            .arg(sysroot)
-            .arg(&source)
-            .arg("-o")
-            .arg(&object)
-            .output()?;
-        if !output.status.success() {
-            return Err(anyhow!(
-                "swiftc failed compiling Perry's {source_stem} bridge:\n{}{}",
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            ));
-        }
-    }
-    Ok(object)
-}
-
-/// Compile the Swift-only Foundation Models adapter to a content-addressed
-/// object. Unrelated iOS builds stay on the existing clang-only path and keep
-/// working with older Xcode installations.
-fn compile_foundation_models_bridge(
-    ctx: &CompilationContext,
-    sdk: &str,
-    sysroot: &str,
-    triple: &str,
-) -> Result<PathBuf> {
-    if !framework_exists(sysroot, "FoundationModels") {
-        return Err(anyhow!(
-            "perry/ios Foundation Models support requires an Xcode SDK that contains FoundationModels.framework (Xcode 26 or later)"
-        ));
-    }
-    compile_swift_bridge(
-        ctx,
-        sdk,
-        sysroot,
-        triple,
-        FOUNDATION_MODELS_SWIFT,
-        "PerryFoundationModels",
-        "PerryFoundationModelsBridge",
-    )
-}
 
 /// Construct the platform-specific linker `Command` and prime it with the
 /// toolchain/sysroot/triple flags that every per-platform branch needs
@@ -117,24 +22,7 @@ fn compile_foundation_models_bridge(
 /// Returns an error for unsupported cross-compile combinations (e.g.
 /// visionOS from a non-macOS host).
 pub fn select_linker_command(
-    args_input: &Path,
-    ctx: &CompilationContext,
     target: Option<&str>,
-    obj_paths: &[PathBuf],
-    compiled_features: &[String],
-    is_ios: bool,
-    is_visionos: bool,
-    is_android: bool,
-    is_harmonyos: bool,
-    is_linux: bool,
-    is_windows: bool,
-    is_cross_windows: bool,
-    is_cross_ios: bool,
-    is_cross_visionos: bool,
-    is_cross_macos: bool,
-    is_watchos: bool,
-    is_tvos: bool,
-    is_cross_tvos: bool,
 ) -> Result<Command> {
     // For cross-compilation targets, use the appropriate toolchain
     let cmd = if matches!(target, Some("linux-arm64") | Some("linux-aarch64")) {

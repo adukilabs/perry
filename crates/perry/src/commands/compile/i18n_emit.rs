@@ -8,7 +8,6 @@
 //! writers) share these routines for emitting i18n artifacts next to
 //! the linked binary.
 
-use crate::OutputFormat;
 use std::fs;
 use std::path::Path;
 
@@ -50,11 +49,6 @@ pub(super) fn write_i18n_key_registry(
 /// abort the build. Keys are sanitized to `[A-Za-z0-9_]+` (Android
 /// resource-name grammar) and values get the usual XML entity escape.
 pub(super) fn emit_android_i18n_resources(
-    is_android: bool,
-    i18n_table: Option<&perry_transform::i18n::I18nStringTable>,
-    i18n_config: Option<&perry_transform::i18n::I18nConfig>,
-    exe_path: &Path,
-    format: OutputFormat,
 ) {
     return;
 }

@@ -1662,7 +1662,6 @@ fn package_aliases_collect_pruning_case(
             &mut ctx,
             &mut visited,
             &mut class_id,
-            false,
             &progress,
             None,
             OutputFormat::Text,

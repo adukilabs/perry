@@ -57,7 +57,7 @@ fn locates_artifact_from_bare_crate_name() {
 /// CI also covers the `lib`-prefix preservation logic.
 #[test]
 fn variant_set_for_windows_target_keeps_lib_prefix() {
-    let variants = super::lib_name_variants("libfoo", Some("windows"));
+    let variants = super::lib_name_variants("libfoo");
     assert!(
         variants.iter().any(|v| v == "libfoo.lib"),
         "expected libfoo.lib in {:?}",
@@ -73,7 +73,7 @@ fn variant_set_for_windows_target_keeps_lib_prefix() {
 /// so Unix builds keep working unchanged.
 #[test]
 fn variant_set_translates_unix_static_lib_to_msvc_on_windows() {
-    let variants = super::lib_name_variants("libperry_ext_webgpu.a", Some("windows"));
+    let variants = super::lib_name_variants("libperry_ext_webgpu.a");
     assert_eq!(
         variants.first().map(String::as_str),
         Some("libperry_ext_webgpu.a")
@@ -89,7 +89,7 @@ fn variant_set_translates_unix_static_lib_to_msvc_on_windows() {
 /// not start probing for `.lib` files.
 #[test]
 fn variant_set_does_not_translate_static_lib_on_unix() {
-    let variants = super::lib_name_variants("libperry_ext_webgpu.a", Some("linux"));
+    let variants = super::lib_name_variants("libperry_ext_webgpu.a");
     assert_eq!(variants, vec!["libperry_ext_webgpu.a".to_string()]);
 }
 

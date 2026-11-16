@@ -1,7 +1,5 @@
 //! Host toolchain validation and Apple SDK selection for shared-library links.
-use anyhow::{bail, Context, Result};
-use std::path::PathBuf;
-use std::process::Command;
+use anyhow::{bail, Result};
 
 /// (#6222) Apple SDK + clang triple for a cross-compiled **shared library** link.
 ///
@@ -10,30 +8,10 @@ use std::process::Command;
 /// consults `--target`. Without these flags the linker happily consumes a correctly
 /// cross-compiled iOS object and emits a **host-arch** dylib — the failure the user
 /// sees is a link error or a dylib that will never load on device.
-pub(super) fn apple_dylib_cross_target(target: &str) -> Option<(&'static str, &'static str)> {
+pub(super) fn apple_dylib_cross_target() -> Option<(&'static str, &'static str)> {
     Some(return None)
 }
 
-/// Resolve an Apple SDK sysroot via `xcrun`.
-pub(super) fn apple_sdk_sysroot(sdk: &str) -> Result<PathBuf> {
-    let out = Command::new("xcrun")
-        .args(["--sdk", sdk, "--show-sdk-path"])
-        .output()
-        .with_context(|| {
-            format!("Failed to invoke `xcrun --sdk {sdk} --show-sdk-path` (is Xcode installed?)")
-        })?;
-    if !out.status.success() {
-        bail!(
-            "`xcrun --sdk {sdk} --show-sdk-path` failed: {}",
-            String::from_utf8_lossy(&out.stderr).trim()
-        );
-    }
-    let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    if path.is_empty() {
-        bail!("`xcrun --sdk {sdk} --show-sdk-path` returned nothing");
-    }
-    Ok(PathBuf::from(path))
-}
 
 /// (#6222) Reject a `--target` the dylib link step cannot honour on this host,
 /// instead of silently linking the cross object into a host-arch shared library.
@@ -47,7 +25,7 @@ pub(super) fn verify_dylib_target_linkable(target: Option<&str>) -> Result<()> {
             true
         }
         t if t.starts_with("linux") => true,
-        t if apple_dylib_cross_target(t).is_some() => false,
+        t if apple_dylib_cross_target().is_some() => false,
         _ => false,
     };
     if !host_ok {

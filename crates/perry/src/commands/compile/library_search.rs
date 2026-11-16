@@ -27,8 +27,7 @@ use std::process::Command;
 // the compile.rs orchestrator. Pull them in as private parent-module
 // items so the search helpers below can reach them.
 use super::{
-    rust_target_triple, windows_target_arch,
-    WindowsTargetArch,
+    rust_target_triple,
 };
 
 /// The host's Rust target triple: the target this compiler was built for
@@ -78,7 +77,7 @@ pub(crate) fn locate_native_lib_artifact(
         }
     }
     for dir in &release_dirs {
-        for name in lib_name_variants(lib_name, target) {
+        for name in lib_name_variants(lib_name) {
             let path = dir.join(&name);
             if path.exists() {
                 return Some(path);
@@ -93,7 +92,7 @@ pub(crate) fn locate_native_lib_artifact(
 /// already include the full filename (e.g. `libfoo.a`) keep working
 /// unchanged; the variants cover wrappers that supply only the bare
 /// cargo lib name (refs issue #792).
-fn lib_name_variants(lib_name: &str, target: Option<&str>) -> Vec<String> {
+fn lib_name_variants(lib_name: &str) -> Vec<String> {
     let mut out = vec![lib_name.to_string()];
 
     if std::path::Path::new(lib_name).extension().is_some() {
@@ -253,9 +252,6 @@ fn versioned_llvm_bin_dirs(parent: &str, prefix: &str, names: &[String]) -> Vec<
 
 
 
-pub(super) fn find_msvc_link_exe(_target: Option<&str>) -> Option<PathBuf> {
-    find_llvm_tool("lld-link")
-}
 
 /// Find `lld-link.exe` — LLVM's drop-in replacement for MSVC `link.exe`. Ships
 /// with `winget install LLVM.LLVM`. Enables the "lightweight Windows toolchain"
@@ -299,123 +295,10 @@ pub(super) fn find_lld_link() -> Option<PathBuf> {
 
 
 
-/// Location where `perry setup windows` writes the xwin'd Microsoft CRT +
-/// Windows SDK. Returns `Some(root)` only when a supported architecture's CRT
-/// directory exists, so callers can treat `Some` as "toolchain is complete."
-///
-/// Default location is `%LOCALAPPDATA%\perry\windows-sdk` on Windows; can be
-/// overridden via `PERRY_WINDOWS_SYSROOT` (same env var already used by the
-/// cross-compile branch, so a single env var works for both hosts).
-/// Available on all hosts so the `is_windows` target branch (which fires on
-/// macOS/Linux cross-compiles too) can check for an xwin'd Windows SDK without
-/// needing its own cfg gate.
-pub(super) fn find_perry_windows_sdk() -> Option<PathBuf> {
-    let explicit = std::env::var("PERRY_WINDOWS_SYSROOT")
-        .ok()
-        .map(PathBuf::from);
-    let default = dirs::data_local_dir().map(|p| p.join("perry").join("windows-sdk"));
-    for candidate in [explicit, default].into_iter().flatten() {
-        // Sanity-check: xwin splat populates crt/lib/x86_64 (or crt/lib/x64 with
-        // --preserve-ms-arch-notation). If neither exists, the directory isn't a
-        // completed xwin output — skip it.
-        if ["x86_64", "x64", "aarch64", "arm64"]
-            .iter()
-            .any(|arch| candidate.join("crt").join("lib").join(arch).exists())
-        {
-            return Some(candidate);
-        }
-    }
-    None
-}
-
-/// Returns the `/SUBSYSTEM:…` flag for MSVC `link.exe` / `lld-link`.
-///
-/// CLI programs must use `CONSOLE` (3) so the OS loader attaches stdin/stdout/stderr
-/// before `main()` runs. GUI programs use `WINDOWS` (2) to suppress the console
-/// window that would otherwise flash alongside the app window. Passing neither
-/// flag lets the linker pick a default, which historically resolved to `WINDOWS`
-/// for Perry builds and silently discarded all `console.log` output (issue #120).
-///
-/// `min_windows_version` accepts `"7"`, `"8"`, or `"10"` (default). Per the
-/// PE subsystem ABI: `,5.1` = Win7-compatible, `,6.02` = Win8-compatible,
-/// no suffix = linker default (Win8+ on modern toolchains). The PE subsystem
-/// version is just the loader-side declaration of "this binary claims to run
-/// on this version" — the binary still has to actually avoid calling APIs
-/// newer than that version. Perry's UI runtime handles the API side via
-/// `crates/perry-ui-windows/src/dpi_compat.rs` (issue #303).
-/// Fold the resolved `--windows-subsystem` / `[windows] subsystem` override
-/// (`ctx.windows_subsystem`) into the auto-detected `needs_ui` to get the
-/// effective "is this a GUI app?" bool that `windows_pe_subsystem_flag`
-/// consumes. `"windows"` forces GUI (`/SUBSYSTEM:WINDOWS`, no console window),
-/// `"console"` forces a console, `"auto"` (and any unrecognized value — the
-/// caller validates) defers to the import-driven heuristic.
-pub(super) fn windows_subsystem_needs_ui(subsystem: &str, needs_ui: bool) -> bool {
-    match subsystem {
-        "windows" => true,
-        "console" => false,
-        _ => needs_ui,
-    }
-}
 
 
-pub(super) fn windows_pe_subsystem_flag(needs_ui: bool, min_windows_version: &str) -> String {
-    let base = if needs_ui {
-        "/SUBSYSTEM:WINDOWS"
-    } else {
-        "/SUBSYSTEM:CONSOLE"
-    };
-    match min_windows_version {
-        "7" => format!("{},5.1", base),
-        "8" => format!("{},6.02", base),
-        // "10" or anything else (caller is expected to validate) — no suffix,
-        // linker picks its default. Preserves current behavior for users
-        // who don't pass --min-windows-version.
-        _ => base.to_string(),
-    }
-}
 
-/// Given a sysroot directory populated by `xwin splat` (or a compatible layout),
-/// return the lib search paths for MSVC / lld-link's LIB env var. Callers pass
-/// the directory root (e.g. `%LOCALAPPDATA%\perry\windows-sdk`) and get back a
-/// `Vec<String>` of absolute lib dirs for the selected target architecture.
-/// Falls through to
-/// `<root>/lib` and finally `<root>` itself if the structured layout isn't
-/// present (e.g. a user pointed PERRY_WINDOWS_SYSROOT at a custom dir).
-pub(super) fn xwin_sysroot_lib_paths(root: &Path, target_arch: WindowsTargetArch) -> Vec<String> {
-    let mut paths = Vec::new();
 
-    // xwin default layout — also covers --preserve-ms-arch-notation (x64 suffix).
-    for arch in [target_arch.xwin_dir(), target_arch.msvc_dir()] {
-        let crt = root.join("crt").join("lib").join(arch);
-        let um = root.join("sdk").join("lib").join("um").join(arch);
-        let ucrt = root.join("sdk").join("lib").join("ucrt").join(arch);
-        if crt.is_dir() && um.is_dir() && ucrt.is_dir() {
-            paths.push(crt.to_string_lossy().to_string());
-            paths.push(um.to_string_lossy().to_string());
-            paths.push(ucrt.to_string_lossy().to_string());
-            return paths;
-        }
-    }
-
-    // A structured xwin sysroot that contains only a different architecture
-    // is not a valid flat fallback. Returning the root here would make the
-    // linker search it directly and hide the missing target CRT.
-    if root.join("crt").join("lib").is_dir()
-        || root.join("sdk").join("lib").join("um").is_dir()
-        || root.join("sdk").join("lib").join("ucrt").is_dir()
-    {
-        return paths;
-    }
-
-    let flat_lib = root.join("lib");
-    if flat_lib.exists() {
-        paths.push(flat_lib.to_string_lossy().to_string());
-        return paths;
-    }
-
-    paths.push(root.to_string_lossy().to_string());
-    paths
-}
 
 
 
@@ -467,20 +350,6 @@ pub(super) fn newest_mt_dir_under(bin_root: &Path) -> Option<PathBuf> {
     None
 }
 
-pub(super) fn find_msvc_lib_paths(target: Option<&str>) -> Option<String> {
-    let target_arch = windows_target_arch(target)?;
-    let sysroot = std::env::var("PERRY_WINDOWS_SYSROOT").ok()?;
-    let root = PathBuf::from(&sysroot);
-    if !root.exists() {
-        eprintln!(
-            "Warning: PERRY_WINDOWS_SYSROOT={} does not exist",
-            root.display()
-        );
-        return None;
-    }
-
-    Some(xwin_sysroot_lib_paths(&root, target_arch).join(";"))
-}
 
 /// A located archive: the path the linker gets, and the candidate path it was
 /// found at. They differ only for an npm `*.a.zst`, which links from its
@@ -1051,81 +920,10 @@ pub(super) fn find_ui_library(target: Option<&str>) -> Option<PathBuf> {
     locate_optional_archive(lib_name, target, "this perry/ui program")
 }
 
-/// Locate the OpenHarmony SDK's `native/` directory — the one that contains
-/// `llvm/bin/clang` (the cross-compiler) and `sysroot/` (musl headers + libs).
-///
-/// Probes `$OHOS_SDK_HOME` first (user-supplied path; may point at either the
-/// SDK root or the `native/` subdir — we normalize). Falls back to DevEco
-/// Studio's default install locations per platform. Returns `None` if nothing
-/// resembling an OHOS SDK is present; the caller is expected to surface a
-/// remediation message naming the env var.
-fn is_usable_harmonyos_native_sdk(path: &Path) -> bool {
-    let bin = path.join("llvm").join("bin");
-    let has_clang = bin.join("clang").is_file() || bin.join("clang.exe").is_file();
-    has_clang && path.join("sysroot").is_dir()
-}
-
-pub(super) fn find_harmonyos_sdk() -> Option<PathBuf> {
-    fn normalize(p: PathBuf) -> Option<PathBuf> {
-        // Accept either `<sdk>` or `<sdk>/native` — we want the `native` dir
-        // so callers can unconditionally join `llvm/bin/clang` and `sysroot`.
-        if is_usable_harmonyos_native_sdk(&p) {
-            return Some(p);
-        }
-        let native = p.join("native");
-        if is_usable_harmonyos_native_sdk(&native) {
-            return Some(native);
-        }
-        // DevEco's layout nests the API-level dir: <root>/openharmony/<api>/native
-        if let Ok(entries) = std::fs::read_dir(p.join("openharmony")) {
-            for entry in entries.flatten() {
-                let candidate = entry.path().join("native");
-                if is_usable_harmonyos_native_sdk(&candidate) {
-                    return Some(candidate);
-                }
-            }
-        }
-        None
-    }
-
-    if let Ok(env_path) = std::env::var("OHOS_SDK_HOME") {
-        if let Some(sdk) = normalize(PathBuf::from(env_path)) {
-            return Some(sdk);
-        }
-    }
-
-    let home = std::env::var("HOME").ok().map(PathBuf::from);
-    let mut candidates: Vec<PathBuf> = Vec::new();
-    if let Some(h) = home {
-        // macOS default: DevEco Studio's "system image" + tooling SDK
-        // installs into ~/Library/Huawei/Sdk — but the native cross-compiler
-        // (clang + musl sysroot) actually lives inside the DevEco-Studio.app
-        // bundle, not under the user's Library/Huawei dir. Probe the user
-        // dir first in case someone unpacked a standalone OHOS SDK there,
-        // then fall through to the bundle.
-        candidates.push(h.join("Library/Huawei/Sdk"));
-        // Linux default
-        candidates.push(h.join("Huawei/Sdk"));
-    }
-    // macOS: DevEco Studio bundles the native cross-toolchain inside its
-    // .app at `Contents/sdk/default/openharmony/native`. The "default"
-    // segment is the active SDK profile selected in DevEco's prefs UI;
-    // multi-profile installs may have other names alongside it (we'd
-    // need to enumerate `Contents/sdk/*/openharmony/native` for those —
-    // deferred until a user reports a non-default profile).
-
-    for c in candidates {
-        if let Some(sdk) = normalize(c) {
-            return Some(sdk);
-        }
-    }
-    None
-}
 
 
 
-#[cfg(test)]
-mod harmonyos_sdk_tests;
+
 
 
 #[cfg(test)]

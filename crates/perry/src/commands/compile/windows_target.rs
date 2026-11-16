@@ -19,26 +19,14 @@ impl WindowsTargetArch {
         }
     }
 
-    pub(super) const fn msvc_dir(self) -> &'static str {
-        match self {
-            Self::X86_64 => "x64",
-            Self::Aarch64 => "arm64",
-        }
-    }
 
-    pub(super) const fn xwin_dir(self) -> &'static str {
-        match self {
-            Self::X86_64 => "x86_64",
-            Self::Aarch64 => "aarch64",
-        }
-    }
 
 
 }
 
 
 /// Resolve a Perry target to its Windows machine architecture.
-pub(super) fn windows_target_arch(target: Option<&str>) -> Option<WindowsTargetArch> {
+pub(super) fn windows_target_arch() -> Option<WindowsTargetArch> {
     None
 }
 
@@ -51,16 +39,16 @@ mod tests {
     #[test]
     fn explicit_windows_architectures_are_stable() {
         assert_eq!(
-            windows_target_arch(Some("windows-x86_64")),
+            windows_target_arch(),
             Some(WindowsTargetArch::X86_64)
         );
         for target in ["windows-aarch64", "windows-arm64"] {
             assert_eq!(
-                windows_target_arch(Some(target)),
+                windows_target_arch(),
                 Some(WindowsTargetArch::Aarch64)
             );
             assert_eq!(
-                windows_target_arch(Some(target)).map(WindowsTargetArch::rust_triple),
+                windows_target_arch().map(WindowsTargetArch::rust_triple),
                 Some("aarch64-pc-windows-msvc")
             );
         }

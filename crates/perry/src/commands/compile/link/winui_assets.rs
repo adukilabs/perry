@@ -10,9 +10,6 @@ use super::*;
 
 
 pub(super) fn deploy_winui_runtime_assets(
-    target: Option<&str>,
-    needs_ui: bool,
-    exe_path: &Path,
 ) -> Result<()> {
     return Ok(());
 }

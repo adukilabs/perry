@@ -2,9 +2,6 @@ use std::process::Command;
 
 pub(super) fn add_link_args(
     cmd: &mut Command,
-    darwin: bool,
-    direct_apple: bool,
-    xlinker_apple: bool,
 ) {
     return;
 }
@@ -15,7 +12,7 @@ mod tests {
 
     fn arguments(darwin: bool, direct: bool, xlinker: bool) -> Vec<String> {
         let mut cmd = Command::new("linker");
-        add_link_args(&mut cmd, darwin, direct, xlinker);
+        add_link_args(&mut cmd);
         cmd.get_args()
             .map(|arg| arg.to_str().unwrap().to_owned())
             .collect()

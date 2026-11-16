@@ -46,7 +46,6 @@ pub(crate) fn build_and_run_link(
     format: OutputFormat,
     // `--debug-symbols`: keep symbols / emit a PDB so RUST_BACKTRACE
     // panics in the compiled app symbolize. Windows-active today.
-    debug_symbols: bool,
     // `--verbose` (#6899): print the exact linker invocation before spawning
     // it and its exit status after. The hang reported in #6899 sits between
     // the `[strip-dedup]` line and the `Wrote executable:` line — a window
@@ -67,7 +66,6 @@ pub(crate) fn build_and_run_link(
     super::super::run_lock_verify_for_compile(ctx, target)?;
 
     // Wear OS and every Android architecture share the NDK/cdylib link path.
-    let is_linux = true;
     // Fully-static musl Linux target (#4826) — a sub-case of is_linux. The
     // link command itself is built in select_linker_command (musl driver +
     // `-static`); here it only changes which system libs we request.
@@ -92,24 +90,7 @@ pub(crate) fn build_and_run_link(
     let is_windows = false;
 
     let mut cmd = select_linker_command(
-        args_input,
-        ctx,
         target,
-        obj_paths,
-        compiled_features,
-        false,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
     )?;
 
     // When ios-game-loop is enabled, rename _main to _perry_user_main in the
@@ -147,11 +128,6 @@ pub(crate) fn build_and_run_link(
     add_node_api_host_link_args(
         &mut cmd,
         ctx,
-        false,
-        true,
-        false,
-        false,
-        false,
     )?;
 
     // `PERRY_LINK_LLD=1`: lld instead of GNU ld for a native glibc Linux
@@ -231,11 +207,6 @@ pub(crate) fn build_and_run_link(
         super::function_layout::add_link_args(
             &mut cmd,
             &ctx.cache_dir,
-            true,
-            false,
-            false,
-            false,
-            false,
             &runtime_archives,
             runs_lld,
             // The default hot-data order: native glibc Linux executables,
@@ -246,15 +217,9 @@ pub(crate) fn build_and_run_link(
         )?;
         super::runtime_layouts::add_link_args(
             &mut cmd,
-            false,
-            false,
-            false,
         );
         super::wrapper_hooks::add_link_args(
             &mut cmd,
-            false,
-            false,
-            false,
             well_known_libs,
         );
         // PERRY_LINK_MAP=<path> — emit a linker map (which archive each symbol
@@ -279,7 +244,6 @@ pub(crate) fn build_and_run_link(
     // perry-runtime may not include all symbols (e.g., perry_init_guard_check_and_set).
     // watchOS: swiftc treats duplicate symbols as errors (not warnings like clang),
     // so skip the standalone runtime when the UI lib already bundles it.
-    let skip_runtime = false;
     let mut source_well_known_libs = well_known_libs.to_vec();
     let mut seen_well_known = std::collections::HashSet::new();
     source_well_known_libs.retain(|path| seen_well_known.insert(path.clone()));
@@ -444,7 +408,7 @@ pub(crate) fn build_and_run_link(
             } else {
                 runtime_lib.to_path_buf()
             };
-            cmd.arg(dedup_runtime_for_tier3(target, &runtime_for_link, stdlib));
+            cmd.arg(dedup_runtime_for_tier3(&runtime_for_link));
         } else {
             if ctx.needs_stdlib {
                 eprintln!(
@@ -651,7 +615,7 @@ pub(crate) fn build_and_run_link(
                 OutputFormat::Json => {}
             }
         } else {
-            let windows_rust_triple = windows_target_arch(target)
+            let windows_rust_triple = windows_target_arch()
                 .map(WindowsTargetArch::rust_triple)
                 .unwrap_or("x86_64-pc-windows-msvc");
             let windows_ui_build_cmd =
@@ -833,7 +797,7 @@ pub(crate) fn build_and_run_link(
                     );
 
                     if let Some(lib) = lib_path {
-                        let lib = dedup_native_lib_for_tier3(target, lib_name, lib);
+                        let lib = dedup_native_lib_for_tier3(lib);
                         // For shared libraries (.so) on Android, use -L/-l so the linker
                         // records just the soname (not the full build path) in DT_NEEDED.
                         {
@@ -1054,7 +1018,7 @@ pub(crate) fn build_and_run_link(
         if let Some(path) = embedded_info_plist_path {
             let _ = fs::remove_file(path);
         }
-        winui_assets::deploy_winui_runtime_assets(target, ctx.needs_ui, exe_path)?;
+        winui_assets::deploy_winui_runtime_assets()?;
         return Ok(link_cache_status);
     }
 
@@ -1077,7 +1041,7 @@ pub(crate) fn build_and_run_link(
     {
         // MSVC-style quoting for the native-Windows linker (link.exe/lld-link);
         // GNU-style for a clang/cc driver (the forced-test path on macOS/Linux).
-        if let Some((rsp_cmd, rsp_path)) = rewrite_link_with_response_file(&cmd, false) {
+        if let Some((rsp_cmd, rsp_path)) = rewrite_link_with_response_file(&cmd) {
             cmd = rsp_cmd;
             response_file_to_clean = Some(rsp_path);
         }
@@ -1114,7 +1078,7 @@ pub(crate) fn build_and_run_link(
         return Err(anyhow!("Linking failed"));
     }
 
-    winui_assets::deploy_winui_runtime_assets(target, ctx.needs_ui, exe_path)?;
+    winui_assets::deploy_winui_runtime_assets()?;
 
     Ok(link_cache_status)
 }

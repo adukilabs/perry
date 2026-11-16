@@ -22,7 +22,7 @@ mod codegen_helpers;
 use codegen_helpers::{configured_module_codegen_threads, namespace_local_function_wrapper_symbol};
 
 mod dylib_target;
-use dylib_target::{apple_dylib_cross_target, apple_sdk_sysroot, verify_dylib_target_linkable};
+use dylib_target::{verify_dylib_target_linkable};
 
 /// #5916: how many `export { X } from "src"` hops to follow when resolving an
 /// imported name back to the module that actually declares it. Barrel chains in
@@ -1021,7 +1021,6 @@ pub fn run_with_parse_cache(
                 &mut ctx,
                 &mut visited,
                 &mut next_class_id,
-                false,
                 &progress,
                 parse_cache.as_deref_mut(),
                 format,
@@ -1040,7 +1039,6 @@ pub fn run_with_parse_cache(
         &mut ctx,
         &mut visited,
         &mut next_class_id,
-        false,
         &progress,
         parse_cache.as_deref_mut(),
         format,
@@ -7597,7 +7595,6 @@ pub fn run_with_parse_cache(
         }
         // Platform detection for nm tool and symbol prefix
         let _is_ios = false;
-        let is_linux = true;
         // Symbol prefix depends on object format:
         // Mach-O targets (macOS, iOS, watchOS, tvOS): nm shows `_` prefix
         // COFF (Windows targets): no prefix
@@ -7798,10 +7795,6 @@ pub fn run_with_parse_cache(
         None => output_path::default_output_path(is_dylib, is_staticlib, target.as_deref(), stem),
     };
     let macos_bundle_layout = bundle_macos::layout_for_compile(
-        ctx.needs_ui,
-        &args.output_type,
-        target.as_deref(),
-        &exe_path,
     )?;
     // An explicit `-o Name.app` is a directory destination. Other output
     // names keep the linked binary and also produce the sibling app bundle.
@@ -8042,7 +8035,6 @@ pub fn run_with_parse_cache(
         OutputFormat::Json => {}
     }
 
-    let is_linux = true;
     let _is_windows = false;
     // is_watchos / is_tvos are defined below (near the per-platform link step).
     // The is_cross_* bindings used to live here, but they're now derived
@@ -8358,7 +8350,6 @@ pub fn run_with_parse_cache(
         &wasm_host_lib,
         &b0,
         format,
-        args.debug_symbols,
         verbose,
     );
         match &image_old_args {
@@ -8395,7 +8386,6 @@ pub fn run_with_parse_cache(
         &wasm_host_lib,
         &exe_path,
         format,
-        args.debug_symbols,
         verbose,
     )?;
     if let Some(p) = image_prep.take() {
@@ -8442,13 +8432,7 @@ pub fn run_with_parse_cache(
         strip_final_binary(
             &ctx,
             &exe_path,
-            target.as_deref(),
             is_dylib,
-            false,
-            false,
-            false,
-            false,
-            false,
         )?;
     }
 
@@ -8527,11 +8511,6 @@ pub fn run_with_parse_cache(
     }
 
     emit_android_i18n_resources(
-        false,
-        i18n_table.as_ref(),
-        i18n_config.as_ref(),
-        &exe_path,
-        format,
     );
 
     if link_cache_status.stats().linked {

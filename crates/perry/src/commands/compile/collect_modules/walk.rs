@@ -180,7 +180,6 @@ fn walk_modules(
                         prepared,
                         ctx,
                         visited,
-                        target,
                         skip_transforms,
                         progress,
                     )?;

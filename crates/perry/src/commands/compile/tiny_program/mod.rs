@@ -129,12 +129,6 @@ pub(super) fn try_compile(
     super::post_link::strip_final_binary(
         ctx,
         &output,
-        args.target.as_deref(),
-        false,
-        false,
-        false,
-        false,
-        false,
         false,
     )?;
     if matches!(format, OutputFormat::Text) {

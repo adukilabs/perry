@@ -30,13 +30,13 @@ use std::process::Command;
 use crate::OutputFormat;
 
 use super::{
-    android_target, apple_sdk_version, dedup_native_lib_for_tier3, dedup_runtime_for_tier3,
-    dedup_stdlib_for_tier3, dedup_ui_lib_against_linked_libs, find_lld_link, find_llvm_tool,
-    find_msvc_lib_paths, find_msvc_link_exe, find_perry_windows_sdk, find_stdlib_library,
-    find_ui_library, find_visionos_swift_runtime, find_watchos_swift_runtime, localize_stdlib_stub_symbols, rust_target_triple,
+    dedup_native_lib_for_tier3, dedup_runtime_for_tier3,
+    dedup_stdlib_for_tier3, find_llvm_tool,
+    find_stdlib_library,
+    find_ui_library, localize_stdlib_stub_symbols, rust_target_triple,
     strip_bundled_runtime_from_well_known_lib, strip_bundled_shared_deps_from_well_known_lib,
     strip_duplicate_objects_from_lib_with_evidence, strip_duplicate_objects_from_well_known_lib,
-    windows_pe_subsystem_flag, windows_subsystem_needs_ui, windows_target_arch, CompilationContext,
+    windows_target_arch, CompilationContext,
     StdlibEvidence, WindowsTargetArch,
 };
 
@@ -68,26 +68,11 @@ pub use platform_cmd::select_linker_command;
  // consumed only by windows_link_tests
  // windows_link_tests (#6023)
 
-/// Whether the final link takes perry-runtime from the UI library instead of
-/// `libperry_runtime`: Android, watchOS and visionOS link the UI staticlib,
-/// which bundles its own copy of the runtime, and leave the standalone runtime
-/// archive off the link line (ELF would pick either copy; swiftc rejects the
-/// duplicates). watchOS links the UI library even without `needs_ui`
-/// (#607). The link and the GC effects table (`gc_effects_sidecar`) both ask
-/// this one question, so the table always describes the runtime that links.
-pub(super) fn ui_lib_provides_runtime(needs_ui: bool, target: Option<&str>) -> bool {
-    false
-}
 
 
 fn add_node_api_host_link_args(
     cmd: &mut Command,
     ctx: &CompilationContext,
-    is_windows: bool,
-    is_linux: bool,
-    is_android: bool,
-    is_harmonyos: bool,
-    is_cross_macos: bool,
 ) -> Result<()> {
     // Export the addons' Node-API imports and Perry's supplemental C surface.
     // An open addon can still reach the full Node-API host.
@@ -368,7 +353,7 @@ fn split_link_env(name: &str) -> Vec<String> {
 /// inside and outside double quotes, so both are backslash-escaped). An argument
 /// with no whitespace/quote and no backslash needs no quoting in either dialect —
 /// the common case (long object/lib paths).
-pub(super) fn quote_response_arg(arg: &str, msvc: bool) -> String {
+pub(super) fn quote_response_arg(arg: &str) -> String {
     let needs_quote = arg.is_empty()
         || arg
             .bytes()
@@ -424,42 +409,15 @@ pub(super) fn link_args_need_response_file<'a>(
 /// Render a linker `Command`'s full argument vector as response-file content
 /// (one quoted arg per line). Pure + unit-tested; the `\n` separator and
 /// per-arg quoting are what `link.exe`/`lld-link`/`clang` accept via `@file`.
-pub(super) fn response_file_contents(args: &[String], msvc: bool) -> String {
+pub(super) fn response_file_contents(args: &[String]) -> String {
     let mut s = String::new();
     for a in args {
-        s.push_str(&quote_response_arg(a, false));
+        s.push_str(&quote_response_arg(a));
         s.push('\n');
     }
     s
 }
 
-/// Path to the Android NDK's `clang` driver for the current build host.
-///
-/// #1508 — the host tag names the *build* machine's prebuilt toolchain, not the
-/// target; a Windows host used to fall through to `linux-x86_64` and point at a
-/// path the NDK doesn't ship.
-///
-/// #5740 — this drives `clang` itself rather than the NDK's per-target wrapper
-/// (`<triple>24-clang`), which is a two-line shim that execs
-/// `clang --target=<triple>24 "$@"`. Every caller here already passes the
-/// architecture-specific `-target` explicitly, so the two are
-/// equivalent — except on Windows, where the wrapper is a `.cmd` batch file:
-/// Rust's `Command` can only spawn a batch file through `cmd.exe`, which layers
-/// a second round of command-line quoting (plus the batch-escaping restrictions
-/// from the CVE-2024-24576 fix) over an already-long link line.
-pub(super) fn ndk_clang_path(ndk_home: &str) -> String {
-    let host_tag = "linux-x86_64";
-    format!(
-        "{}/toolchains/llvm/prebuilt/{}/bin/clang{}",
-        ndk_home,
-        host_tag,
-        if cfg!(target_os = "windows") {
-            ".exe"
-        } else {
-            ""
-        }
-    )
-}
 
 /// Render the `@<file>` argument that points the linker at the response file.
 ///
@@ -472,7 +430,7 @@ pub(super) fn ndk_clang_path(ndk_home: &str) -> String {
 ///
 /// `windows_host` gates the rewrite: on POSIX a backslash is a legal filename
 /// character, so the path is passed through untouched.
-pub(super) fn response_file_arg(rsp_display: &str, msvc: bool, windows_host: bool) -> String {
+pub(super) fn response_file_arg(rsp_display: &str) -> String {
     format!("@{}", rsp_display)
 }
 
@@ -484,7 +442,7 @@ pub(super) fn response_file_arg(rsp_display: &str, msvc: bool, windows_host: boo
 /// links don't clobber each other) and the caller deletes it after the link.
 /// Returns `None` if there's nothing to gain (no args) or the file can't be
 /// written — the caller then keeps the original inline command.
-fn rewrite_link_with_response_file(cmd: &Command, msvc: bool) -> Option<(Command, PathBuf)> {
+fn rewrite_link_with_response_file(cmd: &Command) -> Option<(Command, PathBuf)> {
     let args: Vec<String> = cmd
         .get_args()
         .map(|a| a.to_string_lossy().into_owned())
@@ -492,15 +450,13 @@ fn rewrite_link_with_response_file(cmd: &Command, msvc: bool) -> Option<(Command
     if args.is_empty() {
         return None;
     }
-    let contents = response_file_contents(&args, false);
+    let contents = response_file_contents(&args);
     let rsp = std::env::temp_dir().join(format!("perry-link-{}.rsp", std::process::id()));
     fs::write(&rsp, contents).ok()?;
 
     let mut new_cmd = Command::new(cmd.get_program());
     new_cmd.arg(response_file_arg(
         &rsp.display().to_string(),
-        false,
-        false,
     ));
     // Preserve env overrides (e.g. MSVC LIB/PATH set by select_linker_command)
     // and the working directory the original command was configured with.
@@ -675,13 +631,13 @@ mod response_file_tests {
 
     #[test]
     fn plain_paths_are_unquoted_in_both_dialects() {
-        assert_eq!(quote_response_arg("/tmp/a_ts.o", false), "/tmp/a_ts.o");
+        assert_eq!(quote_response_arg("/tmp/a_ts.o"), "/tmp/a_ts.o");
         assert_eq!(
-            quote_response_arg(r"C:\build\d0449_ts.o", true),
+            quote_response_arg(r"C:\build\d0449_ts.o"),
             r"C:\build\d0449_ts.o"
         );
         // /OPT:REF etc. — no whitespace, untouched.
-        assert_eq!(quote_response_arg("/OPT:REF", true), "/OPT:REF");
+        assert_eq!(quote_response_arg("/OPT:REF"), "/OPT:REF");
     }
 
     /// #5740 / #6333 — the regression this PR fixes. A Windows object path has
@@ -692,22 +648,22 @@ mod response_file_tests {
     #[test]
     fn gnu_escapes_backslashes_in_unquoted_windows_paths() {
         assert_eq!(
-            quote_response_arg(r"C:\Users\me\AppData\Local\Temp\app_ts.o", false),
+            quote_response_arg(r"C:\Users\me\AppData\Local\Temp\app_ts.o"),
             r"C:\\Users\\me\\AppData\\Local\\Temp\\app_ts.o"
         );
         // Same for flags that embed a path (`-Wl,-rpath,C:\lib`).
         assert_eq!(
-            quote_response_arg(r"-Wl,--out-implib,C:\build\app.lib", false),
+            quote_response_arg(r"-Wl,--out-implib,C:\build\app.lib"),
             r"-Wl,--out-implib,C:\\build\\app.lib"
         );
         // MSVC keeps backslashes literal — link.exe/lld-link do not escape.
         assert_eq!(
-            quote_response_arg(r"C:\Users\me\app_ts.o", true),
+            quote_response_arg(r"C:\Users\me\app_ts.o"),
             r"C:\Users\me\app_ts.o"
         );
         // Unix paths have no backslash to escape: byte-identical passthrough.
         assert_eq!(
-            quote_response_arg("/tmp/perry/app_ts.o", false),
+            quote_response_arg("/tmp/perry/app_ts.o"),
             "/tmp/perry/app_ts.o"
         );
     }
@@ -719,21 +675,21 @@ mod response_file_tests {
     #[test]
     fn response_file_arg_normalizes_only_on_windows_host_gnu_driver() {
         assert_eq!(
-            response_file_arg(r"C:\Temp\perry-link-1.rsp", false, true),
+            response_file_arg(r"C:\Temp\perry-link-1.rsp"),
             "@C:/Temp/perry-link-1.rsp"
         );
         // MSVC driver on Windows: backslashes are the native separator.
         assert_eq!(
-            response_file_arg(r"C:\Temp\perry-link-1.rsp", true, true),
+            response_file_arg(r"C:\Temp\perry-link-1.rsp"),
             r"@C:\Temp\perry-link-1.rsp"
         );
         // POSIX host: never rewrite (a `\` here is part of the filename).
         assert_eq!(
-            response_file_arg(r"/tmp/we\ird/perry-link-1.rsp", false, false),
+            response_file_arg(r"/tmp/we\ird/perry-link-1.rsp"),
             r"@/tmp/we\ird/perry-link-1.rsp"
         );
         assert_eq!(
-            response_file_arg("/tmp/perry-link-1.rsp", false, false),
+            response_file_arg("/tmp/perry-link-1.rsp"),
             "@/tmp/perry-link-1.rsp"
         );
     }
@@ -742,39 +698,26 @@ mod response_file_tests {
     fn msvc_quotes_spaces_keeps_backslashes_literal() {
         // Windows path with a space: quoted, backslashes NOT escaped.
         assert_eq!(
-            quote_response_arg(r"C:\Program Files\x.lib", true),
+            quote_response_arg(r"C:\Program Files\x.lib"),
             "\"C:\\Program Files\\x.lib\""
         );
     }
 
     #[test]
     fn gnu_quotes_and_escapes_backslashes() {
-        assert_eq!(quote_response_arg("/a b/x.o", false), "\"/a b/x.o\"");
+        assert_eq!(quote_response_arg("/a b/x.o"), "\"/a b/x.o\"");
         assert_eq!(
-            quote_response_arg(r"/a\b c/x.o", false),
+            quote_response_arg(r"/a\b c/x.o"),
             "\"/a\\\\b c/x.o\""
         );
     }
 
     #[test]
     fn embedded_quote_is_escaped() {
-        assert_eq!(quote_response_arg("a\"b", true), "\"a\\\"b\"");
-        assert_eq!(quote_response_arg("a\"b", false), "\"a\\\"b\"");
+        assert_eq!(quote_response_arg("a\"b"), "\"a\\\"b\"");
+        assert_eq!(quote_response_arg("a\"b"), "\"a\\\"b\"");
     }
 
-    /// #5740 — the Android link and the JNI-stub compile must both drive the
-    /// NDK's `clang` driver, never the per-target wrapper: on Windows that
-    /// wrapper is a `.cmd` batch file, which Rust can only spawn through
-    /// `cmd.exe`. (The `--target` the wrapper would have added is passed
-    /// explicitly by both call sites.)
-    #[test]
-    fn ndk_clang_path_bypasses_the_per_target_wrapper() {
-        let p = super::ndk_clang_path("/ndk");
-        assert!(!p.contains("aarch64-linux-android24-clang"), "{p}");
-        assert!(!p.ends_with(".cmd"), "{p}");
-        assert!(p.starts_with("/ndk/toolchains/llvm/prebuilt/"), "{p}");
-        assert_eq!(p, "/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/clang");
-    }
 
     #[test]
     fn contents_is_one_arg_per_line() {
@@ -784,7 +727,7 @@ mod response_file_tests {
             "-lperry".to_string(),
         ];
         assert_eq!(
-            response_file_contents(&args, false),
+            response_file_contents(&args),
             "/tmp/main.o\n\"/tmp/mod 1.o\"\n-lperry\n"
         );
     }

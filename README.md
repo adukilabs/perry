@@ -157,9 +157,10 @@ Checked on `main`, with a debug build on Debian with LLVM 23.1.6:
   | `perry-hir`, `perry-transform`, `perry-parser`, `perry-gc-effects` | 893, 395, 50 and 43 passed, 0 failed | not run |
 
   The compiler has 190 fewer tests than upstream. Tests of removed code went with it, and 15
-  tests that asserted only how another system is handled were cut. 25 tests that reached
-  kept code through a macOS, iOS, Windows or WebAssembly fixture were rewritten on Linux
-  targets and ELF fixtures. Two guards on how much a scan saw were lowered to fit this fork:
+  tests that asserted only how another system is handled were cut. 25 tests reached kept
+  code through a macOS, iOS, Windows or WebAssembly fixture or target name: 24 were rewritten
+  on Linux targets and ELF fixtures, and one passed once stale entries were taken out of the
+  list it checks. Two guards on how much a scan saw were lowered to fit this fork:
   at least 20 packages, and at least 40 manifests where the fork has 41.
 - The gate on `--target`, with the built compiler: no target, `linux` and `linux-x86_64`
   each compile a program that runs and prints the expected line. 15 other names, among them

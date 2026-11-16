@@ -27,16 +27,10 @@ pub(super) fn add_link_args(
     xlinker_apple: bool,
     well_known_libs: &[PathBuf],
 ) {
-    let prefix = if darwin { "_" } else { "" };
+    let prefix = "";
     let mut arg = |flag: &str, symbol: &str| {
         let symbol = format!("{prefix}{symbol}");
-        if direct_apple {
-            cmd.arg(flag).arg(symbol);
-        } else if xlinker_apple {
-            cmd.arg("-Xlinker").arg(flag).arg("-Xlinker").arg(symbol);
-        } else {
-            cmd.arg(format!("-Wl,{flag},{symbol}"));
-        }
+        cmd.arg(format!("-Wl,{flag},{symbol}"));
     };
     let links_lazy_hook = well_known_libs.iter().any(|lib| {
         lib.file_stem()
@@ -45,9 +39,6 @@ pub(super) fn add_link_args(
     });
     if links_lazy_hook {
         arg("-u", LAZY_RUNTIME_HOOK);
-    }
-    if darwin {
-        arg("-U", LAZY_RUNTIME_HOOK);
     }
 }
 

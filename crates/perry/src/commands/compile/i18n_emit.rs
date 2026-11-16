@@ -56,64 +56,7 @@ pub(super) fn emit_android_i18n_resources(
     exe_path: &Path,
     format: OutputFormat,
 ) {
-    if !is_android {
-        return;
-    }
-    let (table, config) = match (i18n_table, i18n_config) {
-        (Some(t), Some(c)) => (t, c),
-        _ => return,
-    };
-    if table.keys.is_empty() {
-        return;
-    }
-    let output_dir = exe_path.parent().unwrap_or(Path::new("."));
-    let res_dir = output_dir.join("res");
-    for (locale_idx, locale) in config.locales.iter().enumerate() {
-        let values_dir = if locale_idx == 0 {
-            res_dir.join("values") // default locale
-        } else {
-            res_dir.join(format!("values-{}", locale))
-        };
-        let _ = fs::create_dir_all(&values_dir);
-        let mut xml = String::from("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources>\n");
-        for (key_idx, key) in table.keys.iter().enumerate() {
-            let flat_idx = locale_idx * table.keys.len() + key_idx;
-            let value = table
-                .translations
-                .get(flat_idx)
-                .cloned()
-                .unwrap_or_else(|| key.clone());
-            let res_name: String = key
-                .chars()
-                .map(|c| {
-                    if c.is_alphanumeric() || c == '_' {
-                        c
-                    } else {
-                        '_'
-                    }
-                })
-                .collect();
-            let escaped = value
-                .replace('&', "&amp;")
-                .replace('<', "&lt;")
-                .replace('>', "&gt;")
-                .replace('"', "&quot;")
-                .replace('\'', "\\'");
-            xml.push_str(&format!(
-                "    <string name=\"{}\">{}</string>\n",
-                res_name, escaped
-            ));
-        }
-        xml.push_str("</resources>\n");
-        let _ = fs::write(values_dir.join("strings.xml"), &xml);
-    }
-    match format {
-        OutputFormat::Text => println!(
-            "  Generated res/values-*/strings.xml for {} locale(s)",
-            config.locales.len()
-        ),
-        OutputFormat::Json => {}
-    }
+    return;
 }
 
 /// Write `<bundle>/<locale>.lproj/Localizable.strings` for every

@@ -6,23 +6,7 @@ pub(super) fn add_link_args(
     direct_apple: bool,
     xlinker_apple: bool,
 ) {
-    if !darwin {
-        return;
-    }
-    // Darwin needs named admission even for weak references to descriptors omitted from R.
-    for name in perry_abi::NATIVE_LAYOUT_DESCRIPTORS {
-        if perry_abi::NATIVE_LAYOUT_RESERVED.contains(name) {
-            continue;
-        }
-        let symbol = format!("_perry_runtime_layout_{name}");
-        if direct_apple {
-            cmd.arg("-U").arg(symbol);
-        } else if xlinker_apple {
-            cmd.arg("-Xlinker").arg("-U").arg("-Xlinker").arg(symbol);
-        } else {
-            cmd.arg(format!("-Wl,-U,{symbol}"));
-        }
-    }
+    return;
 }
 
 #[cfg(test)]

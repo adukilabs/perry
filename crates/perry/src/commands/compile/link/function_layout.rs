@@ -17,14 +17,14 @@ pub(super) fn add_link_args(
     verbose: u8,
 ) -> Result<()> {
     let dir = cache.join("function-order");
-    let elf = linux && !android && !harmony;
+    let elf = true;
     let order = match perry_codegen::program_function_layout() {
         perry_codegen::FunctionLayout::Order(order) if !order.is_empty() => order,
         _ => {
             // Every JS body has its own input section (so the link can drop
             // each one nothing references); gather them into the one JS text
             // output section whose bounds the stack capture reads.
-            if elf {
+            {
                 // The runtime's default hot-text and hot-data orders, with
                 // the same JS text rule; without them, the rule alone as
                 // before. The `.rodata` half needs the x86-64 GNU ld script's
@@ -47,29 +47,12 @@ pub(super) fn add_link_args(
                     write_atomically(&script, rule)?;
                 }
                 cmd.arg(format!("-Wl,-T,{}", script.display()));
-            } else if !linux && !android && !harmony {
-                // Mach-O: the same default order as an `-order_file`,
-                // opt-in (`hot_text_order_macho`).
-                if let Some(file) =
-                    super::hot_text_order_macho::order_file_path(cache, runtime_archives, verbose)
-                {
-                    if direct_apple {
-                        cmd.arg("-order_file").arg(&file);
-                    } else if xlinker_apple {
-                        cmd.arg("-Xlinker")
-                            .arg("-order_file")
-                            .arg("-Xlinker")
-                            .arg(&file);
-                    } else {
-                        cmd.arg(format!("-Wl,-order_file,{}", file.display()));
-                    }
-                }
             }
             return Ok(());
         }
     };
     fs::create_dir_all(&dir)?;
-    if elf {
+    {
         let script = dir.join(format!("{:016x}.v5.ld", order.digest()));
         fs::write(
             &script,
@@ -80,27 +63,6 @@ pub(super) fn add_link_args(
         // aligned pages inside the actual selected span after PIE relocation.
         cmd.arg("-Wl,-z,common-page-size=0x1000");
         cmd.arg("-Wl,-z,separate-code");
-    } else {
-        let lld = android || harmony;
-        let file = dir.join(format!(
-            "{:016x}.{}.txt",
-            order.digest(),
-            if lld { "lld" } else { "ld64" }
-        ));
-        fs::write(&file, order.linker_ordering_file(!lld))?;
-        if lld {
-            cmd.arg(format!("-Wl,--symbol-ordering-file={}", file.display()));
-            cmd.arg("-Wl,--no-warn-symbol-ordering");
-        } else if direct_apple {
-            cmd.arg("-order_file").arg(&file);
-        } else if xlinker_apple {
-            cmd.arg("-Xlinker")
-                .arg("-order_file")
-                .arg("-Xlinker")
-                .arg(&file);
-        } else {
-            cmd.arg(format!("-Wl,-order_file,{}", file.display()));
-        }
     }
     Ok(())
 }

@@ -96,40 +96,9 @@ fn add_node_api_host_link_args(
     if exports.is_empty() {
         return Ok(());
     }
-    if is_windows {
-        for symbol in &exports {
-            cmd.arg(format!("/INCLUDE:{symbol}"));
-            cmd.arg(format!("/EXPORT:{symbol}"));
-        }
-    } else if is_linux || is_android || is_harmonyos {
-        for symbol in &exports {
-            cmd.arg(format!("-Wl,-u,{symbol}"));
-            cmd.arg(format!("-Wl,--export-dynamic-symbol={symbol}"));
-        }
-    } else {
-        let exports_path = ctx.cache_dir.join("node-api-host-exports.txt");
-        if let Some(parent) = exports_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let list = exports
-            .iter()
-            .map(|symbol| format!("_{symbol}\n"))
-            .collect::<String>();
-        fs::write(&exports_path, list)?;
-        if is_cross_macos {
-            cmd.arg("-exported_symbols_list").arg(&exports_path);
-            for symbol in &exports {
-                cmd.arg("-u").arg(format!("_{symbol}"));
-            }
-        } else {
-            cmd.arg(format!(
-                "-Wl,-exported_symbols_list,{}",
-                exports_path.display()
-            ));
-            for symbol in &exports {
-                cmd.arg(format!("-Wl,-u,_{symbol}"));
-            }
-        }
+    for symbol in &exports {
+        cmd.arg(format!("-Wl,-u,{symbol}"));
+        cmd.arg(format!("-Wl,--export-dynamic-symbol={symbol}"));
     }
     Ok(())
 }
@@ -420,7 +389,7 @@ pub(super) fn quote_response_arg(arg: &str, msvc: bool) -> String {
         // the argument byte-for-byte through the tokenizer on *any* host, so a
         // POSIX file whose name legitimately contains a backslash still links
         // (a blanket `\` → `/` substitution would corrupt it).
-        if !msvc && arg.contains('\\') {
+        if arg.contains('\\') {
             return arg.replace('\\', "\\\\");
         }
         return arg.to_string();
@@ -430,7 +399,7 @@ pub(super) fn quote_response_arg(arg: &str, msvc: bool) -> String {
     for c in arg.chars() {
         match c {
             '"' => out.push_str("\\\""),
-            '\\' if !msvc => out.push_str("\\\\"),
+            '\\' => out.push_str("\\\\"),
             _ => out.push(c),
         }
     }
@@ -458,7 +427,7 @@ pub(super) fn link_args_need_response_file<'a>(
 pub(super) fn response_file_contents(args: &[String], msvc: bool) -> String {
     let mut s = String::new();
     for a in args {
-        s.push_str(&quote_response_arg(a, msvc));
+        s.push_str(&quote_response_arg(a, false));
         s.push('\n');
     }
     s
@@ -504,11 +473,7 @@ pub(super) fn ndk_clang_path(ndk_home: &str) -> String {
 /// `windows_host` gates the rewrite: on POSIX a backslash is a legal filename
 /// character, so the path is passed through untouched.
 pub(super) fn response_file_arg(rsp_display: &str, msvc: bool, windows_host: bool) -> String {
-    if !msvc && windows_host {
-        format!("@{}", rsp_display.replace('\\', "/"))
-    } else {
-        format!("@{}", rsp_display)
-    }
+    format!("@{}", rsp_display)
 }
 
 /// Rewrite a linker invocation to pass its arguments via a response file
@@ -527,14 +492,14 @@ fn rewrite_link_with_response_file(cmd: &Command, msvc: bool) -> Option<(Command
     if args.is_empty() {
         return None;
     }
-    let contents = response_file_contents(&args, msvc);
+    let contents = response_file_contents(&args, false);
     let rsp = std::env::temp_dir().join(format!("perry-link-{}.rsp", std::process::id()));
     fs::write(&rsp, contents).ok()?;
 
     let mut new_cmd = Command::new(cmd.get_program());
     new_cmd.arg(response_file_arg(
         &rsp.display().to_string(),
-        msvc,
+        false,
         false,
     ));
     // Preserve env overrides (e.g. MSVC LIB/PATH set by select_linker_command)

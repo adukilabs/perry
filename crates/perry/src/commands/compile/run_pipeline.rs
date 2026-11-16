@@ -3762,10 +3762,6 @@ pub fn run_with_parse_cache(
         let link_set = if ctx.needs_geisterhand {
             // Geisterhand builds its runtime with cargo after codegen.
             EffectsLinkSet::Undescribed("Geisterhand builds its runtime after codegen")
-        } else if super::link::ui_lib_provides_runtime(ctx.needs_ui, target.as_deref()) {
-            // The UI library's bundled runtime copy links, not the archive
-            // a sidecar describes (a UI-lib sidecar is #12744).
-            EffectsLinkSet::Undescribed("the UI library bundles the runtime that links")
         } else {
             EffectsLinkSet::Prebuilt {
                 with_stdlib: stdlib_on_link_line(ctx.needs_stdlib, ctx.needs_ui, target.as_deref()),
@@ -7601,8 +7597,7 @@ pub fn run_with_parse_cache(
         }
         // Platform detection for nm tool and symbol prefix
         let _is_ios = false;
-        let is_linux = matches!(target.as_deref(), Some(t) if t.starts_with("linux"))
-            || (target.is_none());
+        let is_linux = true;
         // Symbol prefix depends on object format:
         // Mach-O targets (macOS, iOS, watchOS, tvOS): nm shows `_` prefix
         // COFF (Windows targets): no prefix
@@ -8047,8 +8042,7 @@ pub fn run_with_parse_cache(
         OutputFormat::Json => {}
     }
 
-    let is_linux = matches!(target.as_deref(), Some(t) if t.starts_with("linux"))
-        || (target.is_none());
+    let is_linux = true;
     let _is_windows = false;
     // is_watchos / is_tvos are defined below (near the per-platform link step).
     // The is_cross_* bindings used to live here, but they're now derived
@@ -8197,31 +8191,9 @@ pub fn run_with_parse_cache(
             .native_modules
             .values()
             .any(|m| m.exported_functions.iter().any(|(n, _)| n == "deactivate"));
-        let mut cmd = if is_linux {
+        let mut cmd = {
             let mut c = Command::new("cc");
             c.arg("-shared");
-            c
-        } else {
-            let mut c = Command::new("cc");
-            c.arg("-dynamiclib");
-            // #6222: propagate `--target`. Without this the driver defaults to the
-            // host, so `--target ios` cross-compiled the object correctly and then
-            // linked it into a *macOS* dylib. `verify_dylib_target_linkable` above
-            // has already rejected any target we cannot link on this host.
-            let apple_cross = target.as_deref().and_then(apple_dylib_cross_target);
-            if let Some((sdk, triple)) = apple_cross {
-                let sysroot = apple_sdk_sysroot(sdk)?;
-                c.arg("-target").arg(triple).arg("-isysroot").arg(&sysroot);
-            }
-            // A plugin does not link the runtime (symbols resolve from the host at
-            // `dlopen` time), so undefined symbols must be permitted either way.
-            // `-flat_namespace` is a macOS-only plugin convention and is DEPRECATED
-            // on the embedded Apple platforms — passing it there makes the linker
-            // warn on every build for no benefit.
-            if apple_cross.is_none() {
-                c.arg("-flat_namespace");
-            }
-            c.arg("-undefined").arg("dynamic_lookup");
             c
         };
 
@@ -8237,7 +8209,7 @@ pub fn run_with_parse_cache(
         // failed with `undefined reference to 'floor'` (#8942). They go
         // AFTER the objects — GNU ld only resolves what precedes a `-l`.
         // macOS gets libm through the implicit `-lSystem`.
-        link::push_unix_dylib_output(&mut cmd, is_linux, &exe_path);
+        link::push_unix_dylib_output(&mut cmd, true, &exe_path);
         cmd.args(link::extra_link_args());
 
         let status = tool_output::run_internal_tool(&mut cmd, verbose)?;

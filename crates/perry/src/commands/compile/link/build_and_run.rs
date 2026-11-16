@@ -67,8 +67,7 @@ pub(crate) fn build_and_run_link(
     super::super::run_lock_verify_for_compile(ctx, target)?;
 
     // Wear OS and every Android architecture share the NDK/cdylib link path.
-    let is_linux = matches!(target, Some(t) if t.starts_with("linux"))
-        || (target.is_none());
+    let is_linux = true;
     // Fully-static musl Linux target (#4826) — a sub-case of is_linux. The
     // link command itself is built in select_linker_command (musl driver +
     // `-static`); here it only changes which system libs we request.
@@ -102,7 +101,7 @@ pub(crate) fn build_and_run_link(
         false,
         false,
         false,
-        is_linux,
+        true,
         false,
         false,
         false,
@@ -149,7 +148,7 @@ pub(crate) fn build_and_run_link(
         &mut cmd,
         ctx,
         false,
-        is_linux,
+        true,
         false,
         false,
         false,
@@ -159,8 +158,7 @@ pub(crate) fn build_and_run_link(
     // executable built on Linux with the default function layout
     // (`elf_linker`).
     let lld = super::elf_linker::use_lld(
-        is_linux
-            && !is_musl
+        !is_musl
             && matches!(target, None | Some("linux"))
             && matches!(
                 perry_codegen::program_function_layout(),
@@ -168,72 +166,54 @@ pub(crate) fn build_and_run_link(
             ),
     );
     {
-        if is_linux {
-            cmd.arg("-Wl,--gc-sections");
-            // The runtime reads `__start_`/`__stop_perry_js_text` (the JS
-            // text section's bounds, `error_stack_frames.rs`). By default a
-            // reference to them retains every input section of that name,
-            // which would keep every compiled JS function alive; with
-            // start-stop-gc they retain nothing and unreferenced functions
-            // are collected as before. GNU ld >= 2.37 and lld >= 13 accept
-            // it; older linkers warn and ignore it.
-            cmd.arg("-Wl,-z,start-stop-gc");
-            // Native glibc Linux executables link at a fixed base (ET_EXEC),
-            // as bun does. Every pointer in perry's static data (class method
-            // slots, shape/key tables, string and closure headers, stack-map
-            // function addresses) is then final at link time. As a PIE the
-            // same pointers were relative relocations that ld.so applied at
-            // every start: 1.74M of them for OpenCode, dirtying 32 MB of
-            // `.data.rel.ro` copy-on-write before `main`.
-            //
-            // Why this is safe for the runtime: every image-address consumer
-            // reads the load bias (`dl_iterate_phdr`'s `dlpi_addr`, `dladdr`)
-            // instead of assuming one, and the fixed base (0x400000) sits
-            // above the NaN-box handle band (`HANDLE_BAND_MAX` = 0x200000), so
-            // a static object never classifies as a registry handle. Generated
-            // and Rust objects stay PIC, and a PIC object links into a
-            // fixed-base executable as is. Shared objects (plugins, Node-API
-            // addons) are unaffected and still resolve the host's exports
-            // dynamically. With no relative relocations left, DT_RELR
-            // (`-z pack-relative-relocs`) has nothing to pack.
-            //
-            // Native glibc Linux only: not the static musl target, not a cross
-            // link, not Android or HarmonyOS (those produce shared objects).
-            if is_linux
-                && !is_musl
-                && matches!(target, None | Some("linux"))
-            {
-                cmd.arg("-no-pie");
-            }
-            if let Some(mode) = lld {
-                super::elf_linker::add_link_args(&mut cmd, mode);
-            }
-            // An Android program is a shared object, and a shared object
-            // exports every default-visibility symbol: each one is a
-            // --gc-sections root, so nothing in the runtime or stdlib is ever
-            // collected, and references from adapters that only a linked
-            // wrapper archive installs (perry-ext-http's `js_ext_http_*`,
-            // `common::wrapper_imports`) stay as undefined symbols that make
-            // `System.loadLibrary` fail. The Java side reaches the library
-            // only through JNI, so it exports exactly that and everything
-            // else is local, as in an executable. Patterns, not names: lld
-            // rejects a named global the program doesn't define.
-        } else {
-            // Native macOS/iOS via clang driver
-            cmd.arg("-Wl,-dead_strip");
-            // A perry executable exports every external Rust/codegen symbol by
-            // default — a large app binary carries a 300k-entry export trie
-            // with WEAK_DEFINES set, and dyld spends ~0.9s of EVERY launch on
-            // weak-def coalescing + bind resolution against it (profiled:
-            // `--version` was ~80% dyld). Nothing consumes those exports —
-            // plugins dlopen their own dylibs and resolve from their own
-            // handle (never `dlsym(RTLD_DEFAULT/SELF)` into the host) — except
-            // the plugin-host mode, which force-exports its API via `-u` and
-            // must keep the trie.
-            if !ctx.needs_plugins && ctx.native_addons.is_empty() {
-                cmd.arg("-Wl,-no_exported_symbols");
-            }
+        cmd.arg("-Wl,--gc-sections");
+        // The runtime reads `__start_`/`__stop_perry_js_text` (the JS
+        // text section's bounds, `error_stack_frames.rs`). By default a
+        // reference to them retains every input section of that name,
+        // which would keep every compiled JS function alive; with
+        // start-stop-gc they retain nothing and unreferenced functions
+        // are collected as before. GNU ld >= 2.37 and lld >= 13 accept
+        // it; older linkers warn and ignore it.
+        cmd.arg("-Wl,-z,start-stop-gc");
+        // Native glibc Linux executables link at a fixed base (ET_EXEC),
+        // as bun does. Every pointer in perry's static data (class method
+        // slots, shape/key tables, string and closure headers, stack-map
+        // function addresses) is then final at link time. As a PIE the
+        // same pointers were relative relocations that ld.so applied at
+        // every start: 1.74M of them for OpenCode, dirtying 32 MB of
+        // `.data.rel.ro` copy-on-write before `main`.
+        //
+        // Why this is safe for the runtime: every image-address consumer
+        // reads the load bias (`dl_iterate_phdr`'s `dlpi_addr`, `dladdr`)
+        // instead of assuming one, and the fixed base (0x400000) sits
+        // above the NaN-box handle band (`HANDLE_BAND_MAX` = 0x200000), so
+        // a static object never classifies as a registry handle. Generated
+        // and Rust objects stay PIC, and a PIC object links into a
+        // fixed-base executable as is. Shared objects (plugins, Node-API
+        // addons) are unaffected and still resolve the host's exports
+        // dynamically. With no relative relocations left, DT_RELR
+        // (`-z pack-relative-relocs`) has nothing to pack.
+        //
+        // Native glibc Linux only: not the static musl target, not a cross
+        // link, not Android or HarmonyOS (those produce shared objects).
+        if !is_musl
+            && matches!(target, None | Some("linux"))
+        {
+            cmd.arg("-no-pie");
         }
+        if let Some(mode) = lld {
+            super::elf_linker::add_link_args(&mut cmd, mode);
+        }
+        // An Android program is a shared object, and a shared object
+        // exports every default-visibility symbol: each one is a
+        // --gc-sections root, so nothing in the runtime or stdlib is ever
+        // collected, and references from adapters that only a linked
+        // wrapper archive installs (perry-ext-http's `js_ext_http_*`,
+        // `common::wrapper_imports`) stay as undefined symbols that make
+        // `System.loadLibrary` fail. The Java side reaches the library
+        // only through JNI, so it exports exactly that and everything
+        // else is local, as in an executable. Patterns, not names: lld
+        // rejects a named global the program doesn't define.
         // The runtime archives this link may pull from, for the default
         // hot-text order (`hot_text_order`).
         let stdlib_archive = stdlib_lib.as_deref().filter(|_| ctx.needs_stdlib);
@@ -251,7 +231,7 @@ pub(crate) fn build_and_run_link(
         super::function_layout::add_link_args(
             &mut cmd,
             &ctx.cache_dir,
-            is_linux,
+            true,
             false,
             false,
             false,
@@ -260,20 +240,19 @@ pub(crate) fn build_and_run_link(
             runs_lld,
             // The default hot-data order: native glibc Linux executables,
             // where it was recorded and measured (`hot_data_order`).
-            is_linux
-                && !is_musl
+            !is_musl
                 && matches!(target, None | Some("linux")),
             verbose,
         )?;
         super::runtime_layouts::add_link_args(
             &mut cmd,
-            !(is_linux),
+            false,
             false,
             false,
         );
         super::wrapper_hooks::add_link_args(
             &mut cmd,
-            !(is_linux),
+            false,
             false,
             false,
             well_known_libs,
@@ -285,11 +264,7 @@ pub(crate) fn build_and_run_link(
         // cross-Apple linkers are driven directly (no `-Wl,` prefix).
         if let Some(map) = std::env::var_os("PERRY_LINK_MAP") {
             let map = map.to_string_lossy();
-            if is_linux {
-                cmd.arg(format!("-Wl,-Map,{map}"));
-            } else {
-                cmd.arg(format!("-Wl,-map,{map}"));
-            }
+            cmd.arg(format!("-Wl,-Map,{map}"));
         }
     }
 
@@ -304,7 +279,7 @@ pub(crate) fn build_and_run_link(
     // perry-runtime may not include all symbols (e.g., perry_init_guard_check_and_set).
     // watchOS: swiftc treats duplicate symbols as errors (not warnings like clang),
     // so skip the standalone runtime when the UI lib already bundles it.
-    let skip_runtime = ui_lib_provides_runtime(ctx.needs_ui, target);
+    let skip_runtime = false;
     let mut source_well_known_libs = well_known_libs.to_vec();
     let mut seen_well_known = std::collections::HashSet::new();
     source_well_known_libs.retain(|path| seen_well_known.insert(path.clone()));
@@ -313,8 +288,7 @@ pub(crate) fn build_and_run_link(
     // (#8930), Mach-O's linker already revisits archives, and COFF registers
     // lazy archive symbols globally. An unknown future linker stays
     // conservative and keeps the wrapper-local provider.
-    let stdlib_resolves_retained_wrapper_refs = (ctx.needs_stdlib)
-        && (is_linux);
+    let stdlib_resolves_retained_wrapper_refs = (ctx.needs_stdlib);
     let prepare_well_known = || {
         let cacheable = std::cell::Cell::new(true);
         let paths = source_well_known_libs
@@ -418,115 +392,95 @@ pub(crate) fn build_and_run_link(
     // ELF `ld` scans each once — bracket them (see `ElfArchiveGroup`).
     let archive_group = ElfArchiveGroup::open(
         &mut cmd,
-        (is_linux),
-        !skip_runtime || ctx.needs_stdlib || !well_known_libs.is_empty(),
+        true,
+        true,
     );
-    if !skip_runtime {
-        if ctx.needs_stdlib {
-            // On Windows/MSVC, always try to link stdlib because codegen unconditionally
-            // declares all stdlib extern functions, creating import references that MSVC
-            // won't dead-strip. On macOS/Linux, the linker ignores unreferenced archives.
-            if let Some(ref stdlib) = stdlib_lib {
-                // COFF archives must have one authoritative Rust dependency
-                // graph. Put selected wrappers first, then let stdlib fill the
-                // unresolved surface. The stdlib staticlib already bundles
-                // perry-runtime, so Windows must not add it again.
-                if wrappers_precede_stdlib {
-                    for wk in &well_known_libs {
-                        cmd.arg(wk);
-                    }
-                }
-                // The stdlib's `external-*` adapters name wrapper symbols that
-                // carry weak defaults on MSVC (perry-stdlib
-                // `common::wrapper_imports`), and a weak reference does not
-                // pull an archive member. Force each linked wrapper's own
-                // object in through its install hook, so its definitions
-                // always replace the defaults whatever else references it.
-                // Tier-3 (tvOS/watchOS) std-duplication dedup; no-op elsewhere.
-                cmd.arg(dedup_stdlib_for_tier3(target, stdlib));
-                // #466 Phase 4 step 2: well-known bindings normally join the
-                // link line right after perry-stdlib so they cover the exact
-                // `_js_*` symbol gap that was just opened by stripping the
-                // corresponding feature from the perry-stdlib rebuild.
-                //
-                // Non-Windows archive linkers retain the historical repeat for
-                // stdlib bridge references. On Windows each wrapper appears
-                // exactly once; if there was no wrapper-first pass, put it here.
-                for wk in &well_known_libs {
-                    cmd.arg(wk);
-                }
-                // Also link runtime for symbols DCE'd from stdlib's bundled
-                // perry-runtime; on tier-3 it's first stripped of stdlib's objects.
-                // #5000 (macOS/Linux): the standalone runtime archive is built
-                // WITHOUT the `stdlib` feature, so it also defines the no-op
-                // stdlib_stubs (js_fetch_with_options, js_headers_new,
-                // js_request_new, js_ws_*, js_readline_*). With ELF/Mach-O
-                // first-definition-wins those stubs can satisfy the user's
-                // fetch ref before perry-stdlib's real impls, so `fetch()`
-                // no-ops and a program awaiting it hangs. When this build
-                // actually uses stdlib (fetch / ws / readline), localize those
-                // stub symbols in a copy of the runtime so perry-stdlib wins.
-                let runtime_for_link = if ctx.uses_fetch || ctx.needs_stdlib {
-                    localize_stdlib_stub_symbols(runtime_lib, stdlib)
-                } else {
-                    runtime_lib.to_path_buf()
-                };
-                cmd.arg(dedup_runtime_for_tier3(target, &runtime_for_link, stdlib));
-            } else {
-                if ctx.needs_stdlib {
-                    eprintln!(
-                        "Warning: stdlib required but {} not found, using runtime-only",
-                        if is_windows {
-                            "perry_stdlib.lib"
-                        } else {
-                            "libperry_stdlib.a"
-                        }
-                    );
-                }
-                cmd.arg(runtime_lib);
-            }
-        } else {
-            // Runtime-only linking — no stdlib needed.
-            //
-            // #5000 (Linux GTK4 UI): a bare UI program has
-            // `ctx.needs_stdlib == false`, so perry-stdlib isn't linked above —
-            // but the GTK4 UI branch below force-links it with
-            // `--whole-archive --allow-multiple-definition` to satisfy glib
-            // trampolines that call js_stdlib_process_pending /
-            // js_promise_run_microtasks. With first-definition-wins, the
-            // unlocalized runtime stubs linked here would shadow stdlib's real
-            // impls, leaving those pumps as no-ops. Localize the runtime's stub
-            // symbols first so stdlib wins, mirroring the needs_stdlib path.
-            let force_stdlib_for_linux_ui =
-                is_linux && ctx.needs_ui && find_ui_library(target).is_some();
-            let runtime_for_link = if force_stdlib_for_linux_ui {
-                match stdlib_lib.clone().or_else(|| find_stdlib_library(target)) {
-                    Some(stdlib) => localize_stdlib_stub_symbols(runtime_lib, &stdlib),
-                    None => runtime_lib.to_path_buf(),
-                }
-            } else {
-                runtime_lib.to_path_buf()
-            };
-            cmd.arg(&runtime_for_link);
-        }
-    } else if ctx.needs_stdlib {
-        // Android + UI: runtime is provided by UI lib, but stdlib must still be linked
-        // separately (UI lib does not bundle perry-stdlib).
+    if ctx.needs_stdlib {
+        // On Windows/MSVC, always try to link stdlib because codegen unconditionally
+        // declares all stdlib extern functions, creating import references that MSVC
+        // won't dead-strip. On macOS/Linux, the linker ignores unreferenced archives.
         if let Some(ref stdlib) = stdlib_lib {
+            // COFF archives must have one authoritative Rust dependency
+            // graph. Put selected wrappers first, then let stdlib fill the
+            // unresolved surface. The stdlib staticlib already bundles
+            // perry-runtime, so Windows must not add it again.
             if wrappers_precede_stdlib {
                 for wk in &well_known_libs {
                     cmd.arg(wk);
                 }
             }
-            cmd.arg(stdlib);
-            // #466 Phase 4 step 2: see the parallel comment in the
-            // non-Android branch above.
+            // The stdlib's `external-*` adapters name wrapper symbols that
+            // carry weak defaults on MSVC (perry-stdlib
+            // `common::wrapper_imports`), and a weak reference does not
+            // pull an archive member. Force each linked wrapper's own
+            // object in through its install hook, so its definitions
+            // always replace the defaults whatever else references it.
+            // Tier-3 (tvOS/watchOS) std-duplication dedup; no-op elsewhere.
+            cmd.arg(dedup_stdlib_for_tier3(target, stdlib));
+            // #466 Phase 4 step 2: well-known bindings normally join the
+            // link line right after perry-stdlib so they cover the exact
+            // `_js_*` symbol gap that was just opened by stripping the
+            // corresponding feature from the perry-stdlib rebuild.
+            //
+            // Non-Windows archive linkers retain the historical repeat for
+            // stdlib bridge references. On Windows each wrapper appears
+            // exactly once; if there was no wrapper-first pass, put it here.
             for wk in &well_known_libs {
                 cmd.arg(wk);
             }
+            // Also link runtime for symbols DCE'd from stdlib's bundled
+            // perry-runtime; on tier-3 it's first stripped of stdlib's objects.
+            // #5000 (macOS/Linux): the standalone runtime archive is built
+            // WITHOUT the `stdlib` feature, so it also defines the no-op
+            // stdlib_stubs (js_fetch_with_options, js_headers_new,
+            // js_request_new, js_ws_*, js_readline_*). With ELF/Mach-O
+            // first-definition-wins those stubs can satisfy the user's
+            // fetch ref before perry-stdlib's real impls, so `fetch()`
+            // no-ops and a program awaiting it hangs. When this build
+            // actually uses stdlib (fetch / ws / readline), localize those
+            // stub symbols in a copy of the runtime so perry-stdlib wins.
+            let runtime_for_link = if ctx.uses_fetch || ctx.needs_stdlib {
+                localize_stdlib_stub_symbols(runtime_lib, stdlib)
+            } else {
+                runtime_lib.to_path_buf()
+            };
+            cmd.arg(dedup_runtime_for_tier3(target, &runtime_for_link, stdlib));
         } else {
-            eprintln!("Warning: stdlib required but libperry_stdlib.a not found");
+            if ctx.needs_stdlib {
+                eprintln!(
+                    "Warning: stdlib required but {} not found, using runtime-only",
+                    if is_windows {
+                        "perry_stdlib.lib"
+                    } else {
+                        "libperry_stdlib.a"
+                    }
+                );
+            }
+            cmd.arg(runtime_lib);
         }
+    } else {
+        // Runtime-only linking — no stdlib needed.
+        //
+        // #5000 (Linux GTK4 UI): a bare UI program has
+        // `ctx.needs_stdlib == false`, so perry-stdlib isn't linked above —
+        // but the GTK4 UI branch below force-links it with
+        // `--whole-archive --allow-multiple-definition` to satisfy glib
+        // trampolines that call js_stdlib_process_pending /
+        // js_promise_run_microtasks. With first-definition-wins, the
+        // unlocalized runtime stubs linked here would shadow stdlib's real
+        // impls, leaving those pumps as no-ops. Localize the runtime's stub
+        // symbols first so stdlib wins, mirroring the needs_stdlib path.
+        let force_stdlib_for_linux_ui =
+            ctx.needs_ui && find_ui_library(target).is_some();
+        let runtime_for_link = if force_stdlib_for_linux_ui {
+            match stdlib_lib.clone().or_else(|| find_stdlib_library(target)) {
+                Some(stdlib) => localize_stdlib_stub_symbols(runtime_lib, &stdlib),
+                None => runtime_lib.to_path_buf(),
+            }
+        } else {
+            runtime_lib.to_path_buf()
+        };
+        cmd.arg(&runtime_for_link);
     }
     // Optional archives can provide runtime-level services (for example the
     // component engine) without requiring perry-stdlib. The branches above
@@ -561,43 +515,17 @@ pub(crate) fn build_and_run_link(
         }
     }
 
-    if is_linux {
-        // Linux system libraries (cross-compile target)
-        // Allow multiple definitions: stdlib bundles perry-runtime symbols,
-        // and we also link perry-runtime directly for symbols DCE'd from stdlib.
-        // macOS Mach-O uses first-definition-wins natively; ELF linkers need this flag.
-        cmd.arg("-Wl,--allow-multiple-definition")
-            .arg("-lm")
-            .arg("-lpthread")
-            .arg("-ldl");
-        // No -lssl/-lcrypto: perry-stdlib bundles its own OpenSSL
-        // (openssl-sys `vendored`) and TLS is rustls, so nothing links the
-        // system libraries and users need no OpenSSL dev package.
-    } else {
-        // macOS frameworks for the stdlib (rustls platform verifier /
-        // keychain, DNS, iconv), UI, plugins, and geisterhand.
-        // Gate on `!is_harmonyos` so the macOS host doesn't leak its
-        // frameworks into ELF cross-compile targets that fall through this
-        // `else` branch — `cfg!(target_os = "macos")` is true whenever we're
-        // running ON macOS, regardless of the actual target.
-        //
-        // Runtime-only console binaries import exclusively from libSystem
-        // (verified via `dyld_info -imports` on a dead-stripped build), and
-        // every extra LC_LOAD_DYLIB costs real launch time — measured on an
-        // M-series host, CoreFoundation+libobjc initialization alone is
-        // ~+1.8 ms on a ~3 ms hello world. Skip the whole list for those
-        // links: a runtime-only program that genuinely needs one of these
-        // fails AT LINK TIME with an undefined symbol (deterministic,
-        // caught by the parity suites), never at runtime.
-        // #8513: notify's macOS backend references FSEventStream*. Cargo
-        // normally propagates fsevent-sys's CoreServices link metadata to a
-        // final Rust binary, but a perry-ext static archive crosses Perry's
-        // custom linker boundary, where that metadata is no longer present.
-        // Restore it only for binaries that selected the watcher facade.
-
-        // On Linux (native, not cross-compiling to macOS), link against system libraries
-        cmd.args(super::linux_dylib_libs::LINUX_DYLIB_SYSTEM_LIBS);
-    }
+    // Linux system libraries (cross-compile target)
+    // Allow multiple definitions: stdlib bundles perry-runtime symbols,
+    // and we also link perry-runtime directly for symbols DCE'd from stdlib.
+    // macOS Mach-O uses first-definition-wins natively; ELF linkers need this flag.
+    cmd.arg("-Wl,--allow-multiple-definition")
+        .arg("-lm")
+        .arg("-lpthread")
+        .arg("-ldl");
+    // No -lssl/-lcrypto: perry-stdlib bundles its own OpenSSL
+    // (openssl-sys `vendored`) and TLS is rustls, so nothing links the
+    // system libraries and users need no OpenSSL dev package.
 
     // Issue #607 — watchOS targets always link the UI lib regardless of
     // `ctx.needs_ui`. The watchOS Swift template (`PerryWatchApp.swift`)
@@ -635,13 +563,7 @@ pub(crate) fn build_and_run_link(
                 // the thin-LTO runtime archive does not export (e.g.
                 // `<Stdout as Write>::flush` from `PerryTestExitTarget::
                 // test_exit`), failing every UI doc-test at link.
-                let stdlib_on_link_line: Option<PathBuf> = if is_linux {
-                    stdlib_lib.clone().or_else(|| find_stdlib_library(target))
-                } else if ctx.needs_stdlib {
-                    stdlib_lib.clone()
-                } else {
-                    None
-                };
+                let stdlib_on_link_line: Option<PathBuf> = stdlib_lib.clone().or_else(|| find_stdlib_library(target));
                 let stdlib_evidence = match stdlib_on_link_line {
                     Some(ref path) => StdlibEvidence::Linked(path.as_path()),
                     None => StdlibEvidence::NotLinked,
@@ -666,30 +588,11 @@ pub(crate) fn build_and_run_link(
                 // rebind to the single linked copy. Linux tolerates the
                 // duplicates via --allow-multiple-definition, so restrict to
                 // the ld64 shapes.
-                if is_linux {
-                    trimmed
-                } else {
-                    // #8455: same evidence rule for the localize pass — only
-                    // rebind UI globals to archives actually on the link line.
-                    // Localizing against an unlinked stdlib turns the UI lib's
-                    // own definition local while the external reference stays
-                    // unresolved.
-                    let mut linked_refs: Vec<&Path> = vec![runtime_lib];
-                    if let Some(ref s) = stdlib_on_link_line {
-                        linked_refs.push(s.as_path());
-                    }
-                    match dedup_ui_lib_against_linked_libs(&trimmed, &linked_refs) {
-                        Ok(deduped) => deduped,
-                        Err(e) => {
-                            eprintln!("[strip-dedup] UI linked-lib dedup skipped (non-fatal): {e}");
-                            trimmed
-                        }
-                    }
-                }
+                trimmed
             };
             cmd.arg(&ui_lib);
 
-            if is_linux {
+            {
                 // Allow multiple definitions from perry-runtime in both stdlib and UI lib
                 cmd.arg("-Wl,--allow-multiple-definition");
                 // libperry_ui_gtk4.a's glib::source::trampoline_local
@@ -739,7 +642,6 @@ pub(crate) fn build_and_run_link(
                 // system libs, each via pkg-config with a hardcoded fallback
                 // (#181, #423, #517, #658) — see linux_ui_libs.rs.
                 linux_ui_libs::add_linux_ui_system_libs(&mut cmd);
-            } else {
             }
 
             match format {
@@ -757,17 +659,10 @@ pub(crate) fn build_and_run_link(
             let windows_winui_build_cmd = format!(
                 "cargo build --release -p perry-ui-windows-winui --target {windows_rust_triple}"
             );
-            let (lib_name, build_cmd) = if is_linux {
-                (
-                    "libperry_ui_gtk4.a",
-                    "cargo build --release -p perry-ui-gtk4 --target x86_64-unknown-linux-gnu",
-                )
-            } else {
-                (
-                    "libperry_ui_macos.a",
-                    "cargo build --release -p perry-ui-macos",
-                )
-            };
+            let (lib_name, build_cmd) = (
+                "libperry_ui_gtk4.a",
+                "cargo build --release -p perry-ui-gtk4 --target x86_64-unknown-linux-gnu",
+            );
             return Err(anyhow!(
                 "perry/ui imported but {} not found. Build with: {}",
                 lib_name,
@@ -780,9 +675,7 @@ pub(crate) fn build_and_run_link(
     if let Some(libs) = geisterhand_libs {
         cmd.arg(&libs.server);
         cmd.arg(runtime_lib);
-        if is_linux {
-            cmd.arg("-Wl,--allow-multiple-definition");
-        }
+        cmd.arg("-Wl,--allow-multiple-definition");
         // On Windows, force-include geisterhand registry symbols from stdlib.
         // lld-link scans archives left-to-right once, so the stdlib's
         // geisterhand objects are skipped on first scan (no references yet).

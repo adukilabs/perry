@@ -46,11 +46,6 @@ pub(super) fn strip_final_binary(
     }
     emit_macos_dsym(exe_path, target);
     if is_dylib
-        || is_ios
-        || is_visionos
-        || is_tvos
-        || is_watchos
-        || is_harmonyos
         || std::env::var("PERRY_DEBUG_SYMBOLS").is_ok()
         // #7803 tooling: keep the symbol table WITHOUT asking for DWARF.
         //

@@ -157,7 +157,7 @@ enum Commands {
     /// Manage Perry's on-disk cache (default `node_modules/.cache/perry`)
     Cache(commands::cache::CacheArgs),
 
-    /// Install, list or remove cross-target libraries (`perry target add android`)
+    /// Install, list or remove cross-target libraries (`perry target add linux-aarch64`)
     Target(commands::target::TargetArgs),
 
 

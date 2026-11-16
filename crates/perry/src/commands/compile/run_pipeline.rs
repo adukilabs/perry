@@ -7785,7 +7785,7 @@ pub fn run_with_parse_cache(
         // The default output path when no `-o` is given. Lives in
         // `compile/output_path.rs` so the build cache fingerprints the same
         // file this link is about to write (#5740).
-        None => output_path::default_output_path(is_dylib, is_staticlib, target.as_deref(), stem),
+        None => output_path::default_output_path(is_dylib, is_staticlib, stem),
     };
 
     if !failed_modules.is_empty() {

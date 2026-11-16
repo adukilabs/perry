@@ -857,7 +857,6 @@ fn default_output_path(args: &CompileArgs) -> PathBuf {
     super::output_path::default_output_path(
         args.output_type == "dylib",
         args.output_type == "staticlib",
-        args.target.as_deref(),
         &stem,
     )
 }

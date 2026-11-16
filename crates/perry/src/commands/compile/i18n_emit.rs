@@ -9,7 +9,6 @@
 //! the linked binary.
 
 use std::fs;
-use std::path::Path;
 
 use super::CompilationContext;
 
@@ -44,43 +43,4 @@ pub(super) fn write_i18n_key_registry(
     );
 }
 
-/// i18n: emit `res/values-<locale>/strings.xml` next to the Android
-/// `.so` for every configured locale. Best-effort; failures don't
-/// abort the build. Keys are sanitized to `[A-Za-z0-9_]+` (Android
-/// resource-name grammar) and values get the usual XML entity escape.
-pub(super) fn emit_android_i18n_resources(
-) {
-    return;
-}
 
-/// Write `<bundle>/<locale>.lproj/Localizable.strings` for every
-/// configured locale. Used by the iOS / macOS / visionOS bundle
-/// writers — Foundation `NSLocalizedString(key)` resolves from these
-/// files when the user's preferred language matches the directory.
-pub(super) fn write_lproj_localized_strings(
-    app_dir: &Path,
-    i18n_table: Option<&perry_transform::i18n::I18nStringTable>,
-    i18n_config: Option<&perry_transform::i18n::I18nConfig>,
-) {
-    let (table, config) = match (i18n_table, i18n_config) {
-        (Some(t), Some(c)) if !t.keys.is_empty() => (t, c),
-        _ => return,
-    };
-    for (locale_idx, locale) in config.locales.iter().enumerate() {
-        let lproj_dir = app_dir.join(format!("{}.lproj", locale));
-        let _ = fs::create_dir_all(&lproj_dir);
-        let mut strings_content = String::new();
-        for (key_idx, key) in table.keys.iter().enumerate() {
-            let flat_idx = locale_idx * table.keys.len() + key_idx;
-            let value = table
-                .translations
-                .get(flat_idx)
-                .cloned()
-                .unwrap_or_else(|| key.clone());
-            let escaped_key = key.replace('\\', "\\\\").replace('"', "\\\"");
-            let escaped_val = value.replace('\\', "\\\\").replace('"', "\\\"");
-            strings_content.push_str(&format!("\"{}\" = \"{}\";\n", escaped_key, escaped_val));
-        }
-        let _ = fs::write(lproj_dir.join("Localizable.strings"), &strings_content);
-    }
-}

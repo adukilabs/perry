@@ -16,7 +16,6 @@ use std::path::PathBuf;
 pub(super) fn default_output_path(
     is_dylib: bool,
     is_staticlib: bool,
-    target: Option<&str>,
     stem: &str,
 ) -> PathBuf {
     if is_dylib {
@@ -44,7 +43,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn exe(target: Option<&str>, stem: &str) -> PathBuf {
-        default_output_path(false, false, target, stem)
+        default_output_path(false, false, stem)
     }
 
     /// #5740 bug 4 — `--target android` used to fall through to the bare stem,
@@ -98,11 +97,11 @@ mod tests {
     #[test]
     fn staticlib_keeps_its_conventions() {
         assert_eq!(
-            default_output_path(false, true, Some("linux"), "app"),
+            default_output_path(false, true, "app"),
             PathBuf::from("libapp.a")
         );
         assert_eq!(
-            default_output_path(false, true, Some("windows"), "app"),
+            default_output_path(false, true, "app"),
             PathBuf::from("app.lib")
         );
     }
@@ -112,7 +111,7 @@ mod tests {
     /// `.so`), `.dylib` for the Apple family, `.so` elsewhere.
     #[test]
     fn dylib_extension_keys_on_target() {
-        let dylib = |target| default_output_path(true, false, target, "app");
+        let dylib = |target| default_output_path(true, false, "app");
         assert_eq!(dylib(Some("windows")), PathBuf::from("app.dll"));
         assert_eq!(dylib(Some("windows-winui")), PathBuf::from("app.dll"));
         assert_eq!(dylib(Some("macos")), PathBuf::from("app.dylib"));
@@ -124,7 +123,7 @@ mod tests {
     /// No `--target` falls back to the host's shared-library convention.
     #[test]
     fn dylib_uses_the_host_shared_library_extension() {
-        let out = default_output_path(true, false, None, "app");
+        let out = default_output_path(true, false, "app");
         assert_eq!(out, PathBuf::from("app.so"));
     }
 }

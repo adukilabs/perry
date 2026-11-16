@@ -67,24 +67,6 @@ fn package_bundle_id_from_input(input: &Path) -> Option<String> {
     }
 }
 
-fn package_version_from_input(input: &Path) -> Option<String> {
-    let mut dir = input.canonicalize().ok()?.parent()?.to_path_buf();
-    for _ in 0..5 {
-        let package = dir.join("package.json");
-        if package.exists() {
-            let data = fs::read_to_string(package).ok()?;
-            let json: serde_json::Value = serde_json::from_str(&data).ok()?;
-            return json
-                .get("version")
-                .and_then(|value| value.as_str())
-                .map(str::trim)
-                .filter(|version| !version.is_empty())
-                .map(str::to_string);
-        }
-        dir = dir.parent()?.to_path_buf();
-    }
-    None
-}
 
 pub(super) fn read_app_metadata(
     perry_toml: Option<&toml::Table>,

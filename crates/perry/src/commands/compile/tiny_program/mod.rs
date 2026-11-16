@@ -54,7 +54,7 @@ pub(super) fn try_compile(
         .and_then(|s| s.to_str())
         .unwrap_or("output");
     let output = args.output.clone().unwrap_or_else(|| {
-        super::output_path::default_output_path(false, false, args.target.as_deref(), stem)
+        super::output_path::default_output_path(false, false, stem)
     });
     // Use an absolute output argument so a user filename beginning with '-'
     // cannot be interpreted as a linker option.

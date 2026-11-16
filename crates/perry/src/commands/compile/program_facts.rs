@@ -116,6 +116,7 @@ pub(crate) fn run(
     roots: Vec<String>,
     cache_dir: &Path,
     activation: Option<perry_wpfacts::Activation>,
+    library: bool,
 ) -> Option<Arc<perry_wpfacts::ProgramFacts>> {
     if !perry_wpfacts::enabled_from_env() {
         return None;
@@ -127,7 +128,13 @@ pub(crate) fn run(
             || std::env::var("PERRY_FACTS_PROVENANCE").is_ok_and(|v| v == "1"));
     let cfg = perry_wpfacts::FactsConfig {
         verify_facts: perry_codegen::verify_facts::enabled(),
-        dce_bodies: perry_codegen::verify_facts::dce_enabled(),
+        // Dead-body removal reads the whole-program reach, which follows the
+        // program's own calls. A library's exported functions are called by
+        // code this compile never sees, so the reach calls them inactive and
+        // their bodies became a trap: a `--output-type staticlib` export hit
+        // `ud2` on the host's first call. The reach has no notion of an
+        // exported root yet, so a library keeps every body.
+        dce_bodies: !library && perry_codegen::verify_facts::dce_enabled(),
         roots,
         diagnostics: dump.is_some(),
         birth_census: std::env::var_os("PERRY_FACTS_BIRTH_CENSUS").is_some(),

@@ -6671,6 +6671,7 @@ pub fn run_with_parse_cache(
             .collect(),
         &ctx.cache_dir,
         activation,
+        args.output_type != "executable",
     );
     program_step("whole-program facts", Some(facts_started));
     program_step("births pre-pass", None);

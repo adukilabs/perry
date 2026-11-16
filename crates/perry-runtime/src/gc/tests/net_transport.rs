@@ -526,7 +526,6 @@ fn n9_a_stale_resolve_leaves_the_new_plan_and_backlog_alone() {
 /// N11: the pipe server path. `close()`, a synchronous unlink (the binding's
 /// job), then `listen(samePath)`: the old `Closed` neither disturbs the new
 /// listener nor its socket file.
-#[cfg(unix)]
 #[test]
 fn n11_a_pipe_server_relistens_on_its_path_across_a_stale_closed() {
     let _guard = CopyingNurseryTestGuard::new(0);
@@ -708,7 +707,6 @@ fn the_net_abi_digest_folds_the_transport_core_block() {
     );
     let size = std::mem::size_of::<TransportCore>();
     eprintln!("TransportCore: {size} bytes, block {TRANSPORT_CORE_WORDS} words");
-    #[cfg(not(windows))]
     assert_eq!(
         size.div_ceil(8),
         TRANSPORT_CORE_WORDS,

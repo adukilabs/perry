@@ -148,16 +148,6 @@ pub fn scan_intrinsic_proto_roots_mut(visitor: &mut crate::gc::RuntimeRootVisito
 // sym@SECREL32`). Generated code performs that same sequence with this
 // constant, so it reads the block without a call
 // (`perry-codegen/src/expr/agent_ptr.rs`, `AgentPtrAccess::WindowsTeb`).
-#[cfg(all(windows, target_arch = "x86_64"))]
-core::arch::global_asm!(
-    ".section .rdata,\"dr\"",
-    ".globl PERRY_AGENT_PTRS_SECREL",
-    ".p2align 2",
-    "PERRY_AGENT_PTRS_SECREL:",
-    ".secrel32 {agent_ptrs}",
-    ".text",
-    agent_ptrs = sym PERRY_AGENT_PTRS,
-);
 
 /// Publish (or clear, with null) one of this agent's pointers.
 #[allow(dead_code)] // no slot is published today (see the module doc)

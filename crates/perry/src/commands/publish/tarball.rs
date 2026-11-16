@@ -92,17 +92,9 @@ fn include_matches(pattern: &str, path: &Path, project_dir: &Path) -> bool {
 }
 
 fn is_same_open_file(opened: &fs::Metadata, current: &fs::Metadata) -> bool {
-    #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
         opened.dev() == current.dev() && opened.ino() == current.ino()
-    }
-    #[cfg(not(unix))]
-    {
-        opened.is_file()
-            && current.is_file()
-            && opened.len() == current.len()
-            && opened.modified().ok() == current.modified().ok()
     }
 }
 
@@ -181,11 +173,6 @@ fn append_dir_beneath(
 /// in valid Unix filenames.
 fn inventory_path(path: &Path) -> String {
     let path = path.to_string_lossy();
-    #[cfg(windows)]
-    {
-        path.replace('\\', "/")
-    }
-    #[cfg(not(windows))]
     {
         path.into_owned()
     }
@@ -453,9 +440,6 @@ mod force_include_tests {
     #[test]
     fn inventory_paths_use_tar_separators_without_rewriting_unix_names() {
         let path = Path::new(r"directory\file.ts");
-        #[cfg(windows)]
-        assert_eq!(inventory_path(path), "directory/file.ts");
-        #[cfg(not(windows))]
         assert_eq!(inventory_path(path), r"directory\file.ts");
     }
 
@@ -565,7 +549,6 @@ mod force_include_tests {
         );
     }
 
-    #[cfg(unix)]
     #[test]
     fn skips_symlinks_without_reading_their_targets() {
         use std::os::unix::fs::symlink;
@@ -612,7 +595,6 @@ mod force_include_tests {
         }
     }
 
-    #[cfg(unix)]
     #[test]
     fn skips_symlink_escapes_from_file_dependencies() {
         use std::os::unix::fs::symlink;

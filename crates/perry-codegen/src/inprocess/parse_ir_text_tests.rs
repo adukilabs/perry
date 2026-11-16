@@ -15,7 +15,6 @@ use inkwell::context::Context;
 const PROBE_ENV: &str = "PERRY_PARSE_IR_TEXT_LEAK_PROBE";
 
 /// Resident set size of this process in bytes (Linux only).
-#[cfg(target_os = "linux")]
 fn resident_bytes() -> usize {
     let statm = std::fs::read_to_string("/proc/self/statm").expect("procfs");
     let pages: usize = statm.split_whitespace().nth(1).unwrap().parse().unwrap();
@@ -43,12 +42,10 @@ fn measure_parse_growth() {
     };
     // Warm up allocator arenas, then measure growth over repeated parses.
     parse();
-    #[cfg(target_os = "linux")]
     let before = resident_bytes();
     for _ in 0..30 {
         parse();
     }
-    #[cfg(target_os = "linux")]
     {
         let grown = resident_bytes().saturating_sub(before);
         // A leaked copy of the text is >4 MB per parse (>120 MB here).

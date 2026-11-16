@@ -166,7 +166,6 @@ unsafe fn net_provider_dispatch(ctx: &NmCtx, name: &str) -> f64 {
 
 /// Call a node:net provider entry from the runtime itself (a child
 /// process's stdio pipe sockets), or `None` when no net provider is linked.
-#[cfg(unix)]
 pub(crate) unsafe fn net_provider_call(name: &str, args: &[f64]) -> Option<f64> {
     if crate::value::JS_NATIVE_NET_DISPATCH
         .load(std::sync::atomic::Ordering::SeqCst)

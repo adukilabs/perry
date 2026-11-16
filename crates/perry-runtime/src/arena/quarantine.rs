@@ -215,7 +215,6 @@ pub(crate) fn quarantine_depth() -> usize {
     })
 }
 
-#[cfg(unix)]
 fn page_size() -> usize {
     use std::sync::OnceLock;
     static CACHED: OnceLock<usize> = OnceLock::new();
@@ -229,12 +228,6 @@ fn page_size() -> usize {
     })
 }
 
-/// Non-Unix: no `sysconf`. Only used to size the would-be protected interior,
-/// which `mprotect_range` then declines to protect, so the value is inert.
-#[cfg(not(unix))]
-fn page_size() -> usize {
-    4096
-}
 
 /// One object that lived in a quarantined block, kept so a fault reporter can
 /// say *what* the stale pointer used to point at. 12 bytes packed; a 1 MB block
@@ -399,28 +392,18 @@ pub(super) fn page_interior(base: usize, size: usize) -> Option<(usize, usize)> 
     }
 }
 
-#[cfg(unix)]
 pub(super) fn mprotect_range(base: usize, len: usize, prot: libc::c_int) -> bool {
     // SAFETY: `base`/`len` are page-aligned and describe memory this process
     // owns (an arena block detached from the arena and held by the quarantine).
     unsafe { libc::mprotect(base as *mut libc::c_void, len, prot) == 0 }
 }
 
-/// Non-Unix: there is no `mprotect`. Reporting failure is what makes the
-/// degradation to poison-only visible in `bytes_protected` rather than silent.
-#[cfg(not(unix))]
-pub(super) fn mprotect_range(_base: usize, _len: usize, _prot: i32) -> bool {
-    false
-}
 
 fn unprotect(block: &QuarantinedBlock) {
     if let Some((base, len)) = block.protected {
-        #[cfg(unix)]
         mprotect_range(base, len, libc::PROT_READ | libc::PROT_WRITE);
         // Unreachable on non-Unix: `protected` is only ever `Some` when
         // `mprotect_range` succeeded, and there it always fails.
-        #[cfg(not(unix))]
-        let _ = (base, len);
     }
 }
 
@@ -440,10 +423,7 @@ unsafe fn retire_block(
     poison(data, used.min(size));
     let mut protected = None;
     if mode == FromSpaceProtection::ProtectPages {
-        #[cfg(unix)]
         let prot_none = libc::PROT_NONE;
-        #[cfg(not(unix))]
-        let prot_none = 0i32;
         if let Some((base, len)) = page_interior(data as usize, size) {
             if mprotect_range(base, len, prot_none) {
                 protected = Some((base, len));
@@ -693,16 +673,10 @@ unsafe fn ensure_usable_current_block(arena: &mut Arena) {
 
 static REPORTER_INSTALLED: AtomicBool = AtomicBool::new(false);
 
-/// Non-Unix: no `sigaction`, so there is no reporter to install. `ProtectPages`
-/// has already degraded to poison-only (see `mprotect_range`), so there is also
-/// nothing that could fault.
-#[cfg(not(unix))]
-fn install_fault_reporter() {}
 
 /// Install the SIGSEGV/SIGBUS reporter, once, the first time a page-set is
 /// retired. Only installed when the knob is on, so a normal build never touches
 /// signal disposition.
-#[cfg(unix)]
 fn install_fault_reporter() {
     if fromspace_protection_mode() != FromSpaceProtection::ProtectPages {
         return;
@@ -733,13 +707,11 @@ fn install_fault_reporter() {
 
 /// Minimal `write(2)`-based formatter. Deliberately avoids `format!`/`eprintln!`
 /// so the common path through the handler does not allocate.
-#[cfg(unix)]
 struct FaultWriter {
     buf: [u8; 1024],
     len: usize,
 }
 
-#[cfg(unix)]
 impl FaultWriter {
     fn new() -> Self {
         Self {
@@ -808,7 +780,6 @@ impl FaultWriter {
     }
 }
 
-#[cfg(unix)]
 extern "C" fn fromspace_fault_handler(
     signum: libc::c_int,
     info: *mut libc::siginfo_t,
@@ -937,7 +908,6 @@ pub(super) fn emit_native_backtrace() {}
 /// whole heap from a signal handler: it takes no locks it can block on (the
 /// cursor is rebuilt from block metadata) but it is emphatically a debug path,
 /// and the fault report above is already useful without it.
-#[cfg(unix)]
 fn report_stale_address_holders(fault_addr: usize, object_user_ptr: Option<usize>) {
     use std::sync::OnceLock;
     static ON: OnceLock<bool> = OnceLock::new();
@@ -1054,8 +1024,6 @@ fn report_stale_address_holders(fault_addr: usize, object_user_ptr: Option<usize
     out.flush();
 }
 
-#[cfg(not(unix))]
-fn report_stale_address_holders(_fault_addr: usize, _object_user_ptr: Option<usize>) {}
 
 #[cfg(test)]
 mod census_tests {

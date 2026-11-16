@@ -33,7 +33,6 @@ fn bracket_quote_and_invalid_escape_combinations_cross_block_boundaries() {
 }
 
 #[test]
-#[cfg(unix)]
 fn structural_windows_and_scalar_tails_stop_before_a_guard_page() {
     unsafe {
         let page = libc::sysconf(libc::_SC_PAGESIZE) as usize;

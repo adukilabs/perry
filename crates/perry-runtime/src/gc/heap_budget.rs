@@ -56,23 +56,6 @@ pub(crate) fn gc_heap_budget_bytes() -> Option<usize> {
                 budget = Some(budget.map_or(c, |b| b.min(c)));
             }
         };
-        #[cfg(any(
-            target_os = "ios",
-            target_os = "tvos",
-            target_os = "watchos",
-            target_os = "visionos"
-        ))]
-        {
-            extern "C" {
-                // libSystem, iOS 13+/watchOS 6+: bytes this process may
-                // still allocate before hitting its jetsam limit.
-                fn os_proc_available_memory() -> usize;
-            }
-            let avail = unsafe { os_proc_available_memory() };
-            if avail > 0 {
-                consider(avail as f64);
-            }
-        }
         consider(crate::process::js_process_constrained_memory());
         let total = crate::os::js_os_totalmem();
         if total.is_finite() && total > 0.0 {

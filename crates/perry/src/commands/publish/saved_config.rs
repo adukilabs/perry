@@ -402,7 +402,6 @@ mod tests {
         // A file that exists but cannot be read is the same danger wearing a
         // different hat: treating a permission error as "no config yet" would
         // serialize defaults over a file whose contents we never saw.
-        #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             let kept = "license_key = \"keep-me\"\n";

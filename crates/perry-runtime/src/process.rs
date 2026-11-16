@@ -474,7 +474,6 @@ pub(crate) fn process_exec_path_string() -> String {
     crate::snap_funnel!(ExecPath);
     std::env::current_exe()
         .map(|exe| {
-            #[cfg(unix)]
             let exe = exe.canonicalize().unwrap_or(exe);
             exe.to_string_lossy().into_owned()
         })
@@ -513,7 +512,6 @@ pub(crate) fn empty_object_value() -> f64 {
     })
 }
 
-#[cfg(unix)]
 pub(crate) fn read_process_cpu_micros() -> (f64, f64) {
     let mut usage: libc::rusage = unsafe { std::mem::zeroed() };
     if unsafe { libc::getrusage(libc::RUSAGE_SELF, &mut usage) } != 0 {
@@ -524,10 +522,6 @@ pub(crate) fn read_process_cpu_micros() -> (f64, f64) {
     (user, system)
 }
 
-#[cfg(not(unix))]
-pub(crate) fn read_process_cpu_micros() -> (f64, f64) {
-    (0.0, 0.0)
-}
 
 /// Read the current thread's CPU time as (user_us, system_us). The split
 /// isn't directly available from CLOCK_THREAD_CPUTIME_ID — that clock
@@ -535,7 +529,6 @@ pub(crate) fn read_process_cpu_micros() -> (f64, f64) {
 /// produce it (Linux/macOS via getrusage(RUSAGE_THREAD)/thread_info), but
 /// for Perry we report all of it as `user` and 0 for `system`. The exact
 /// split is uncommon to depend on in tests; the shape is what matters.
-#[cfg(any(target_os = "linux", target_os = "macos"))]
 pub(crate) fn read_thread_cpu_micros() -> (f64, f64) {
     let mut ts: libc::timespec = unsafe { std::mem::zeroed() };
     let ok = unsafe { libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut ts) };
@@ -546,10 +539,6 @@ pub(crate) fn read_thread_cpu_micros() -> (f64, f64) {
     (total_us, 0.0)
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
-pub(crate) fn read_thread_cpu_micros() -> (f64, f64) {
-    (0.0, 0.0)
-}
 
 /// Get resident set size (RSS) in bytes using platform-specific APIs.
 ///
@@ -558,52 +547,6 @@ pub(crate) fn read_thread_cpu_micros() -> (f64, f64) {
 /// visionOS and every RSS-pressure GC heuristic was silently dead exactly
 /// where memory is scarcest. Android reads the same procfs file as Linux.
 pub(crate) fn get_rss_bytes() -> u64 {
-    #[cfg(any(
-        target_os = "macos",
-        target_os = "ios",
-        target_os = "tvos",
-        target_os = "watchos",
-        target_os = "visionos"
-    ))]
-    {
-        use std::mem;
-        extern "C" {
-            fn mach_task_self() -> u32;
-            fn task_info(
-                target_task: u32,
-                flavor: u32,
-                task_info_out: *mut u8,
-                task_info_outCnt: *mut u32,
-            ) -> i32;
-        }
-        #[repr(C)]
-        struct MachTaskBasicInfo {
-            virtual_size: u64,
-            resident_size: u64,
-            resident_size_max: u64,
-            user_time: [u32; 2],
-            system_time: [u32; 2],
-            policy: i32,
-            suspend_count: i32,
-        }
-        const MACH_TASK_BASIC_INFO: u32 = 20;
-        let mut info: MachTaskBasicInfo = unsafe { mem::zeroed() };
-        let mut count = (mem::size_of::<MachTaskBasicInfo>() / mem::size_of::<u32>()) as u32;
-        let ret = unsafe {
-            task_info(
-                mach_task_self(),
-                MACH_TASK_BASIC_INFO,
-                &mut info as *mut _ as *mut u8,
-                &mut count,
-            )
-        };
-        if ret == 0 {
-            info.resident_size
-        } else {
-            0
-        }
-    }
-    #[cfg(any(target_os = "linux", target_os = "android"))]
     {
         // Read /proc/self/statm - second field is RSS in pages.
         // Page size must be queried: 16 K (many Android/Asahi kernels) and
@@ -623,52 +566,6 @@ pub(crate) fn get_rss_bytes() -> u64 {
                 }
             }
         }
-        0
-    }
-    #[cfg(target_os = "windows")]
-    {
-        #[repr(C)]
-        struct PROCESS_MEMORY_COUNTERS {
-            cb: u32,
-            page_fault_count: u32,
-            peak_working_set_size: usize,
-            working_set_size: usize,
-            quota_peak_paged_pool_usage: usize,
-            quota_paged_pool_usage: usize,
-            quota_peak_non_paged_pool_usage: usize,
-            quota_non_paged_pool_usage: usize,
-            pagefile_usage: usize,
-            peak_pagefile_usage: usize,
-        }
-        extern "system" {
-            fn GetCurrentProcess() -> isize;
-            fn K32GetProcessMemoryInfo(
-                process: isize,
-                ppsmemCounters: *mut PROCESS_MEMORY_COUNTERS,
-                cb: u32,
-            ) -> i32;
-        }
-        unsafe {
-            let mut pmc: PROCESS_MEMORY_COUNTERS = std::mem::zeroed();
-            pmc.cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32;
-            if K32GetProcessMemoryInfo(GetCurrentProcess(), &mut pmc, pmc.cb) != 0 {
-                pmc.working_set_size as u64
-            } else {
-                0
-            }
-        }
-    }
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "ios",
-        target_os = "tvos",
-        target_os = "watchos",
-        target_os = "visionos",
-        target_os = "linux",
-        target_os = "android",
-        target_os = "windows"
-    )))]
-    {
         0
     }
 }

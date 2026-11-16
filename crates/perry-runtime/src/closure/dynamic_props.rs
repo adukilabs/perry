@@ -857,7 +857,6 @@ mod tests_1802 {
         }
     }
 
-    #[cfg(unix)]
     #[test]
     fn inaccessible_heap_range_word_is_rejected_before_shape_read() {
         use std::ptr;

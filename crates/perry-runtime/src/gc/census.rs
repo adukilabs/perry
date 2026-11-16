@@ -128,13 +128,11 @@ pub(crate) fn census_on_gc_init() {
     install_signal_handler();
 }
 
-#[cfg(unix)]
 extern "C" fn census_signal_handler(_sig: libc::c_int) {
     // Async-signal-safe: only the atomic store. The event loop does the work.
     SIGNAL_PENDING.store(true, Ordering::Release);
 }
 
-#[cfg(unix)]
 fn install_signal_handler() {
     if SIGNAL_INSTALLED
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
@@ -153,15 +151,12 @@ fn install_signal_handler() {
     }
 }
 
-#[cfg(not(unix))]
-fn install_signal_handler() {}
 
 /// Another owner restored `SIG_DFL` on `signal` (the `process.on(sig)` /
 /// `off` support does that when the last JS listener goes away — and the
 /// compiled claude-code TUI registers-then-removes a `SIGUSR2` listener at
 /// startup). Re-install the census trigger so the signal keeps meaning
 /// "census" instead of "terminate". No-op unless the census is enabled.
-#[cfg(unix)]
 pub(crate) fn census_after_signal_disposition_reset(signal: libc::c_int) {
     if signal != libc::SIGUSR2 || !gc_census_enabled() {
         return;
@@ -676,59 +671,14 @@ mod regex_census_tests {
 // Process-level numbers
 // ---------------------------------------------------------------------------
 
-#[cfg(target_os = "macos")]
-fn phys_footprint_bytes() -> Option<u64> {
-    // libc exposes proc_pid_rusage on macOS, not on the Apple mobile targets.
-    // SAFETY: proc_pid_rusage fills a caller-provided rusage_info_v4.
-    unsafe {
-        let mut info: libc::rusage_info_v4 = std::mem::zeroed();
-        let rc = libc::proc_pid_rusage(
-            libc::getpid(),
-            libc::RUSAGE_INFO_V4,
-            &mut info as *mut libc::rusage_info_v4 as *mut libc::rusage_info_t,
-        );
-        if rc == 0 {
-            Some(info.ri_phys_footprint)
-        } else {
-            None
-        }
-    }
-}
 
-#[cfg(not(target_os = "macos"))]
 fn phys_footprint_bytes() -> Option<u64> {
     None
 }
 
 // `libmimalloc-sys` is an Apple-only dependency of this crate (the OS-tag
 // retag is what pulls it in), so the stats call is Apple-only too.
-#[cfg(all(feature = "alloc-mimalloc", target_vendor = "apple"))]
-fn mimalloc_info() -> serde_json::Value {
-    let (mut e, mut u, mut s, mut rss, mut prss, mut commit, mut pcommit, mut pf) = (
-        0usize, 0usize, 0usize, 0usize, 0usize, 0usize, 0usize, 0usize,
-    );
-    // SAFETY: plain out-params.
-    unsafe {
-        libmimalloc_sys::mi_process_info(
-            &mut e,
-            &mut u,
-            &mut s,
-            &mut rss,
-            &mut prss,
-            &mut commit,
-            &mut pcommit,
-            &mut pf,
-        );
-    }
-    serde_json::json!({
-        "current_rss": rss,
-        "peak_rss": prss,
-        "current_commit": commit,
-        "peak_commit": pcommit,
-    })
-}
 
-#[cfg(not(all(feature = "alloc-mimalloc", target_vendor = "apple")))]
 fn mimalloc_info() -> serde_json::Value {
     serde_json::Value::Null
 }

@@ -31,7 +31,6 @@ fn digit_scan_matches_scalar_at_every_byte_and_boundary() {
     }
 }
 
-#[cfg(unix)]
 #[test]
 fn digit_and_string_scans_stop_before_guard_page() {
     unsafe {

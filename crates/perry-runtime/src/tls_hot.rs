@@ -102,9 +102,6 @@
 
 // Android uses pooled storage with the same try_with failure semantics. Other
 // platforms keep std's storage and exact AccessError type.
-#[cfg(target_os = "android")]
-pub use crate::tls_os_pool::AccessError;
-#[cfg(not(target_os = "android"))]
 pub use std::thread::AccessError;
 
 use std::cell::{Cell, UnsafeCell};
@@ -263,7 +260,6 @@ impl HotTls {
     };
 }
 
-#[cfg(not(target_os = "android"))]
 thread_local! {
     /// `const`-initialised on purpose: a lazily-initialised `thread_local!`
     /// pays a "has this been initialised / has this been dropped" check on
@@ -275,9 +271,6 @@ thread_local! {
 
 // Keep the cache in the pool too. It must outlive pooled value destructors,
 // whose SlotGuard clears cached addresses while the pool is being torn down.
-#[cfg(target_os = "android")]
-static HOT: crate::tls_os_pool::LocalKey<UnsafeCell<HotTls>> =
-    crate::tls_os_pool::LocalKey::new(|| UnsafeCell::new(HotTls::EMPTY));
 
 /// Resolve every cached address for this thread. Cold: runs once per thread.
 ///
@@ -332,202 +325,20 @@ fn hot_via_tls() -> &'static HotTls {
     }
 }
 
-/// Direct pthread thread-specific-data addressing, and the self-check that
-/// keeps it honest. See the module docs for why this exists.
-#[cfg(all(
-    target_vendor = "apple",
-    target_arch = "aarch64",
-    target_pointer_width = "64"
-))]
-pub(crate) mod darwin_tsd {
-    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-
-    /// `KEY`'s "there is no direct path" value — either the key has not been
-    /// created yet, or [`publish`]'s self-check rejected it.
-    pub(super) const NO_KEY: usize = usize::MAX;
-
-    /// The pthread key under which each thread publishes its `HotTls`
-    /// address. Exported by name because generated code on this platform
-    /// performs the same lookup inline (`perry-codegen/src/expr/hot_tls.rs`):
-    /// load this key, `mrs tpidrro_el0`, index the TSD array, and read the
-    /// cache — falling back to the runtime accessor when the key is
-    /// [`NO_KEY`] or the slot is still null. The value is only ever written
-    /// by [`ensure_key`] / [`disable`], exactly as before.
-    #[no_mangle]
-    pub static PERRY_HOT_TSD_KEY: AtomicUsize = AtomicUsize::new(NO_KEY);
-    pub(super) use PERRY_HOT_TSD_KEY as KEY;
-
-    /// Latched by [`disable`] so no later thread retries a path this process
-    /// has already proven wrong.
-    static DISABLED: AtomicBool = AtomicBool::new(false);
-
-    /// Read thread-specific-data slot `slot` for the calling thread.
-    ///
-    /// `TPIDRRO_EL0` holds this thread's TSD base with the CPU number in the
-    /// low three bits. Masking those off and indexing is precisely what
-    /// `_os_tsd_get_direct` — and therefore `pthread_getspecific` — does, and
-    /// what mimalloc (already linked into this runtime) does on this platform.
-    ///
-    /// # Safety
-    /// `slot` must be a key returned by `pthread_key_create`, so that the index
-    /// lands inside the thread's TSD array.
-    #[inline(always)]
-    pub(super) unsafe fn get(slot: usize) -> *mut u8 {
-        let base: usize;
-        // **NOT `pure`. This is load-bearing and was learned the hard way.**
-        //
-        // `options(pure, nomem)` is the obvious choice — masked of its
-        // CPU-number bits the register is a per-thread constant, so `pure`
-        // lets LLVM CSE the read across a whole function and hoist it out of
-        // loops, and it costs one `mrs` per reader to give that up. It is also
-        // **wrong**, and the first version of this change shipped it.
-        //
-        // `pure` promises the result depends only on the inputs, and this asm
-        // has none — so LLVM is free to compute it once and reuse the value
-        // anywhere in the function, *including across a point where execution
-        // resumes on a different thread*. `perry-stdlib`'s async bridge is
-        // exactly that shape: `hot()` is `#[inline(always)]` and LTO inlines it
-        // into futures that tokio polls, so a hoisted thread pointer outlives
-        // the thread it was read on. The observable was every `node:net` /
-        // `node:http` server aborting with tokio's "there is no reactor
-        // running" — five out of five runs, against five out of five clean on
-        // `main`, and it did not reproduce in any unit test or in the whole
-        // allocation-benchmark set. Deleting `pure` fixes it.
-        //
-        // The tempting counter-argument — that `@llvm.threadlocal.address` is
-        // already `speculatable` and `memory(none)`, so a `thread_local!` read
-        // had the same freedom — does not hold: on Darwin that intrinsic
-        // lowers to a *call* through the TLV descriptor, which LLVM will not
-        // hoist across arbitrary code. Replacing the call with inline asm is
-        // what made the hoist possible, so this is a constraint introduced
-        // here, not inherited.
-        core::arch::asm!(
-            "mrs {b}, tpidrro_el0",
-            b = out(reg) base,
-            options(nomem, nostack, preserves_flags)
-        );
-        // SAFETY: the caller guarantees `slot` is a live pthread key.
-        unsafe { *((base & !0b111) as *const *mut u8).add(slot) }
-    }
-
-    /// Publish `value` as this thread's cache address, then prove the direct
-    /// read agrees with what `pthread_setspecific` was handed.
-    ///
-    /// The check is the whole reason this is safe to ship: if a future OS ever
-    /// moves the TSD array out from under `TPIDRRO_EL0`, the very first thread
-    /// notices here and the process reverts to `_tlv_get_addr` for good. There
-    /// is no path on which a mismatch turns into a wrong address being read on
-    /// the allocation hot path.
-    pub(super) fn publish(value: *mut u8) {
-        if DISABLED.load(Ordering::Relaxed) {
-            return;
-        }
-        let key = ensure_key();
-        if key == NO_KEY {
-            return;
-        }
-        // SAFETY: `key` came from `pthread_key_create` below.
-        let rc = unsafe { libc::pthread_setspecific(key as libc::pthread_key_t, value.cast()) };
-        // SAFETY: as above — and this is exactly the read `pthread_getspecific`
-        // would perform for the same key on this thread.
-        if rc != 0 || unsafe { get(key) } != value {
-            disable(key);
-        }
-    }
-
-    fn ensure_key() -> usize {
-        static ONCE: std::sync::Once = std::sync::Once::new();
-        ONCE.call_once(|| {
-            let mut key: libc::pthread_key_t = 0;
-            // No destructor: the cache is the `HOT` thread-local's own storage,
-            // owned by the TLS runtime. This key only borrows its address.
-            // SAFETY: `key` is a live local for the duration of the call.
-            if unsafe { libc::pthread_key_create(&mut key, None) } == 0 {
-                KEY.store(key as usize, Ordering::Release);
-            } else {
-                DISABLED.store(true, Ordering::Relaxed);
-            }
-        });
-        KEY.load(Ordering::Acquire)
-    }
-
-    #[cold]
-    fn disable(key: usize) {
-        DISABLED.store(true, Ordering::Relaxed);
-        KEY.store(NO_KEY, Ordering::Release);
-        // SAFETY: `key` came from `pthread_key_create`.
-        unsafe {
-            libc::pthread_setspecific(key as libc::pthread_key_t, std::ptr::null());
-        }
-    }
-
-    /// Whether the direct path is live for this process.
-    ///
-    /// A gate that does not assert this is measuring nothing: `false` means
-    /// every `hot()` is paying `_tlv_get_addr` again and the whole change is
-    /// inert. `tls_hot::tests::direct_tsd_path_is_live` is that assertion.
-    pub(crate) fn active() -> bool {
-        KEY.load(Ordering::Relaxed) != NO_KEY
-    }
-}
 
 /// Native-thread identity is the address of existing const TLS storage.
 /// Resolving it neither fills the hot pointers nor adds a cached identity;
 /// arena mappings can use it during allocator initialization and teardown.
-#[cfg(target_os = "linux")]
 #[inline(always)]
 pub(crate) fn thread_identity() -> usize {
     HOT.with(|cell| cell.get() as usize)
 }
 
-/// Resolve, fill and publish this thread's cache. Cold: once per thread.
-#[cfg(all(
-    target_vendor = "apple",
-    target_arch = "aarch64",
-    target_pointer_width = "64"
-))]
-#[cold]
-#[optimize(size)]
-#[inline(never)]
-fn hot_uncached() -> &'static HotTls {
-    let slots = hot_via_tls();
-    darwin_tsd::publish(slots as *const HotTls as *mut u8);
-    slots
-}
 
-/// Return this thread's cache only after the Darwin direct-TSD path has
-/// published it. Unlike [`hot`], this never resolves `HOT` and never calls
-/// [`fill`], so initialization-sensitive users can safely fall back to their
-/// own thread-local while the cache is being built (#9183).
-#[cfg(all(
-    target_vendor = "apple",
-    target_arch = "aarch64",
-    target_pointer_width = "64"
-))]
-#[inline(always)]
-pub(crate) fn hot_if_published() -> Option<&'static HotTls> {
-    let key = darwin_tsd::KEY.load(std::sync::atomic::Ordering::Relaxed);
-    if key == darwin_tsd::NO_KEY {
-        return None;
-    }
-    // SAFETY: `key` is a live pthread key. A non-null value was published
-    // from this thread's const-initialized `HOT` after `fill` completed.
-    let slots = unsafe { darwin_tsd::get(key) } as *mut HotTls;
-    if slots.is_null() {
-        None
-    } else {
-        Some(unsafe { &*slots })
-    }
-}
 
 /// The published-cache shortcut is Darwin-specific. Other targets keep the
 /// ordinary TLS path, where resolving a thread-local is already a fixed
 /// offset and the extra cache indirection has no demonstrated benefit.
-#[cfg(not(all(
-    target_vendor = "apple",
-    target_arch = "aarch64",
-    target_pointer_width = "64"
-)))]
 #[inline(always)]
 pub(crate) fn hot_if_published() -> Option<&'static HotTls> {
     None
@@ -570,29 +381,9 @@ pub(crate) fn unpublish_runtime_handle_stack() {
     });
 }
 
-/// The per-thread address cache. On Apple aarch64 this is an `mrs` plus two
-/// loads with no call at all; elsewhere it is the single TLS access the field
-/// cache already collapsed the whole allocation path down to.
-#[cfg(all(
-    target_vendor = "apple",
-    target_arch = "aarch64",
-    target_pointer_width = "64"
-))]
-#[inline(always)]
-pub(crate) fn hot() -> &'static HotTls {
-    if let Some(slots) = hot_if_published() {
-        return slots;
-    }
-    hot_uncached()
-}
 
 /// The per-thread address cache. One TLS access for every thread-local it
 /// covers.
-#[cfg(not(all(
-    target_vendor = "apple",
-    target_arch = "aarch64",
-    target_pointer_width = "64"
-)))]
 #[inline(always)]
 pub(crate) fn hot() -> &'static HotTls {
     hot_via_tls()
@@ -739,17 +530,6 @@ fn maybe_install_stats_hook() {
             return;
         }
         extern "C" fn report() {
-            #[cfg(all(
-                target_vendor = "apple",
-                target_arch = "aarch64",
-                target_pointer_width = "64"
-            ))]
-            let direct = u8::from(darwin_tsd::active());
-            #[cfg(not(all(
-                target_vendor = "apple",
-                target_arch = "aarch64",
-                target_pointer_width = "64"
-            )))]
             let direct = 0u8;
             eprintln!(
                 "[tls-hot] claimed={} published={} capacity={} direct_tsd={}",
@@ -890,10 +670,6 @@ impl<T: 'static> HotKey<T> {
     where
         F: FnOnce(&T) -> R,
     {
-        #[cfg(target_os = "android")]
-        if crate::tls_os_pool::is_destroyed() {
-            return Err(AccessError);
-        }
         let idx = self.slot.raw();
         if (idx as usize) < HOT_SLOT_CAPACITY {
             let cell = hot().slot(idx);
@@ -1217,93 +993,8 @@ mod tests {
         .expect("unpublished-cache probe thread panicked");
     }
 
-    /// The direct thread-specific-data path must be live on this platform.
-    ///
-    /// This is the liveness assertion for #7469's structural half. Every other
-    /// test here passes identically whether `hot()` costs an `_tlv_get_addr`
-    /// call or three inline instructions, so without this one a silent fallback
-    /// would make the change inert and nothing would go red.
-    #[cfg(all(
-        target_vendor = "apple",
-        target_arch = "aarch64",
-        target_pointer_width = "64"
-    ))]
-    #[test]
-    fn direct_tsd_path_is_live() {
-        let expected = super::hot() as *const super::HotTls;
-        assert!(
-            super::darwin_tsd::active(),
-            "direct TSD path fell back to _tlv_get_addr — the #7469 structural \
-             fix is inert on this run"
-        );
-        let key = super::darwin_tsd::KEY.load(std::sync::atomic::Ordering::Relaxed);
-        // SAFETY: `active()` above proves the key came from pthread_key_create.
-        let direct = unsafe { super::darwin_tsd::get(key) } as *const super::HotTls;
-        assert_eq!(
-            direct, expected,
-            "direct TSD read disagreed with the published cache address"
-        );
-    }
 
-    /// The direct read must agree with `pthread_getspecific` for the same key.
-    ///
-    /// `get()` open-codes what libpthread does; this is the check that says so
-    /// against the real implementation rather than against our own belief about
-    /// it. If Apple ever moves the TSD array, this fails here rather than in
-    /// the allocator.
-    #[cfg(all(
-        target_vendor = "apple",
-        target_arch = "aarch64",
-        target_pointer_width = "64"
-    ))]
-    #[test]
-    fn direct_read_matches_pthread_getspecific() {
-        let mut key: libc::pthread_key_t = 0;
-        // SAFETY: `key` is a live local for the duration of the call.
-        assert_eq!(unsafe { libc::pthread_key_create(&mut key, None) }, 0);
-        let sentinel = 0x5eed_1234_usize as *mut libc::c_void;
-        // SAFETY: `key` was just created.
-        assert_eq!(
-            unsafe { libc::pthread_setspecific(key, sentinel) },
-            0,
-            "pthread_setspecific rejected a freshly created key"
-        );
-        // SAFETY: as above.
-        let direct = unsafe { super::darwin_tsd::get(key as usize) };
-        // SAFETY: as above.
-        let via_pthread = unsafe { libc::pthread_getspecific(key) };
-        assert_eq!(direct as *mut libc::c_void, via_pthread);
-        assert_eq!(direct, sentinel.cast());
-        // SAFETY: as above.
-        unsafe {
-            libc::pthread_setspecific(key, std::ptr::null());
-            libc::pthread_key_delete(key);
-        }
-    }
 
-    /// A thread that has not published yet must see null in its slot and take
-    /// the cold path, not another thread's cache.
-    #[cfg(all(
-        target_vendor = "apple",
-        target_arch = "aarch64",
-        target_pointer_width = "64"
-    ))]
-    #[test]
-    fn a_fresh_thread_publishes_its_own_slot() {
-        let mine = super::hot() as *const super::HotTls;
-        let theirs = std::thread::spawn(|| {
-            let addr = super::hot() as *const super::HotTls;
-            let key = super::darwin_tsd::KEY.load(std::sync::atomic::Ordering::Relaxed);
-            assert_ne!(key, super::darwin_tsd::NO_KEY);
-            // SAFETY: `key` is live; the assert above proves it was created.
-            let direct = unsafe { super::darwin_tsd::get(key) } as *const super::HotTls;
-            assert_eq!(direct, addr, "worker thread published the wrong address");
-            addr as usize
-        })
-        .join()
-        .expect("probe thread panicked");
-        assert_ne!(mine as usize, theirs, "two threads shared one cache");
-    }
 
     /// The cache is per-thread: a second thread must resolve its own
     /// addresses, not inherit this one's.

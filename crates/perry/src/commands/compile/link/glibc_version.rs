@@ -155,8 +155,6 @@ mod tests {
     /// prime it.
     fn cross_driver(sysroot: &std::path::Path) -> Command {
         let mut driver = Command::new("cc");
-        #[cfg(not(target_os = "linux"))]
-        driver.arg("-target").arg("x86_64-unknown-linux-gnu");
         driver.arg(format!("--sysroot={}", sysroot.display()));
         driver
     }

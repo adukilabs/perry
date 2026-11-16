@@ -399,12 +399,9 @@ pub(crate) fn close(owner: f64, callback: f64) -> f64 {
         )
     };
     // Unlink synchronously. A late old Closed must never unlink a new bind.
-    #[cfg(unix)]
     if let Some(path) = path {
         let _ = std::fs::remove_file(path);
     }
-    #[cfg(not(unix))]
-    let _ = path;
     // SAFETY: The retained link belongs to this agent; projection checks family/open lifecycle, and
     // field/core access ends before allocation or JS.
     let owed = unsafe {

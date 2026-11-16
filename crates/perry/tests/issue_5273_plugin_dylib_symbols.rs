@@ -21,7 +21,6 @@
 //! Windows export path (`.def` generation in
 //! `crates/perry/src/commands/compile.rs`) is gated by the same codegen and
 //! covered by `tests/integration/test_plugin_lifecycle.sh`.
-#![cfg(unix)]
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

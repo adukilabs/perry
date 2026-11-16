@@ -53,25 +53,6 @@ pub fn bound_native_callable_export_value(module_name: &str, property_name: &str
     let module_name = assert_instance_base_module(module_name).unwrap_or(module_name);
     let property_name = canonical_native_callable_property(module_name, property_name);
     // Codegen can request a callable directly, bypassing namespace lookup.
-    #[cfg(windows)]
-    if module_name == "process"
-        && matches!(
-            property_name,
-            "getuid"
-                | "geteuid"
-                | "getgid"
-                | "getegid"
-                | "getgroups"
-                | "setuid"
-                | "seteuid"
-                | "setgid"
-                | "setegid"
-                | "setgroups"
-                | "initgroups"
-        )
-    {
-        return f64::from_bits(crate::value::TAG_UNDEFINED);
-    }
     // A module the submodule registry implements (`stream/promises`,
     // `timers/promises`, `stream/web`, ...) has no dispatch bucket: a
     // BOUND_METHOD closure minted below would dispatch through a module with no

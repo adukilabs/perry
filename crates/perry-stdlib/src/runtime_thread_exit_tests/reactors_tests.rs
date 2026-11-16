@@ -39,7 +39,6 @@ fn thread_exit_releases_the_threads_live_child_process_entries() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn thread_exit_releases_the_threads_live_pty_entries() {
     use perry_runtime::child_process::reactor::thread_exit_test_probes as probes;
@@ -121,7 +120,6 @@ fn agent_retirement_releases_the_agents_idle_native_async_tokens() {
 /// A worker agent's `process.on(signal)` subscribes ITS loop; at retirement
 /// the process-global slot must return to "not installed", or the next
 /// listener on any other thread never subscribes.
-#[cfg(unix)]
 #[test]
 fn agent_retirement_releases_the_agents_turnloop_signal_subscription() {
     use perry_runtime::child_process::reactor::thread_exit_test_probes as probes;

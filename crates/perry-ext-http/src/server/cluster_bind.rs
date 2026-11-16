@@ -81,7 +81,6 @@ pub(crate) fn compute_key_id(host: &str, port: u16, address_type: i32) -> u32 {
 }
 
 /// Block for the next SCHED_RR connection fd for `key_id`; -1 on channel close.
-#[cfg(unix)]
 pub(crate) fn recv_fd(key_id: u32) -> std::os::unix::io::RawFd {
     unsafe { perry_cluster_worker_recv_fd(key_id) }
 }

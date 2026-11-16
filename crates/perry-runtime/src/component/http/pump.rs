@@ -14,10 +14,7 @@ crate::perry_thread_local! {
 }
 
 pub(super) fn notify(agent: crate::agent::AgentId) {
-    #[cfg(not(target_arch = "wasm32"))]
     crate::event_pump::notify_agent_work(agent);
-    #[cfg(target_arch = "wasm32")]
-    let _ = agent;
 }
 unsafe extern "C" fn wake(agent: u64) {
     notify(agent);

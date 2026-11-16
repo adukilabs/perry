@@ -608,7 +608,6 @@ mod crypto_const_table_tests {
 /// as its verbatim const expression cast to f64 (uniform row type across
 /// platforms). The verbatim reference + literal-universe oracle below runs
 /// on EVERY platform in CI, covering the sides not testable locally.
-#[cfg(unix)]
 static OS_ERRNO_CONST_TABLE: &[(&str, f64)] = &[
     ("E2BIG", (libc::E2BIG) as f64),
     ("EACCES", (libc::EACCES) as f64),
@@ -690,168 +689,6 @@ static OS_ERRNO_CONST_TABLE: &[(&str, f64)] = &[
     ("EWOULDBLOCK", (libc::EWOULDBLOCK) as f64),
     ("EXDEV", (libc::EXDEV) as f64),
 ];
-#[cfg(not(any(unix, windows)))]
-static OS_ERRNO_CONST_TABLE: &[(&str, f64)] = &[
-    ("EACCES", (13.0) as f64),
-    ("EAGAIN", (11.0) as f64),
-    ("EBADF", (9.0) as f64),
-    ("EBUSY", (16.0) as f64),
-    ("EEXIST", (17.0) as f64),
-    ("EFAULT", (14.0) as f64),
-    ("EINTR", (4.0) as f64),
-    ("EINVAL", (22.0) as f64),
-    ("EIO", (5.0) as f64),
-    ("EISDIR", (21.0) as f64),
-    ("EMFILE", (24.0) as f64),
-    ("ENFILE", (23.0) as f64),
-    ("ENODEV", (19.0) as f64),
-    ("ENOENT", (2.0) as f64),
-    ("ENOMEM", (12.0) as f64),
-    ("ENOSPC", (28.0) as f64),
-    ("ENOTDIR", (20.0) as f64),
-    ("ENOTEMPTY", (41.0) as f64),
-    ("EPERM", (1.0) as f64),
-    ("EPIPE", (32.0) as f64),
-    ("ERANGE", (34.0) as f64),
-    ("EROFS", (30.0) as f64),
-];
-#[cfg(windows)]
-static OS_ERRNO_CONST_TABLE: &[(&str, f64)] = &[
-    ("E2BIG", 7.0),
-    ("EACCES", 13.0),
-    ("EADDRINUSE", 100.0),
-    ("EADDRNOTAVAIL", 101.0),
-    ("EAFNOSUPPORT", 102.0),
-    ("EAGAIN", 11.0),
-    ("EALREADY", 103.0),
-    ("EBADF", 9.0),
-    ("EBADMSG", 104.0),
-    ("EBUSY", 16.0),
-    ("ECANCELED", 105.0),
-    ("ECHILD", 10.0),
-    ("ECONNABORTED", 106.0),
-    ("ECONNREFUSED", 107.0),
-    ("ECONNRESET", 108.0),
-    ("EDEADLK", 36.0),
-    ("EDESTADDRREQ", 109.0),
-    ("EDOM", 33.0),
-    ("EEXIST", 17.0),
-    ("EFAULT", 14.0),
-    ("EFBIG", 27.0),
-    ("EHOSTUNREACH", 110.0),
-    ("EIDRM", 111.0),
-    ("EILSEQ", 42.0),
-    ("EINPROGRESS", 112.0),
-    ("EINTR", 4.0),
-    ("EINVAL", 22.0),
-    ("EIO", 5.0),
-    ("EISCONN", 113.0),
-    ("EISDIR", 21.0),
-    ("ELOOP", 114.0),
-    ("EMFILE", 24.0),
-    ("EMLINK", 31.0),
-    ("EMSGSIZE", 115.0),
-    ("ENAMETOOLONG", 38.0),
-    ("ENETDOWN", 116.0),
-    ("ENETRESET", 117.0),
-    ("ENETUNREACH", 118.0),
-    ("ENFILE", 23.0),
-    ("ENOBUFS", 119.0),
-    ("ENODATA", 120.0),
-    ("ENODEV", 19.0),
-    ("ENOENT", 2.0),
-    ("ENOEXEC", 8.0),
-    ("ENOLCK", 39.0),
-    ("ENOLINK", 121.0),
-    ("ENOMEM", 12.0),
-    ("ENOMSG", 122.0),
-    ("ENOPROTOOPT", 123.0),
-    ("ENOSPC", 28.0),
-    ("ENOSR", 124.0),
-    ("ENOSTR", 125.0),
-    ("ENOSYS", 40.0),
-    ("ENOTCONN", 126.0),
-    ("ENOTDIR", 20.0),
-    ("ENOTEMPTY", 41.0),
-    ("ENOTSOCK", 128.0),
-    ("ENOTSUP", 129.0),
-    ("ENOTTY", 25.0),
-    ("ENXIO", 6.0),
-    ("EOPNOTSUPP", 130.0),
-    ("EOVERFLOW", 132.0),
-    ("EPERM", 1.0),
-    ("EPIPE", 32.0),
-    ("EPROTO", 134.0),
-    ("EPROTONOSUPPORT", 135.0),
-    ("EPROTOTYPE", 136.0),
-    ("ERANGE", 34.0),
-    ("EROFS", 30.0),
-    ("ESPIPE", 29.0),
-    ("ESRCH", 3.0),
-    ("ETIME", 137.0),
-    ("ETIMEDOUT", 138.0),
-    ("ETXTBSY", 139.0),
-    ("EWOULDBLOCK", 140.0),
-    ("EXDEV", 18.0),
-    ("WSAEACCES", 10013.0),
-    ("WSAEADDRINUSE", 10048.0),
-    ("WSAEADDRNOTAVAIL", 10049.0),
-    ("WSAEAFNOSUPPORT", 10047.0),
-    ("WSAEALREADY", 10037.0),
-    ("WSAEBADF", 10009.0),
-    ("WSAECANCELLED", 10103.0),
-    ("WSAECONNABORTED", 10053.0),
-    ("WSAECONNREFUSED", 10061.0),
-    ("WSAECONNRESET", 10054.0),
-    ("WSAEDESTADDRREQ", 10039.0),
-    ("WSAEDISCON", 10101.0),
-    ("WSAEDQUOT", 10069.0),
-    ("WSAEFAULT", 10014.0),
-    ("WSAEHOSTDOWN", 10064.0),
-    ("WSAEHOSTUNREACH", 10065.0),
-    ("WSAEINPROGRESS", 10036.0),
-    ("WSAEINTR", 10004.0),
-    ("WSAEINVAL", 10022.0),
-    ("WSAEINVALIDPROCTABLE", 10104.0),
-    ("WSAEINVALIDPROVIDER", 10105.0),
-    ("WSAEISCONN", 10056.0),
-    ("WSAELOOP", 10062.0),
-    ("WSAEMFILE", 10024.0),
-    ("WSAEMSGSIZE", 10040.0),
-    ("WSAENAMETOOLONG", 10063.0),
-    ("WSAENETDOWN", 10050.0),
-    ("WSAENETRESET", 10052.0),
-    ("WSAENETUNREACH", 10051.0),
-    ("WSAENOBUFS", 10055.0),
-    ("WSAENOMORE", 10102.0),
-    ("WSAENOPROTOOPT", 10042.0),
-    ("WSAENOTCONN", 10057.0),
-    ("WSAENOTEMPTY", 10066.0),
-    ("WSAENOTSOCK", 10038.0),
-    ("WSAEOPNOTSUPP", 10045.0),
-    ("WSAEPFNOSUPPORT", 10046.0),
-    ("WSAEPROCLIM", 10067.0),
-    ("WSAEPROTONOSUPPORT", 10043.0),
-    ("WSAEPROTOTYPE", 10041.0),
-    ("WSAEPROVIDERFAILEDINIT", 10106.0),
-    ("WSAEREFUSED", 10112.0),
-    ("WSAEREMOTE", 10071.0),
-    ("WSAESHUTDOWN", 10058.0),
-    ("WSAESOCKTNOSUPPORT", 10044.0),
-    ("WSAESTALE", 10070.0),
-    ("WSAETIMEDOUT", 10060.0),
-    ("WSAETOOMANYREFS", 10059.0),
-    ("WSAEUSERS", 10068.0),
-    ("WSAEWOULDBLOCK", 10035.0),
-    ("WSANOTINITIALISED", 10093.0),
-    ("WSASERVICE_NOT_FOUND", 10108.0),
-    ("WSASYSCALLFAILURE", 10107.0),
-    ("WSASYSNOTREADY", 10091.0),
-    ("WSATYPE_NOT_FOUND", 10109.0),
-    ("WSAVERNOTSUPPORTED", 10092.0),
-    ("WSA_E_CANCELLED", 10111.0),
-    ("WSA_E_NO_MORE", 10110.0),
-];
 
 pub(super) fn os_errno_const_lookup(prop: &str) -> Option<f64> {
     let i = OS_ERRNO_CONST_TABLE
@@ -863,7 +700,6 @@ pub(super) fn os_errno_const_lookup(prop: &str) -> Option<f64> {
 #[cfg(test)]
 #[allow(clippy::unnecessary_cast)]
 fn os_errno_const_reference(prop: &str) -> Option<f64> {
-    #[cfg(unix)]
     {
         let v: Option<i32> = match prop {
             "E2BIG" => Some(libc::E2BIG),
@@ -949,43 +785,6 @@ fn os_errno_const_reference(prop: &str) -> Option<f64> {
         };
         v.map(|x| x as f64)
     }
-    #[cfg(windows)]
-    {
-        // Independent snapshot of the pinned Windows Node oracle.
-        let values: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../../../tests/fixtures/programs/fixtures/windows_errno.json"
-        ))
-        .expect("Windows errno oracle");
-        values.get(prop).and_then(serde_json::Value::as_f64)
-    }
-    #[cfg(not(any(unix, windows)))]
-    {
-        match prop {
-            "EACCES" => Some(13.0),
-            "EAGAIN" => Some(11.0),
-            "EBADF" => Some(9.0),
-            "EBUSY" => Some(16.0),
-            "EEXIST" => Some(17.0),
-            "EFAULT" => Some(14.0),
-            "EINTR" => Some(4.0),
-            "EINVAL" => Some(22.0),
-            "EIO" => Some(5.0),
-            "EISDIR" => Some(21.0),
-            "EMFILE" => Some(24.0),
-            "ENFILE" => Some(23.0),
-            "ENODEV" => Some(19.0),
-            "ENOENT" => Some(2.0),
-            "ENOMEM" => Some(12.0),
-            "ENOSPC" => Some(28.0),
-            "ENOTDIR" => Some(20.0),
-            "ENOTEMPTY" => Some(41.0),
-            "EPERM" => Some(1.0),
-            "EPIPE" => Some(32.0),
-            "ERANGE" => Some(34.0),
-            "EROFS" => Some(30.0),
-            _ => None,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -1026,7 +825,6 @@ mod os_errno_const_table_tests {
 /// as its verbatim const expression cast to f64 (uniform row type across
 /// platforms). The verbatim reference + literal-universe oracle below runs
 /// on EVERY platform in CI, covering the sides not testable locally.
-#[cfg(unix)]
 static OS_SIGNAL_CONST_TABLE: &[(&str, f64)] = &[
     ("SIGABRT", (libc::SIGABRT) as f64),
     ("SIGALRM", (libc::SIGALRM) as f64),
@@ -1036,21 +834,16 @@ static OS_SIGNAL_CONST_TABLE: &[(&str, f64)] = &[
     ("SIGFPE", (libc::SIGFPE) as f64),
     ("SIGHUP", (libc::SIGHUP) as f64),
     ("SIGILL", (libc::SIGILL) as f64),
-    #[cfg(target_os = "macos")]
-    ("SIGINFO", (29i32) as f64),
     ("SIGINT", (libc::SIGINT) as f64),
     ("SIGIO", (libc::SIGIO) as f64),
     ("SIGIOT", (libc::SIGABRT) as f64),
     ("SIGKILL", (libc::SIGKILL) as f64),
     ("SIGPIPE", (libc::SIGPIPE) as f64),
-    #[cfg(any(target_os = "linux", target_os = "android"))]
     ("SIGPOLL", (libc::SIGPOLL) as f64),
     ("SIGPROF", (libc::SIGPROF) as f64),
-    #[cfg(target_os = "linux")]
     ("SIGPWR", (libc::SIGPWR) as f64),
     ("SIGQUIT", (libc::SIGQUIT) as f64),
     ("SIGSEGV", (libc::SIGSEGV) as f64),
-    #[cfg(target_os = "linux")]
     ("SIGSTKFLT", (libc::SIGSTKFLT) as f64),
     ("SIGSTOP", (libc::SIGSTOP) as f64),
     ("SIGSYS", (libc::SIGSYS) as f64),
@@ -1067,18 +860,6 @@ static OS_SIGNAL_CONST_TABLE: &[(&str, f64)] = &[
     ("SIGXCPU", (libc::SIGXCPU) as f64),
     ("SIGXFSZ", (libc::SIGXFSZ) as f64),
 ];
-#[cfg(not(unix))]
-static OS_SIGNAL_CONST_TABLE: &[(&str, f64)] = &[
-    ("SIGABRT", (22.0) as f64),
-    ("SIGBREAK", (21.0) as f64),
-    ("SIGFPE", (8.0) as f64),
-    ("SIGHUP", (1.0) as f64),
-    ("SIGILL", (4.0) as f64),
-    ("SIGINT", (2.0) as f64),
-    ("SIGKILL", (9.0) as f64),
-    ("SIGSEGV", (11.0) as f64),
-    ("SIGTERM", (15.0) as f64),
-];
 
 pub(super) fn os_signal_const_lookup(prop: &str) -> Option<f64> {
     let i = OS_SIGNAL_CONST_TABLE
@@ -1090,7 +871,6 @@ pub(super) fn os_signal_const_lookup(prop: &str) -> Option<f64> {
 #[cfg(test)]
 #[allow(clippy::unnecessary_cast)]
 fn os_signal_const_reference(prop: &str) -> Option<f64> {
-    #[cfg(unix)]
     {
         let v: Option<i32> = match prop {
             "SIGHUP" => Some(libc::SIGHUP),
@@ -1110,7 +890,6 @@ fn os_signal_const_reference(prop: &str) -> Option<f64> {
             "SIGALRM" => Some(libc::SIGALRM),
             "SIGTERM" => Some(libc::SIGTERM),
             "SIGCHLD" => Some(libc::SIGCHLD),
-            #[cfg(target_os = "linux")]
             "SIGSTKFLT" => Some(libc::SIGSTKFLT),
             "SIGCONT" => Some(libc::SIGCONT),
             "SIGSTOP" => Some(libc::SIGSTOP),
@@ -1124,31 +903,12 @@ fn os_signal_const_reference(prop: &str) -> Option<f64> {
             "SIGPROF" => Some(libc::SIGPROF),
             "SIGWINCH" => Some(libc::SIGWINCH),
             "SIGIO" => Some(libc::SIGIO),
-            #[cfg(any(target_os = "linux", target_os = "android"))]
             "SIGPOLL" => Some(libc::SIGPOLL),
-            #[cfg(target_os = "linux")]
             "SIGPWR" => Some(libc::SIGPWR),
             "SIGSYS" => Some(libc::SIGSYS),
-            #[cfg(target_os = "macos")]
-            "SIGINFO" => Some(29i32),
             _ => None,
         };
         v.map(|x| x as f64)
-    }
-    #[cfg(not(unix))]
-    {
-        match prop {
-            "SIGHUP" => Some(1.0),
-            "SIGINT" => Some(2.0),
-            "SIGILL" => Some(4.0),
-            "SIGABRT" => Some(22.0),
-            "SIGFPE" => Some(8.0),
-            "SIGKILL" => Some(9.0),
-            "SIGSEGV" => Some(11.0),
-            "SIGTERM" => Some(15.0),
-            "SIGBREAK" => Some(21.0),
-            _ => None,
-        }
     }
 }
 

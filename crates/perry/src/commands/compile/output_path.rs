@@ -138,7 +138,6 @@ mod tests {
     fn unix_targets_default_to_bare_stem() {
         assert_eq!(exe(Some("linux"), "app"), PathBuf::from("app"));
         assert_eq!(exe(Some("macos"), "app"), PathBuf::from("app"));
-        #[cfg(not(target_os = "windows"))]
         assert_eq!(exe(None, "app"), PathBuf::from("app"));
     }
 
@@ -172,11 +171,6 @@ mod tests {
     #[test]
     fn dylib_uses_the_host_shared_library_extension() {
         let out = default_output_path(true, false, None, "app");
-        #[cfg(target_os = "macos")]
-        assert_eq!(out, PathBuf::from("app.dylib"));
-        #[cfg(target_os = "windows")]
-        assert_eq!(out, PathBuf::from("app.dll"));
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
         assert_eq!(out, PathBuf::from("app.so"));
     }
 }

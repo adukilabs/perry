@@ -881,8 +881,6 @@ mod symbol_identity_is_header {
 
     /// A codegen-style symbol cell in the realm image section.
     #[used]
-    #[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_realm")]
-    #[cfg_attr(target_os = "windows", link_section = ".perryrealm$m")]
     #[cfg_attr(
         not(any(target_vendor = "apple", target_os = "windows")),
         link_section = "perry_realm"
@@ -1009,7 +1007,6 @@ mod symbol_identity_is_header {
             assert!(!is_registered_symbol(raw), "{raw:#x}");
         }
         // A readable-looking word on an inaccessible page: a read would fault.
-        #[cfg(unix)]
         unsafe {
             let page = libc::mmap(
                 std::ptr::null_mut(),

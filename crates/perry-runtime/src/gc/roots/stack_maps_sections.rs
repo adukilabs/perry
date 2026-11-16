@@ -5,139 +5,10 @@
 //! Its own file for the same reason `stack_maps_verify.rs` is: the parent is at
 //! the 2000-line cap, and pure code motion is the cheapest way to stay under it.
 
-#[cfg(target_os = "linux")]
 use super::decode::{read_u16, read_u32, read_u64};
-#[cfg(target_os = "linux")]
 use std::ffi::c_void;
 
-/// Every 64-bit Apple platform, not only macOS. iOS, iPadOS (which reports as
-/// iOS), tvOS and visionOS are all aarch64 + Mach-O and share this loader
-/// verbatim; gating it to `target_os = "macos"` sent them to the stub below,
-/// where the section is never found and the index is empty — a collector with
-/// no native roots, silently, on exactly the platforms that cannot be debugged
-/// easily.
-///
-/// 64-bit Mach-O only: this walks `LC_SEGMENT_64` load commands. (The map
-/// itself is pointer-width independent since v6 — its function fields are
-/// 32-bit blob-relative offsets on every target.)
-#[cfg(target_vendor = "apple")]
-pub(super) fn loaded_stack_map_sections() -> Result<Vec<&'static [u8]>, String> {
-    crate::snap_funnel!(StackMaps);
-    use mach2::dyld::{_dyld_get_image_header, _dyld_get_image_vmaddr_slide, _dyld_image_count};
 
-    const LC_SEGMENT_64: u32 = 0x19;
-
-    #[repr(C)]
-    #[derive(Clone, Copy)]
-    struct MachHeader64 {
-        magic: u32,
-        cpu_type: i32,
-        cpu_subtype: i32,
-        file_type: u32,
-        command_count: u32,
-        commands_size: u32,
-        flags: u32,
-        reserved: u32,
-    }
-
-    #[repr(C)]
-    #[derive(Clone, Copy)]
-    struct LoadCommand {
-        command: u32,
-        size: u32,
-    }
-
-    #[repr(C)]
-    #[derive(Clone, Copy)]
-    struct SegmentCommand64 {
-        command: u32,
-        size: u32,
-        segment_name: [u8; 16],
-        vm_address: u64,
-        vm_size: u64,
-        file_offset: u64,
-        file_size: u64,
-        max_protection: i32,
-        initial_protection: i32,
-        section_count: u32,
-        flags: u32,
-    }
-
-    #[repr(C)]
-    #[derive(Clone, Copy)]
-    struct Section64 {
-        section_name: [u8; 16],
-        segment_name: [u8; 16],
-        address: u64,
-        size: u64,
-        offset: u32,
-        alignment: u32,
-        relocation_offset: u32,
-        relocation_count: u32,
-        flags: u32,
-        reserved1: u32,
-        reserved2: u32,
-        reserved3: u32,
-    }
-
-    fn fixed_name_matches(actual: &[u8; 16], expected: &[u8]) -> bool {
-        actual.get(..expected.len()) == Some(expected)
-            && actual.get(expected.len()).copied().unwrap_or(0) == 0
-    }
-
-    let mut sections = Vec::new();
-    unsafe {
-        for image_index in 0.._dyld_image_count() {
-            let raw_header = _dyld_get_image_header(image_index);
-            if raw_header.is_null() {
-                continue;
-            }
-            let header = &*(raw_header.cast::<MachHeader64>());
-            let slide = _dyld_get_image_vmaddr_slide(image_index);
-            let mut command_ptr = raw_header
-                .cast::<u8>()
-                .add(std::mem::size_of::<MachHeader64>());
-            for _ in 0..header.command_count {
-                let load = std::ptr::read_unaligned(command_ptr.cast::<LoadCommand>());
-                if load.size < std::mem::size_of::<LoadCommand>() as u32 {
-                    break;
-                }
-                if load.command == LC_SEGMENT_64 {
-                    let segment = std::ptr::read_unaligned(command_ptr.cast::<SegmentCommand64>());
-                    let mut section_ptr = command_ptr.add(std::mem::size_of::<SegmentCommand64>());
-                    for _ in 0..segment.section_count {
-                        let section = std::ptr::read_unaligned(section_ptr.cast::<Section64>());
-                        if fixed_name_matches(&section.segment_name, b"__PERRY_GCMAP")
-                            && fixed_name_matches(&section.section_name, b"__perry_gcmap")
-                        {
-                            if let (Some(address), Ok(size)) = (
-                                (section.address as isize).checked_add(slide),
-                                usize::try_from(section.size),
-                            ) {
-                                if address > 0 && size != 0 {
-                                    sections.push(std::slice::from_raw_parts(
-                                        address as usize as *const u8,
-                                        size,
-                                    ));
-                                }
-                            }
-                            break;
-                        }
-                        section_ptr = section_ptr.add(std::mem::size_of::<Section64>());
-                    }
-                }
-                command_ptr = command_ptr.add(load.size as usize);
-            }
-        }
-    }
-    Ok(sections)
-}
-
-#[cfg(not(any(target_vendor = "apple", target_os = "linux")))]
-pub(super) fn loaded_stack_map_sections() -> Result<Vec<&'static [u8]>, String> {
-    crate::snap_funnel!(StackMaps);
-    Ok(loaded_stack_map_section().into_iter().collect())
-}
 
 /// ELF (#7173, #8075): the `.perry_gcmap` sections of every loaded image.
 ///
@@ -149,7 +20,6 @@ pub(super) fn loaded_stack_map_sections() -> Result<Vec<&'static [u8]>, String> 
 /// stable path. Reading only that first image is unsound when the runtime is
 /// a provider and generated code lives in an app dylib: its live native roots
 /// disappear from the collector exactly when a full collection evacuates.
-#[cfg(target_os = "linux")]
 pub(super) fn loaded_stack_map_sections() -> Result<Vec<&'static [u8]>, String> {
     crate::snap_funnel!(StackMaps);
     use std::ffi::CStr;
@@ -295,9 +165,7 @@ pub(super) fn loaded_stack_map_sections() -> Result<Vec<&'static [u8]>, String> 
 ///
 /// A claimed `e_shentsize` below the latter would make the walk read
 /// `sh_flags`/`sh_addr`/`sh_size` out of the entry it believes it is reading.
-#[cfg(target_os = "linux")]
 const ELF64_HEADER_BYTES: usize = 0x40;
-#[cfg(target_os = "linux")]
 const ELF64_SECTION_HEADER_BYTES: usize = 0x40;
 
 /// The most this walk may read of one image's section-header table and
@@ -307,14 +175,11 @@ const ELF64_SECTION_HEADER_BYTES: usize = 0x40;
 /// reject an image whose own header claims something absurd — `e_shnum` and
 /// `e_shentsize` are `u16`s whose product can name 4 GB, and the name table
 /// is sized by a `u64` field. A real toolchain produces a few kilobytes.
-#[cfg(target_os = "linux")]
 const MAX_SECTION_HEADER_TABLE_BYTES: usize = 8 << 20;
-#[cfg(target_os = "linux")]
 const MAX_SECTION_NAME_TABLE_BYTES: usize = 8 << 20;
 
 /// The parts of an ELF64 image the `.perry_gcmap` lookup reads — and nothing
 /// else, which is the entire point of this type.
-#[cfg(target_os = "linux")]
 struct ElfSectionTable {
     /// `shnum` entries of `shentsize` bytes, read from `e_shoff`.
     headers: Vec<u8>,
@@ -327,7 +192,6 @@ struct ElfSectionTable {
     names: Vec<u8>,
 }
 
-#[cfg(target_os = "linux")]
 impl ElfSectionTable {
     /// Bytes read from the image to build this — the property the walk exists
     /// to bound, so the regression test can pin it.
@@ -344,7 +208,6 @@ impl ElfSectionTable {
 /// skips those, exactly as it skipped an image whose fully-read bytes failed
 /// to parse. `Err` is a genuine I/O error, which the caller reports like an
 /// unopenable image so an unreadable image cannot pass for one with no roots.
-#[cfg(target_os = "linux")]
 fn read_elf_section_table(file: &std::fs::File) -> std::io::Result<Option<ElfSectionTable>> {
     use std::os::unix::fs::FileExt;
 
@@ -436,7 +299,6 @@ fn read_elf_section_table(file: &std::fs::File) -> std::io::Result<Option<ElfSec
 /// always resolved — and ending the search there would drop `.perry_gcmap`
 /// whenever it happened to sit after such an entry, which is precisely the
 /// silent-missing-roots failure this file exists to avoid.
-#[cfg(target_os = "linux")]
 fn elf_section_vaddr(table: &ElfSectionTable, name: &[u8]) -> Option<(usize, usize)> {
     for index in 0..table.shnum {
         let Some(header) = index.checked_mul(table.shentsize) else {
@@ -470,77 +332,7 @@ fn elf_section_vaddr(table: &ElfSectionTable, name: &[u8]) -> Option<(usize, usi
     None
 }
 
-/// Windows/PE: the `.pgcmap` section of the running image.
-///
-/// The name is seven bytes because a PE image section header has an 8-byte name
-/// field — `.perry_gcmap` would be truncated on the way into the image and the
-/// lookup below could never match it. `gc_map::COFF_SECTION_NAME` is the
-/// compiler-side half of that agreement.
-///
-/// `GetModuleHandleW(NULL)` returns the image base, which is also a valid
-/// `IMAGE_DOS_HEADER`; the section table follows the optional header, whose
-/// size the file header records rather than being fixed.
-#[cfg(target_os = "windows")]
-fn loaded_stack_map_section() -> Option<&'static [u8]> {
-    const IMAGE_DOS_SIGNATURE: u16 = 0x5A4D; // "MZ"
-    const IMAGE_NT_SIGNATURE: u32 = 0x0000_4550; // "PE\0\0"
-    const SECTION_HEADER_SIZE: usize = 40;
-    const SECTION_NAME: &[u8] = b".pgcmap";
 
-    unsafe extern "system" {
-        fn GetModuleHandleW(name: *const u16) -> *mut core::ffi::c_void;
-    }
-
-    unsafe {
-        let base = GetModuleHandleW(std::ptr::null()) as *const u8;
-        if base.is_null() {
-            return None;
-        }
-        if std::ptr::read_unaligned(base as *const u16) != IMAGE_DOS_SIGNATURE {
-            return None;
-        }
-        // e_lfanew sits at offset 0x3C of the DOS header.
-        let nt_offset = std::ptr::read_unaligned(base.add(0x3C) as *const u32) as usize;
-        let nt = base.add(nt_offset);
-        if std::ptr::read_unaligned(nt as *const u32) != IMAGE_NT_SIGNATURE {
-            return None;
-        }
-        // IMAGE_FILE_HEADER follows the 4-byte signature: NumberOfSections at
-        // +2, SizeOfOptionalHeader at +16.
-        let file_header = nt.add(4);
-        let section_count = std::ptr::read_unaligned(file_header.add(2) as *const u16) as usize;
-        let optional_size = std::ptr::read_unaligned(file_header.add(16) as *const u16) as usize;
-        let sections = file_header.add(20).add(optional_size);
-
-        for index in 0..section_count {
-            let header = sections.add(index * SECTION_HEADER_SIZE);
-            let name = std::slice::from_raw_parts(header, 8);
-            // Names shorter than eight bytes are NUL-padded.
-            let trimmed = match name.iter().position(|b| *b == 0) {
-                Some(end) => &name[..end],
-                None => name,
-            };
-            if trimmed != SECTION_NAME {
-                continue;
-            }
-            let virtual_size = std::ptr::read_unaligned(header.add(8) as *const u32) as usize;
-            let virtual_address = std::ptr::read_unaligned(header.add(12) as *const u32) as usize;
-            if virtual_size == 0 || virtual_address == 0 {
-                return None;
-            }
-            return Some(std::slice::from_raw_parts(
-                base.add(virtual_address),
-                virtual_size,
-            ));
-        }
-    }
-    None
-}
-
-#[cfg(not(any(target_vendor = "apple", target_os = "linux", target_os = "windows")))]
-fn loaded_stack_map_section() -> Option<&'static [u8]> {
-    None
-}
 
 /// Bounded-read tests for the ELF loader.
 ///

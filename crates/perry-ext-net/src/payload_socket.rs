@@ -279,7 +279,6 @@ pub(crate) fn adopt_pipe(options: f64, descriptor: f64) -> f64 {
         u64::MAX,
         None,
     ));
-    #[cfg(unix)]
     {
         use std::os::fd::FromRawFd;
         // SAFETY: the runtime transfers an open descriptor it owns.
@@ -304,15 +303,6 @@ pub(crate) fn adopt_pipe(options: f64, descriptor: f64) -> f64 {
             }
             None => {}
         }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = descriptor;
-        let failure = error(
-            "ERR_FEATURE_UNAVAILABLE_ON_PLATFORM",
-            "child process stdio sockets are not available on this platform",
-        );
-        destroy(owner.get(), failure);
     }
     owner.get()
 }

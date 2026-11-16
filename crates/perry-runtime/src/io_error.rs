@@ -4,17 +4,9 @@ use crate::string::js_string_from_bytes;
 pub(crate) fn io_error_code(err: &std::io::Error) -> &'static str {
     // #10539 review: on Windows `raw_os_error` is a Win32 code, not an errno,
     // so it goes through libuv's own translation table.
-    #[cfg(windows)]
-    if let Some((_, code)) = err
-        .raw_os_error()
-        .and_then(crate::util_syserr::win32_error_to_uv)
-    {
-        return code;
-    }
     // An OS error is named by libuv's errno map, the table `util.getSystemErrorMap()`
     // serves, so every errno gets the code node reports. An errno outside that map is
     // node's `uvUnmappedError`: "UNKNOWN".
-    #[cfg(unix)]
     if let Some(raw) = err.raw_os_error() {
         return crate::util_syserr::system_error_name_for_errno(raw).unwrap_or("UNKNOWN");
     }
@@ -36,37 +28,14 @@ pub(crate) fn io_error_code(err: &std::io::Error) -> &'static str {
 }
 
 pub(crate) fn io_error_errno(err: &std::io::Error) -> i32 {
-    #[cfg(unix)]
     if let Some(raw) = err.raw_os_error() {
         return -raw;
     }
     // Windows has no errno to negate: libuv gives each code a fixed negative
     // number there (`ENOENT` is -4058, not -2), and that is what node reports.
-    #[cfg(windows)]
-    {
-        const UV_WINDOWS_EIO: i32 = -4070;
-        return crate::util_syserr::uv_windows_errno(io_error_code(err)).unwrap_or(UV_WINDOWS_EIO);
-    }
     // No OS errno: the number libuv gives the code the kind was named with.
-    #[cfg(unix)]
     return crate::util_syserr::system_error_code_for_name(io_error_code(err))
         .map_or(-libc::EIO, |code| code as i32);
-    #[cfg(not(any(unix, windows)))]
-    match io_error_code(err) {
-        "ENOENT" => -2,
-        "EACCES" => -13,
-        "EEXIST" => -17,
-        "ENOTDIR" => -20,
-        "ENOTEMPTY" => -39,
-        "EISDIR" => -21,
-        "EPERM" => -1,
-        "EINVAL" => -22,
-        "EINTR" => -4,
-        "ENOSPC" => -28,
-        "ETIMEDOUT" => -110,
-        "EAGAIN" => -11,
-        _ => -5,
-    }
 }
 
 /// Attach Node's fs diagnostic fields to `err_ptr` as **own properties of the
@@ -128,7 +97,6 @@ pub(crate) fn fs_error_description(err: &std::io::Error) -> String {
             return message.to_string();
         }
         // node's `uvUnmappedError` message for an errno libuv does not map.
-        #[cfg(unix)]
         return "unknown error".to_string();
     }
     err.to_string()

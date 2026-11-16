@@ -53,13 +53,6 @@ pub(super) fn run_native_stack_scan() {
     // On macOS, pthread_get_stackaddr_np gives the TOP of the stack
     // (highest address), and pthread_get_stacksize_np gives the total size.
     // The stack grows downward, so valid range is [top - size, top].
-    #[cfg(target_os = "macos")]
-    let (_stack_lo, stack_hi) = {
-        let top = unsafe { libc::pthread_get_stackaddr_np(libc::pthread_self()) } as usize;
-        let size = unsafe { libc::pthread_get_stacksize_np(libc::pthread_self()) } as usize;
-        (top - size, top)
-    };
-    #[cfg(any(target_os = "linux", target_os = "android"))]
     // `_stack_lo`: same unused-on-this-arm shape #8298 underscore-fixed on the
     // macOS arm; the Linux arm kept the bare name and turned `warnings`
     // (-D warnings, host-compatible scope) red on main.
@@ -74,13 +67,6 @@ pub(super) fn run_native_stack_scan() {
             return;
         }
         (0usize, top)
-    };
-    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "android")))]
-    let (_stack_lo, stack_hi) = {
-        // Fallback: use a local variable address and scan 256KB upward.
-        let marker: usize = 0;
-        let sp = std::ptr::addr_of!(marker) as usize;
-        (sp, sp + 256 * 1024)
     };
 
     // Get a reference point on the stack. On x86_64/aarch64 the stack grows
@@ -247,14 +233,6 @@ fn walk_frame_pointers() -> Vec<FrameInfo> {
     let mut fp: usize;
 
     // Get the current frame pointer.
-    #[cfg(target_os = "macos")]
-    unsafe {
-        std::arch::asm!(
-            "mov {fp}, x29",
-            fp = out(reg) fp,
-        );
-    }
-    #[cfg(not(target_os = "macos"))]
     {
         let marker: usize = 0;
         fp = std::ptr::addr_of!(marker) as usize;
@@ -305,7 +283,6 @@ fn walk_frame_pointers() -> Vec<FrameInfo> {
 /// build step rather than in a probe. This diagnostic is debug-only
 /// (`PERRY_GC_SCAN_NATIVE_STACK=1`), so the non-POSIX arm degrades to the bare
 /// address rather than pulling in a platform symbolizer.
-#[cfg(unix)]
 fn resolve_symbol(addr: usize) -> String {
     unsafe {
         let mut info: libc::Dl_info = std::mem::zeroed();
@@ -332,11 +309,6 @@ fn resolve_symbol(addr: usize) -> String {
     }
 }
 
-/// No `dladdr` off POSIX: report the bare address.
-#[cfg(not(unix))]
-fn resolve_symbol(addr: usize) -> String {
-    format!("0x{addr:x} (symbolication unavailable on this target)")
-}
 
 #[derive(Clone, Copy)]
 struct StaleStackSlot {

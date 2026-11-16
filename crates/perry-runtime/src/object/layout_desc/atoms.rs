@@ -43,27 +43,6 @@ pub(crate) fn shadow_name_descriptor() -> &'static StaticAtom {
 /// (start, end) of the atom section.
 pub(super) fn atom_bounds() -> (usize, usize) {
     std::hint::black_box(std::ptr::addr_of!(ATOM_SECTION_SENTINEL) as usize);
-    #[cfg(target_vendor = "apple")]
-    {
-        unsafe extern "C" {
-            #[link_name = "\u{1}section$start$__DATA$__perry_atoms"]
-            static START: u8;
-            #[link_name = "\u{1}section$end$__DATA$__perry_atoms"]
-            static END: u8;
-        }
-        (
-            std::ptr::addr_of!(START) as usize,
-            std::ptr::addr_of!(END) as usize,
-        )
-    }
-    #[cfg(target_os = "windows")]
-    {
-        (
-            std::ptr::addr_of!(ATOM_START) as usize + 8,
-            std::ptr::addr_of!(ATOM_END) as usize,
-        )
-    }
-    #[cfg(not(any(target_vendor = "apple", target_os = "windows")))]
     {
         unsafe extern "C" {
             static __start_perry_atoms: u8;
@@ -116,11 +95,6 @@ pub(crate) fn coloured_atoms() -> Vec<(&'static [u8], u64, u32, u32)> {
 /// Pre-seed the agent's atom table, then register every layout. Runs once per
 /// agent from `js_shape_run_static_seed`, after the hash-band literal seeds.
 pub(crate) fn seed_static_atoms() {
-    #[cfg(target_family = "wasm")]
-    assert!(
-        image_atoms().next().is_some(),
-        "Wasm image constructors did not run"
-    );
     crate::string::reserve_static_atoms(
         super::super::runtime_layouts::PERRY_ASCII_CHARS.0.len() + image_atoms().count(),
     );
@@ -133,20 +107,9 @@ pub(crate) fn seed_static_atoms() {
         }
     }
     crate::object::layout_probe::seed_colours();
-    #[cfg(all(feature = "wasm-image-selftest", target_family = "wasm"))]
-    wasm_program_image_checks::check_atoms();
 }
 
 pub(crate) fn image_atoms() -> impl Iterator<Item = *mut StaticAtom> {
-    #[cfg(target_family = "wasm")]
-    {
-        records::<StaticAtom>(atom_bounds()).chain(
-            inventory::iter::<crate::wasm_image::Atom>
-                .into_iter()
-                .map(|item| item.0.cast_mut()),
-        )
-    }
-    #[cfg(not(target_family = "wasm"))]
     {
         records::<StaticAtom>(atom_bounds())
     }

@@ -46,7 +46,6 @@ struct ExceptionState {
     in_finally: bool,
     /// Set by [`hand_to_worker_base`] while its raise is in flight; the
     /// worker base trap clears it when it lands.
-    #[cfg(not(target_os = "wasi"))]
     to_worker_base: bool,
     /// Debug builds: [`js_eh_pad_enter`] is running. A throw from inside it
     /// would land on half-restored stacks.
@@ -60,7 +59,6 @@ impl ExceptionState {
             current_exception: 0.0,
             has_exception: false,
             in_finally: false,
-            #[cfg(not(target_os = "wasi"))]
             to_worker_base: false,
             #[cfg(debug_assertions)]
             in_pad_enter: false,
@@ -143,14 +141,12 @@ extern "C" {
 
 /// Function start of the worker base shim, for the personality's handoff
 /// check (`crate::eh`, `crate::eh_windows`).
-#[cfg(not(target_os = "wasi"))]
 pub(crate) fn worker_base_shim_addr() -> usize {
     perry_trap_call_base as *const () as usize
 }
 
 /// True while [`hand_to_worker_base`] carries an exception to the worker's
 /// base trap: the personality then refuses every handler but that one.
-#[cfg(not(target_os = "wasi"))]
 pub(crate) fn worker_base_handoff_pending() -> bool {
     with_exception_state(|s| unsafe { (*s).to_worker_base })
 }
@@ -164,7 +160,6 @@ pub(crate) fn worker_base_handoff_pending() -> bool {
 /// is restored by the frame that holds its handle — for a trap, this frame.
 #[inline]
 unsafe fn trap_raw<const BASE: bool>(body: TrapBody, ctx: *mut core::ffi::c_void) -> bool {
-    #[cfg(not(target_os = "wasi"))]
     {
         #[cfg(any(test, not(perry_native_stack_maps)))]
         let shadow = crate::gc::frame_root_savepoint();
@@ -178,10 +173,6 @@ unsafe fn trap_raw<const BASE: bool>(body: TrapBody, ctx: *mut core::ffi::c_void
             crate::gc::frame_root_restore(shadow);
         }
         rc == 0
-    }
-    #[cfg(target_os = "wasi")]
-    {
-        perry_trap_call(body, ctx) == 0
     }
 }
 
@@ -296,7 +287,6 @@ pub fn run_worker_body_caught<R>(f: impl FnOnce() -> R) -> Result<R, Caught> {
     let outcome = trap_with::<true, R, _>(f);
     IN_WORKER_BASE.with(|d| d.set(outer));
     // A handoff ends here, at the base pad.
-    #[cfg(not(target_os = "wasi"))]
     with_exception_state(|s| unsafe { (*s).to_worker_base = false });
     match outcome {
         Some(r) => Ok(r),
@@ -315,7 +305,6 @@ pub(crate) fn hand_to_worker_base(value: f64) {
     if !IN_WORKER_BASE.with(std::cell::Cell::get) {
         return;
     }
-    #[cfg(not(target_os = "wasi"))]
     {
         // Like `js_throw`, but straight to the base trap: the handlers between
         // here and there belong to drains (microtasks, timers, rejection
@@ -470,19 +459,13 @@ fn set_thrown(value: f64, kind: ThrowKind) {
 #[inline(never)]
 fn raise_thrown(value: f64, kind: ThrowKind) -> ! {
     set_thrown(value, kind);
-    #[cfg(target_os = "wasi")]
-    crate::eh::raise_wasm_exception();
-    #[cfg(not(target_os = "wasi"))]
     {
         // First throw of the process: prove the unwinder can step runtime
         // frames. A runtime built without forced unwind tables would end
         // every cross-helper throw's search early, and that must not read as
         // an uncaught exception. Windows needs no check — MSVC x64 unwind
         // tables are mandatory for all functions.
-        #[cfg(not(windows))]
         crate::eh::verify_unwind_tables_once();
-        #[cfg(windows)]
-        crate::eh::install_uncaught_filter_once();
         // Single-phase transport (every native target): walk to the handler
         // frame and install its register context directly. Never returns on
         // success. Declines (no handler, undecodable frame, disabled, or
@@ -496,7 +479,6 @@ fn raise_thrown(value: f64, kind: ThrowKind) -> ! {
         // `_Unwind_RaiseException` (see `eh::raise_found_no_handler`).
         // (Windows reaches its uncaught path in the unhandled-exception
         // filter, before RaiseException returns.)
-        #[cfg(not(windows))]
         if crate::eh::raise_found_no_handler() {
             crate::eh::diagnose_end_of_stack(reason);
             exit_uncaught(value)
@@ -512,13 +494,6 @@ fn raise_thrown(value: f64, kind: ThrowKind) -> ! {
     }
 }
 
-/// The Windows uncaught path: the unhandled-exception filter
-/// (`crate::eh_windows`) calls this for a Perry throw no frame accepted,
-/// with the stack still intact.
-#[cfg(windows)]
-pub(crate) fn exit_uncaught_pending() -> ! {
-    exit_uncaught(js_get_exception())
-}
 
 /// Get the current exception value
 #[no_mangle]
@@ -954,7 +929,6 @@ mod tests {
     /// `hand_to_worker_base` passes every handler between the throw and the
     /// worker's base trap, runtime traps included, and lands at the base.
     #[test]
-    #[cfg(not(target_os = "wasi"))]
     fn worker_base_handoff_skips_inner_traps() {
         let mut inner_landed = false;
         let r = run_worker_body(|| {
@@ -990,9 +964,6 @@ mod tests {
         all(target_os = "windows", target_arch = "x86_64")
     ))]
     fn the_fast_walker_carries_a_throw_into_a_trap() {
-        #[cfg(target_os = "windows")]
-        use crate::eh as transport;
-        #[cfg(not(target_os = "windows"))]
         use crate::eh_walker as transport;
         use std::sync::atomic::Ordering::Relaxed;
         // Warm the walker's caches and images once.

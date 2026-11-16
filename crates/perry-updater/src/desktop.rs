@@ -52,18 +52,6 @@ pub extern "C" fn perry_updater_get_exe_path() -> *mut StringHeader {
 
     let canonical = exe.canonicalize().unwrap_or(exe);
 
-    #[cfg(target_os = "macos")]
-    {
-        // If we live inside an .app bundle (path .../Foo.app/Contents/MacOS/Foo),
-        // return the .app bundle path — that's the codesign unit.
-        let mut walk = canonical.as_path();
-        while let Some(parent) = walk.parent() {
-            if parent.extension().map(|e| e == "app").unwrap_or(false) {
-                return alloc_string(&parent.to_string_lossy());
-            }
-            walk = parent;
-        }
-    }
 
     alloc_string(&canonical.to_string_lossy())
 }
@@ -102,21 +90,6 @@ pub extern "C" fn perry_updater_get_sentinel_path() -> *mut StringHeader {
     let app = app_id();
 
     let dir: std::path::PathBuf;
-    #[cfg(target_os = "macos")]
-    {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
-        dir = std::path::PathBuf::from(home)
-            .join("Library/Application Support")
-            .join(&app);
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let local = std::env::var("LOCALAPPDATA")
-            .or_else(|_| std::env::var("APPDATA"))
-            .unwrap_or_else(|_| "C:\\Temp".into());
-        dir = std::path::PathBuf::from(local).join(&app);
-    }
-    #[cfg(all(unix, not(target_os = "macos")))]
     {
         let state = std::env::var("XDG_STATE_HOME").unwrap_or_else(|_| {
             let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
@@ -125,10 +98,6 @@ pub extern "C" fn perry_updater_get_sentinel_path() -> *mut StringHeader {
         dir = std::path::PathBuf::from(state).join(&app);
     }
     // No per-user state directory convention (wasm32 WASI).
-    #[cfg(not(any(unix, windows)))]
-    {
-        dir = std::env::temp_dir().join(&app);
-    }
 
     alloc_string(&dir.join("updater.sentinel").to_string_lossy())
 }
@@ -205,7 +174,6 @@ where
     }
 
     // Execute permission must be in place before the new entry becomes live.
-    #[cfg(unix)]
     let original_permissions = {
         use std::os::unix::fs::PermissionsExt;
         if std::path::Path::new(&staged).is_file() {
@@ -222,7 +190,6 @@ where
         }
     };
     if publish(&staged, &target).is_err() {
-        #[cfg(unix)]
         if let Some(permissions) = original_permissions {
             let _ = std::fs::set_permissions(&staged, permissions);
         }
@@ -336,7 +303,6 @@ fn replacement_paths(source: &str, target: &str) -> std::io::Result<(String, Str
     {
         return Err(invalid_paths());
     }
-    #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
         let parent = std::fs::metadata(target.parent().ok_or_else(invalid_paths)?)?;
@@ -368,7 +334,6 @@ fn install_paths(staged: &str, target: &str) -> std::io::Result<(String, String,
     {
         return Err(invalid_paths());
     }
-    #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
         if prev_meta
@@ -410,52 +375,11 @@ fn snapshot_backup(target: &str, snapshot: &std::path::Path) -> std::io::Result<
     if std::path::Path::new(target).is_file() {
         return std::fs::hard_link(target, snapshot);
     }
-    #[cfg(target_os = "macos")]
-    {
-        use std::os::unix::ffi::OsStrExt;
-        unsafe extern "C" {
-            fn copyfile(
-                from: *const std::ffi::c_char,
-                to: *const std::ffi::c_char,
-                state: *mut std::ffi::c_void,
-                flags: u32,
-            ) -> i32;
-        }
-        let from = std::ffi::CString::new(target)?;
-        let to = std::ffi::CString::new(snapshot.as_os_str().as_bytes())?;
-        // copyfile.h: ALL includes stat/ACL/xattrs/data; recursive clone
-        // preserves symlinks and requires a nonexistent snapshot destination.
-        let flags = 0xf | (1 << 15) | (1 << 24);
-        // SAFETY: NUL-terminated paths outlive the call; null requests no state.
-        if unsafe { copyfile(from.as_ptr(), to.as_ptr(), std::ptr::null_mut(), flags) } != 0 {
-            return Err(std::io::Error::last_os_error());
-        }
-        Ok(())
-    }
-    #[cfg(not(target_os = "macos"))]
     Err(invalid_paths())
 }
 
 fn publish_path(from: &str, to: &str) -> std::io::Result<()> {
     if std::path::Path::new(from).is_dir() && std::path::Path::new(to).exists() {
-        #[cfg(target_os = "macos")]
-        {
-            unsafe extern "C" {
-                fn renamex_np(
-                    from: *const std::ffi::c_char,
-                    to: *const std::ffi::c_char,
-                    flags: u32,
-                ) -> i32;
-            }
-            let from = std::ffi::CString::new(from)?;
-            let to = std::ffi::CString::new(to)?;
-            // SAFETY: both C strings are live; RENAME_SWAP is 2 in sys/stdio.h.
-            if unsafe { renamex_np(from.as_ptr(), to.as_ptr(), 2) } != 0 {
-                return Err(std::io::Error::last_os_error());
-            }
-            return Ok(());
-        }
-        #[cfg(not(target_os = "macos"))]
         return Err(invalid_paths());
     }
     std::fs::rename(from, to)

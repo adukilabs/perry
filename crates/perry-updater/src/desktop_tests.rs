@@ -17,7 +17,6 @@ fn read_str(p: *mut StringHeader) -> String {
 }
 
 #[test]
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn install_and_rollback_roundtrip() {
     let dir = std::env::temp_dir().join(format!("perry-updater-install-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -48,7 +47,6 @@ fn install_and_rollback_roundtrip() {
 }
 
 #[test]
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn rollback_after_committed_swap_cleans_up_without_swapping_again() {
     let (_dir, target, stage, _prev) = protocol_fixture(false);
     assert_eq!(
@@ -76,7 +74,6 @@ fn rollback_after_committed_swap_cleans_up_without_swapping_again() {
 }
 
 #[test]
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn rollback_with_armed_marker_never_deletes_the_backup() {
     let (_dir, target, _stage, _prev) = protocol_fixture(false);
     // Crash window: the marker is armed before the swap commits, so prev
@@ -94,7 +91,6 @@ fn rollback_with_armed_marker_never_deletes_the_backup() {
 }
 
 #[test]
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn install_clears_armed_rollback_marker() {
     let (_dir, target, stage, _prev) = protocol_fixture(false);
     let marker = format!("{}.prev.rollback", target);
@@ -114,7 +110,6 @@ fn install_clears_armed_rollback_marker() {
 }
 
 #[test]
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn rollback_normalizes_trailing_separator_target() {
     let (_dir, target, stage, _prev) = protocol_fixture(false);
     assert_eq!(
@@ -249,7 +244,6 @@ where
                 .as_os_str()
                 .as_encoded_bytes(),
         );
-        #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             hash.update(meta.permissions().mode().to_le_bytes());
@@ -317,12 +311,7 @@ fn rejected_aliases_and_types_leave_fixture_hash_unchanged() {
                 child
             }
             _ => {
-                #[cfg(unix)]
                 std::os::unix::fs::symlink(&target, &staged).unwrap();
-                #[cfg(not(unix))]
-                {
-                    continue;
-                }
                 staged.clone()
             }
         };
@@ -340,7 +329,6 @@ fn rejected_aliases_and_types_leave_fixture_hash_unchanged() {
 }
 
 #[test]
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn initial_install_without_target_keeps_existing_backup() {
     let dir = tempfile::tempdir().unwrap();
     let target = dir.path().join("app");
@@ -360,7 +348,6 @@ fn initial_install_without_target_keeps_existing_backup() {
     assert!(!staged.exists());
 }
 
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn protocol_fixture(bundle: bool) -> (tempfile::TempDir, String, String, String) {
     let dir = tempfile::tempdir().unwrap();
     for (name, bytes) in [
@@ -372,7 +359,6 @@ fn protocol_fixture(bundle: bool) -> (tempfile::TempDir, String, String, String)
         if bundle {
             std::fs::create_dir(&path).unwrap();
             std::fs::write(path.join("binary"), bytes).unwrap();
-            #[cfg(unix)]
             std::os::unix::fs::symlink("binary", path.join("alias")).unwrap();
         } else {
             std::fs::write(path, bytes).unwrap();
@@ -385,7 +371,6 @@ fn protocol_fixture(bundle: bool) -> (tempfile::TempDir, String, String, String)
     (dir, target, stage, prev)
 }
 
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn read_version(path: &str, bundle: bool) -> Vec<u8> {
     std::fs::read(if bundle {
         std::path::Path::new(path).join("binary")
@@ -396,7 +381,6 @@ fn read_version(path: &str, bundle: bool) -> Vec<u8> {
 }
 
 #[test]
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn interruption_at_each_publication_keeps_live_target_and_completed_backup() {
     let kinds = if cfg!(target_os = "macos") {
         vec![false, true]
@@ -457,7 +441,6 @@ fn interruption_at_each_publication_keeps_live_target_and_completed_backup() {
 // A separate test process exits without unwinding, so scratch Drop and any
 // in-process error recovery cannot hide an interrupted publication state.
 #[test]
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn interruption_child() {
     let Some(root) = std::env::var_os("PERRY_UPDATER_INTERRUPT_FIXTURE") else {
         return;
@@ -492,7 +475,6 @@ fn interruption_child() {
 }
 
 #[test]
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn failed_copy_does_not_replace_live_target_or_existing_backup() {
     let (dir, target, stage, _prev) = protocol_fixture(false);
     let before = fixture_hash(dir.path());
@@ -510,7 +492,6 @@ fn failed_copy_does_not_replace_live_target_or_existing_backup() {
 }
 
 #[test]
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn failed_publication_preserves_live_target_and_rollback_backup() {
     for error in [
         std::io::ErrorKind::CrossesDevices,
@@ -548,92 +529,10 @@ fn failed_publication_preserves_live_target_and_rollback_backup() {
     }
 }
 
-#[test]
-#[cfg(target_os = "macos")]
-fn bundle_backup_preserves_metadata_and_rollback_replaces_nonempty_tree() {
-    use std::os::unix::fs::PermissionsExt;
-    let (_dir, target, stage, prev) = protocol_fixture(true);
-    let value = b"metadata";
-    set_fixture_xattr(std::path::Path::new(&format!("{target}/binary")), value);
-    std::fs::set_permissions(
-        format!("{target}/binary"),
-        std::fs::Permissions::from_mode(0o751),
-    )
-    .unwrap();
-    assert_eq!(
-        perry_updater_install(make_str(&stage), make_str(&target)),
-        1
-    );
-    assert_eq!(read_version(&target, true), b"new");
-    assert_eq!(read_version(&prev, true), b"old");
-    let copied = fixture_xattr(std::path::Path::new(&format!("{prev}/binary")));
-    assert_eq!(copied.len(), 8);
-    assert_eq!(copied, value);
-    assert_eq!(
-        std::fs::read_link(format!("{prev}/alias")).unwrap(),
-        std::path::Path::new("binary")
-    );
-    assert_eq!(
-        std::fs::metadata(format!("{prev}/binary"))
-            .unwrap()
-            .permissions()
-            .mode()
-            & 0o777,
-        0o751
-    );
-    assert!(!std::path::Path::new(&stage).exists());
-    assert_eq!(perry_updater_perform_rollback(make_str(&target)), 1);
-    assert_eq!(read_version(&target, true), b"old");
-    assert!(!std::path::Path::new(&prev).exists());
-}
+
+
 
 #[test]
-#[cfg(target_os = "macos")]
-fn cleanup_failure_after_directory_publication_still_reports_success() {
-    let (_dir, target, stage, prev) = protocol_fixture(true);
-    let mut publish = |from: &str, to: &str| {
-        publish_path(from, to)?;
-        if to == target {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(from, std::fs::Permissions::from_mode(0o555))?;
-            assert!(remove_path(from).is_err(), "fixture must prevent cleanup");
-        }
-        Ok(())
-    };
-    let installed = install_with(&stage, &target, &mut publish);
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(&stage, std::fs::Permissions::from_mode(0o755)).unwrap();
-    assert!(installed);
-    assert_eq!(read_version(&target, true), b"new");
-    assert_eq!(read_version(&prev, true), b"old");
-}
-
-#[test]
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
-fn unsupported_platform_install_and_rollback_preserve_fixture_hash() {
-    let dir = tempfile::tempdir().unwrap();
-    let target = dir.path().join("app");
-    let stage = dir.path().join("stage");
-    std::fs::write(&target, b"old").unwrap();
-    std::fs::write(&stage, b"new").unwrap();
-    std::fs::write(dir.path().join("app.prev"), b"previous").unwrap();
-    let before = fixture_hash(dir.path());
-    assert_eq!(
-        perry_updater_install(
-            make_str(stage.to_str().unwrap()),
-            make_str(target.to_str().unwrap())
-        ),
-        0
-    );
-    assert_eq!(
-        perry_updater_perform_rollback(make_str(target.to_str().unwrap())),
-        0
-    );
-    assert_eq!(fixture_hash(dir.path()), before);
-}
-
-#[test]
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn rollback_publication_failure_keeps_both_versions() {
     let kinds = if cfg!(target_os = "macos") {
         vec![false, true]
@@ -655,7 +554,6 @@ fn rollback_publication_failure_keeps_both_versions() {
 }
 
 #[test]
-#[cfg(target_os = "linux")]
 fn linux_directory_install_and_rollback_leave_fixture_unchanged() {
     let (dir, target, stage, _prev) = protocol_fixture(true);
     let before = fixture_hash(dir.path());
@@ -667,69 +565,9 @@ fn linux_directory_install_and_rollback_leave_fixture_unchanged() {
     assert_eq!(fixture_hash(dir.path()), before);
 }
 
-#[cfg(target_os = "macos")]
-fn set_fixture_xattr(path: &std::path::Path, value: &[u8]) {
-    unsafe extern "C" {
-        fn setxattr(
-            path: *const std::ffi::c_char,
-            name: *const std::ffi::c_char,
-            value: *const std::ffi::c_void,
-            size: usize,
-            position: u32,
-            options: i32,
-        ) -> i32;
-    }
-    let path = std::ffi::CString::new(path.to_str().unwrap()).unwrap();
-    // SAFETY: the C strings and byte slice outlive this synchronous call.
-    assert_eq!(
-        unsafe {
-            setxattr(
-                path.as_ptr(),
-                c"user.perry-backup-test".as_ptr(),
-                value.as_ptr().cast(),
-                value.len(),
-                0,
-                0,
-            )
-        },
-        0
-    );
-}
 
-#[cfg(target_os = "macos")]
-fn fixture_xattr(path: &std::path::Path) -> Vec<u8> {
-    unsafe extern "C" {
-        fn getxattr(
-            path: *const std::ffi::c_char,
-            name: *const std::ffi::c_char,
-            value: *mut std::ffi::c_void,
-            size: usize,
-            position: u32,
-            options: i32,
-        ) -> isize;
-    }
-    let path = std::ffi::CString::new(path.to_str().unwrap()).unwrap();
-    let mut value = [0_u8; 64];
-    // SAFETY: the buffer capacity matches the supplied size and paths are live.
-    let size = unsafe {
-        getxattr(
-            path.as_ptr(),
-            c"user.perry-backup-test".as_ptr(),
-            value.as_mut_ptr().cast(),
-            value.len(),
-            0,
-            0,
-        )
-    };
-    if size < 0 {
-        Vec::new()
-    } else {
-        value[..size as usize].to_vec()
-    }
-}
 
 #[test]
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn install_and_rollback_with_existing_backup_preserves_permissions() {
     use std::os::unix::fs::PermissionsExt;
     let (dir, target, stage, prev) = protocol_fixture(false);
@@ -755,45 +593,3 @@ fn install_and_rollback_with_existing_backup_preserves_permissions() {
     assert!(!dir.path().join("app.broken").exists());
 }
 
-#[test]
-#[cfg(target_os = "macos")]
-fn rejected_backup_symlink_preserves_fixture_metadata() {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
-    let (dir, target, stage, prev) = protocol_fixture(false);
-    let other = dir.path().join("other");
-    std::fs::write(&other, b"unrelated").unwrap();
-    std::fs::remove_file(&prev).unwrap();
-    std::os::unix::fs::symlink("other", &prev).unwrap();
-    for path in [
-        std::path::Path::new(&target),
-        std::path::Path::new(&stage),
-        &other,
-    ] {
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o751)).unwrap();
-        set_fixture_xattr(path, b"metadata");
-        assert_eq!(fixture_xattr(path), b"metadata");
-    }
-    let metadata = |path: &std::path::Path, meta: &std::fs::Metadata| {
-        let mut state = Vec::new();
-        for value in [
-            u64::from(meta.uid()),
-            u64::from(meta.gid()),
-            meta.ino(),
-            meta.nlink(),
-        ] {
-            state.extend_from_slice(&value.to_le_bytes());
-        }
-        state.extend_from_slice(&meta.mtime().to_le_bytes());
-        state.extend_from_slice(&meta.mtime_nsec().to_le_bytes());
-        if meta.is_file() {
-            state.extend(fixture_xattr(path));
-        }
-        state
-    };
-    let before = fixture_hash_with_metadata(dir.path(), &metadata);
-    assert_eq!(
-        perry_updater_install(make_str(&stage), make_str(&target)),
-        0
-    );
-    assert_eq!(fixture_hash_with_metadata(dir.path(), &metadata), before);
-}

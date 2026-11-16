@@ -105,7 +105,6 @@ fn build_lib(dir: &Path) -> PathBuf {
     lib
 }
 
-#[cfg(unix)]
 #[test]
 fn native_float_nan_payloads_read_as_nan() {
     let dir = tempfile::tempdir().expect("tempdir");

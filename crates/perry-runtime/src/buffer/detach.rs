@@ -75,7 +75,6 @@ pub fn detach_array_buffer(addr: usize) {
 /// front of it, and any neighbor allocations on the boundary pages are never
 /// affected. Failure is harmless (the advice is best-effort), so the return
 /// value is ignored.
-#[cfg(unix)]
 pub(super) fn decommit_payload_pages(data: *mut u8, capacity: usize) {
     #[cfg(test)]
     super::bytes::TEST_INLINE_DECOMMITS.with(|n| n.set(n.get() + 1));
@@ -94,32 +93,14 @@ pub(super) fn decommit_payload_pages(data: *mut u8, capacity: usize) {
         // footprint immediately (plain MADV_FREE only reclaims under
         // memory pressure, so RSS wouldn't visibly shrink). It can fail
         // on some region types — fall back to MADV_FREE then.
-        #[cfg(target_os = "macos")]
-        {
-            let len = end - start;
-            if libc::madvise(start as *mut libc::c_void, len, libc::MADV_FREE_REUSABLE) != 0 {
-                libc::madvise(start as *mut libc::c_void, len, libc::MADV_FREE);
-            }
-        }
         // Linux (and other unix): MADV_DONTNEED drops the pages (and RSS)
         // immediately; later reads legally return zeros.
-        #[cfg(not(target_os = "macos"))]
         {
             libc::madvise(start as *mut libc::c_void, end - start, libc::MADV_DONTNEED);
         }
     }
 }
 
-#[cfg(not(unix))]
-pub(super) fn decommit_payload_pages(_data: *mut u8, _capacity: usize) {
-    #[cfg(test)]
-    super::bytes::TEST_INLINE_DECOMMITS.with(|n| n.set(n.get() + 1));
-    // wasip1: the host drops the pages if it provides `perry_host.discard_pages`.
-    #[cfg(wasm_discard)]
-    unsafe {
-        crate::wasm_discard::discard_interior(_data, _capacity, crate::wasm_discard::Source::Buffer)
-    };
-}
 
 /// Release `[data, data + len)` AND report whether every byte of it is now
 /// guaranteed to read as zero (#10873: what lets a resizable buffer regrow into
@@ -130,7 +111,6 @@ pub(super) fn decommit_payload_pages(_data: *mut u8, _capacity: usize) {
 /// the two partial edge pages (< 2 pages) are cleared by hand. macOS's
 /// `MADV_FREE_REUSABLE` makes no such promise (a page not yet reclaimed keeps
 /// its bytes), so there this only releases and answers `false`.
-#[cfg(all(unix, not(target_os = "macos")))]
 pub(super) fn decommit_payload_pages_zeroed(data: *mut u8, len: usize) -> bool {
     let page = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
     if page <= 0 {
@@ -160,11 +140,6 @@ pub(super) fn decommit_payload_pages_zeroed(data: *mut u8, len: usize) -> bool {
     unsafe { crate::wasm_discard::discard_zeroed(data, len) }
 }
 
-#[cfg(not(any(all(unix, not(target_os = "macos")), wasm_discard)))]
-pub(super) fn decommit_payload_pages_zeroed(data: *mut u8, len: usize) -> bool {
-    decommit_payload_pages(data, len);
-    false
-}
 
 fn throw_type_error(message: &str) -> ! {
     let msg = crate::string::js_string_from_bytes(message.as_ptr(), message.len() as u32);

@@ -16,7 +16,6 @@
 //! it fails, except under CI (`CI` set), where it says so and returns. The
 //! program links the runtime as built (`PERRY_NO_AUTO_OPTIMIZE=1`), so the
 //! count is the runtime under test (`PERRY_RUNTIME_DIR`, a release build).
-#![cfg(target_os = "linux")]
 
 use std::path::PathBuf;
 use std::process::Command;

@@ -526,50 +526,10 @@ section_sentinel!(
     ".perryatm$m"
 );
 
-#[cfg(target_os = "windows")]
-#[used(linker)]
-#[link_section = ".perrylay$a"]
-// COFF groups sections by their writable characteristic before sorting the
-// $ suffix. Match the mutable descriptors in .perrylay$m, or these bounds
-// delimit a separate read-only section and registration misses every layout.
-static mut LAYOUT_START: [u64; 1] = [0];
-#[cfg(target_os = "windows")]
-#[used(linker)]
-#[link_section = ".perrylay$z"]
-static mut LAYOUT_END: [u64; 1] = [0];
-#[cfg(target_os = "windows")]
-#[used(linker)]
-#[link_section = ".perryatm$a"]
-static ATOM_START: [u64; 1] = [0];
-#[cfg(target_os = "windows")]
-#[used(linker)]
-#[link_section = ".perryatm$z"]
-static ATOM_END: [u64; 1] = [0];
 
 /// (start, end) of the layout section.
 fn layout_bounds() -> (usize, usize) {
     std::hint::black_box(std::ptr::addr_of!(LAYOUT_SECTION_SENTINEL) as usize);
-    #[cfg(target_vendor = "apple")]
-    {
-        unsafe extern "C" {
-            #[link_name = "\u{1}section$start$__DATA$__perry_layouts"]
-            static START: u8;
-            #[link_name = "\u{1}section$end$__DATA$__perry_layouts"]
-            static END: u8;
-        }
-        (
-            std::ptr::addr_of!(START) as usize,
-            std::ptr::addr_of!(END) as usize,
-        )
-    }
-    #[cfg(target_os = "windows")]
-    {
-        (
-            std::ptr::addr_of!(LAYOUT_START) as usize + 8,
-            std::ptr::addr_of!(LAYOUT_END) as usize,
-        )
-    }
-    #[cfg(not(any(target_vendor = "apple", target_os = "windows")))]
     {
         unsafe extern "C" {
             static __start_perry_layouts: u8;
@@ -638,11 +598,6 @@ unsafe fn image_atom_symbol(atom: *const StaticAtom) -> Option<*mut crate::symbo
 }
 
 mod atoms;
-#[cfg(any(
-    all(feature = "wasm-image-selftest", target_family = "wasm"),
-    all(test, target_os = "windows")
-))]
-use atoms::atom_bounds;
 #[cfg(test)]
 pub(crate) use atoms::image_atoms;
 pub use atoms::StaticAtom;
@@ -1908,42 +1863,7 @@ const _: () = assert!(
         }
 );
 
-#[cfg(all(test, target_os = "windows"))]
-mod windows_layout_bounds_tests {
-    use super::*;
 
-    #[test]
-    fn image_bounds_include_runtime_layouts() {
-        let (start, end) = layout_bounds();
-        let timeout = crate::object::runtime_layouts::TIMEOUT::desc();
-        let sentinel = std::ptr::addr_of!(LAYOUT_SECTION_SENTINEL);
-        assert!(start < end, "COFF layout image must not be empty");
-        for record in [timeout, sentinel] {
-            let address = record as usize;
-            assert!(address >= start && address + std::mem::size_of::<PerryLayoutDesc>() <= end);
-            assert!(image_layouts().any(|entry| std::ptr::eq(entry, record)));
-        }
-    }
-}
-
-#[cfg(all(test, target_os = "windows"))]
-mod windows_atom_bounds_tests {
-    use super::atoms::atom_bounds;
-    use super::*;
-
-    #[test]
-    fn image_bounds_include_runtime_atoms_and_sentinel() {
-        let (start, end) = atom_bounds();
-        let atom = crate::object::runtime_layouts::test_image_atom();
-        let sentinel = std::ptr::addr_of!(ATOM_SECTION_SENTINEL);
-        assert!(start < end, "COFF atom image must not be empty");
-        for record in [atom, sentinel] {
-            let address = record as usize;
-            assert!(address >= start && address + std::mem::size_of::<StaticAtom>() <= end);
-            assert!(image_atoms().any(|entry| std::ptr::eq(entry, record)));
-        }
-    }
-}
 
 #[cfg(test)]
 #[path = "layout_section_tests.rs"]

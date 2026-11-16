@@ -225,7 +225,6 @@ fn post_with<J>(
 /// Unix-only because its one caller is: cluster descriptor passing
 /// (`cluster_bind::recv_fd`, SCM_RIGHTS) does not exist on Windows, where
 /// Node's default scheduling policy is SCHED_NONE.
-#[cfg(unix)]
 pub(crate) fn adopt_connection(server_handle: i64, socket: tl::AdoptedSocket) {
     let _posted = post_to_owner(Box::new(move || {
         // On the owner: `enabled` installs this crate's sink before the first

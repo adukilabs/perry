@@ -94,13 +94,10 @@ pub(crate) struct CpExit {
 }
 
 pub(crate) fn cp_decode_status(status: &std::process::ExitStatus) -> CpExit {
-    #[cfg(unix)]
     let signal = {
         use std::os::unix::process::ExitStatusExt;
         status.signal()
     };
-    #[cfg(not(unix))]
-    let signal: Option<i32> = None;
     CpExit {
         code: status.code(),
         signal,
@@ -116,10 +113,7 @@ pub(crate) fn cp_io_error_code(e: &std::io::Error) -> &'static str {
 /// Node's `errno` for a failure `code`: the number libuv gives that code
 /// (negative), from the same table that names the code.
 pub(crate) fn cp_errno_number(_code: &str) -> f64 {
-    #[cfg(unix)]
     return crate::util_syserr::system_error_code_for_name(_code).map_or(0.0, |n| n as f64);
-    #[cfg(not(unix))]
-    return 0.0;
 }
 
 /// Build an error-like heap object. `ErrorHeader` rejects dynamic-property

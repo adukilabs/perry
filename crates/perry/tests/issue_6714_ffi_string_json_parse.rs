@@ -20,7 +20,6 @@
 //! `JSON.parse`s the result; the test asserts the parse produced a real array,
 //! which is only possible if the FFI-allocated string parsed correctly.
 
-#![cfg(unix)]
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

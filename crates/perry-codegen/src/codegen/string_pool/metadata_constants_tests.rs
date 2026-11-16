@@ -83,17 +83,3 @@ fn split_units_name_function_names_through_a_defined_image() {
     }
 }
 
-/// The same split, compiled unit by unit and partially linked as the
-/// compiler does, for each Mach-O architecture. Before the fix the x86_64
-/// unit that declared the alias failed to assemble.
-#[cfg(all(feature = "llvm-inprocess", target_os = "macos"))]
-#[test]
-fn split_mach_o_units_with_function_names_assemble() {
-    for target in &TARGETS[..2] {
-        let _native = crate::codegen::helpers::NativeRootsPin::native();
-        let units = fixture(target).render_codegen_units(3);
-        let object = crate::linker::compile_units_to_object(&units, Some(target))
-            .unwrap_or_else(|error| panic!("{target}: {error:#}"));
-        assert!(!object.is_empty(), "{target}");
-    }
-}

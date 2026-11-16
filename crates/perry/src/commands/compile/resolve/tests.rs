@@ -5,7 +5,6 @@ use super::*;
 /// locate the workspace root. Without canonicalizing the exe first, the
 /// `../../` walk climbs the symlink's own ancestors and misses the
 /// workspace, silently dropping the per-feature `perry-ext-*` libs.
-#[cfg(unix)]
 mod workspace_root_symlink_tests {
     use super::super::workspace_root_from_exe;
 
@@ -391,7 +390,6 @@ mod declaration_sidecar_tests {
     /// infinite — and, because every member is reachable at every level,
     /// exponential in the member count. Enumeration must terminate and still
     /// report both members exactly once.
-    #[cfg(unix)]
     #[test]
     fn enumerate_installed_packages_terminates_on_pnpm_scope_cycle() {
         let dir = tempfile::tempdir().expect("tempdir");

@@ -202,14 +202,9 @@ fn same_file(candidate: &Path, exe: &Path) -> bool {
     let (Ok(a), Ok(b)) = (std::fs::metadata(candidate), std::fs::metadata(exe)) else {
         return false;
     };
-    #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
         a.dev() == b.dev() && a.ino() == b.ino()
-    }
-    #[cfg(not(unix))]
-    {
-        a.len() == b.len()
     }
 }
 

@@ -4761,12 +4761,6 @@ fn emit_lowered_module(lowered: LoweredModule) -> Result<Vec<u8>> {
     {
         let ll_text = llmod.to_ir();
         drop(llmod);
-        #[cfg(feature = "target-wasi")]
-        let ll_text = if wasm32 {
-            crate::wasm32::lower_module(&ll_text)
-        } else {
-            ll_text
-        };
         log::debug!(
             "perry-codegen: emitted {} bytes of LLVM IR for '{}' ({} interned strings)",
             ll_text.len(),
@@ -4782,8 +4776,6 @@ fn emit_lowered_module(lowered: LoweredModule) -> Result<Vec<u8>> {
             return Ok(ll_text.into_bytes());
         }
         match crate::linker::compile_owned_ll_to_object(ll_text, opts.target.as_deref()) {
-            #[cfg(feature = "target-wasi")]
-            Ok(object) if wasm32 => return Ok(crate::wasm32::trim_object(object)),
             Ok(object) => return Ok(object),
             Err(error) => return Err(error),
         }

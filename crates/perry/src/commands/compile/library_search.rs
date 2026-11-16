@@ -26,8 +26,6 @@ use std::process::Command;
 // `rust_target_triple` and `find_perry_workspace_root` still live in
 // the compile.rs orchestrator. Pull them in as private parent-module
 // items so the search helpers below can reach them.
-#[cfg(target_os = "windows")]
-use super::is_native_windows_target;
 use super::{
     android_target, is_android_target, is_windows_target, rust_target_triple, windows_target_arch,
     WindowsTargetArch,
@@ -292,78 +290,8 @@ fn versioned_llvm_bin_dirs(parent: &str, prefix: &str, names: &[String]) -> Vec<
     versioned.into_iter().map(|(_, p)| p).collect()
 }
 
-/// Find MSVC link.exe by searching Visual Studio installation directories.
-/// On Windows, the PATH may contain a GNU `link` utility (e.g. from Git Bash/MSYS2)
-/// which is not the MSVC linker. This function searches for the real MSVC link.exe.
-#[cfg(target_os = "windows")]
-pub(super) fn msvc_vswhere_installation_path_args(
-    target_arch: WindowsTargetArch,
-) -> [&'static str; 8] {
-    [
-        "-products",
-        "*",
-        // Without the VC tools filter, `-latest` can select Management Studio.
-        "-requires",
-        match target_arch {
-            WindowsTargetArch::X86_64 => "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-            WindowsTargetArch::Aarch64 => "Microsoft.VisualStudio.Component.VC.Tools.ARM64",
-        },
-        "-latest",
-        "-property",
-        "installationPath",
-        "-nologo",
-    ]
-}
 
-#[cfg(target_os = "windows")]
-pub(super) fn find_msvc_link_exe(target: Option<&str>) -> Option<PathBuf> {
-    let target_arch = windows_target_arch(target)?;
-    // Try vswhere.exe first (most reliable)
-    let vswhere_paths = [
-        PathBuf::from(r"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"),
-        PathBuf::from(r"C:\Program Files\Microsoft Visual Studio\Installer\vswhere.exe"),
-    ];
-    for vswhere in &vswhere_paths {
-        if vswhere.exists() {
-            if let Ok(output) = Command::new(vswhere)
-                .args(msvc_vswhere_installation_path_args(target_arch))
-                .output()
-            {
-                let install_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !install_path.is_empty() {
-                    // Prefer a linker native to the host, but allow the other
-                    // host binary because Windows can run x64 tools on ARM64.
-                    let msvc_dir = PathBuf::from(&install_path).join(r"VC\Tools\MSVC");
-                    if let Ok(entries) = std::fs::read_dir(&msvc_dir) {
-                        let mut versions: Vec<_> = entries.filter_map(|e| e.ok()).collect();
-                        versions.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
-                        let host_dirs = if cfg!(target_arch = "aarch64") {
-                            ["Hostarm64", "Hostx64"]
-                        } else {
-                            ["Hostx64", "Hostarm64"]
-                        };
-                        for entry in versions {
-                            for host_dir in host_dirs {
-                                let link = entry
-                                    .path()
-                                    .join("bin")
-                                    .join(host_dir)
-                                    .join(target_arch.msvc_dir())
-                                    .join("link.exe");
-                                if link.exists() {
-                                    return Some(link);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    None
-}
 
-#[cfg(not(target_os = "windows"))]
 pub(super) fn find_msvc_link_exe(_target: Option<&str>) -> Option<PathBuf> {
     find_llvm_tool("lld-link")
 }
@@ -404,34 +332,7 @@ pub(super) fn find_lld_link() -> Option<PathBuf> {
     None
 }
 
-/// MSVC `lib.exe` — the archive manager that ships in the same MSVC bin
-/// directory as `link.exe`. Located via vswhere (through `find_msvc_link_exe`,
-/// which already picks the newest VC tools bin dir) first, then PATH (covers
-/// vcvars64 developer prompts). Windows-host only: on other hosts a
-/// Windows-target archive is built with llvm-lib / llvm-ar instead.
-#[cfg(target_os = "windows")]
-pub(super) fn find_msvc_lib_exe() -> Option<PathBuf> {
-    if let Some(link_exe) = find_msvc_link_exe(None) {
-        let lib = link_exe.with_file_name("lib.exe");
-        if lib.exists() {
-            return Some(lib);
-        }
-    }
-    if let Ok(output) = Command::new("where").arg("lib.exe").output() {
-        if output.status.success() {
-            let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if let Some(first) = s.lines().next() {
-                let p = PathBuf::from(first.trim());
-                if p.exists() {
-                    return Some(p);
-                }
-            }
-        }
-    }
-    None
-}
 
-#[cfg(not(target_os = "windows"))]
 pub(super) fn find_msvc_lib_exe() -> Option<PathBuf> {
     None
 }
@@ -632,210 +533,15 @@ pub(super) fn xwin_sysroot_lib_paths(root: &Path, target_arch: WindowsTargetArch
     paths
 }
 
-/// Find MSVC library search paths (MSVC CRT, Windows SDK um, Windows SDK ucrt).
-/// Returns a semicolon-separated string suitable for the LIB environment variable.
-///
-/// On Windows, prefers `perry setup windows`'s xwin'd sysroot when present
-/// (matches the "lightweight toolchain" opt-in mental model), then falls back
-/// to vswhere-located Visual Studio install paths.
-#[cfg(target_os = "windows")]
-pub(super) fn find_msvc_lib_paths(target: Option<&str>) -> Option<String> {
-    let target_arch = windows_target_arch(target)?;
-    // If the user ran `perry setup windows`, use that sysroot — they've
-    // expressed intent to use the lightweight LLVM + xwin path even if MSVC
-    // is also installed. Same precedence as find_msvc_link_exe_or_lld_link().
-    if let Some(sysroot) = find_perry_windows_sdk() {
-        let paths = xwin_sysroot_lib_paths(&sysroot, target_arch);
-        if !paths.is_empty() {
-            return Some(paths.join(";"));
-        }
-    }
 
-    let mut paths = Vec::new();
-
-    // Find MSVC CRT lib path via vswhere
-    let vswhere_paths = [
-        PathBuf::from(r"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"),
-        PathBuf::from(r"C:\Program Files\Microsoft Visual Studio\Installer\vswhere.exe"),
-    ];
-    for vswhere in &vswhere_paths {
-        if vswhere.exists() {
-            if let Ok(output) = Command::new(vswhere)
-                .args(msvc_vswhere_installation_path_args(target_arch))
-                .output()
-            {
-                let install_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !install_path.is_empty() {
-                    let msvc_dir = PathBuf::from(&install_path).join(r"VC\Tools\MSVC");
-                    if let Ok(entries) = std::fs::read_dir(&msvc_dir) {
-                        let mut versions: Vec<_> = entries.filter_map(|e| e.ok()).collect();
-                        versions.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
-                        if let Some(entry) = versions.first() {
-                            let lib_path = entry.path().join("lib").join(target_arch.msvc_dir());
-                            if lib_path.exists() {
-                                paths.push(lib_path.to_string_lossy().to_string());
-                            }
-                        }
-                    }
-                }
-            }
-            break;
-        }
-    }
-
-    // Find Windows SDK lib paths.
-    //
-    // Issue #300: pre-fix this hardcoded `C:\Program Files (x86)\Windows
-    // Kits\10\Lib` and silently returned only the MSVC CRT path (so `LIB`
-    // was missing `um\x64` → `LNK1181: cannot open user32.lib`) when the
-    // user had Windows SDK installed elsewhere — typical for non-default
-    // VS installs (D: drive, custom paths). We now probe a list of
-    // candidate roots in priority order:
-    //
-    //   1. Registry: HKLM\SOFTWARE\Microsoft\Windows Kits\Installed Roots
-    //      value KitsRoot10 — this is what `vcvars64.bat` consults and
-    //      is the canonical source of truth for SDK location.
-    //   2. ProgramFiles env (handles arch-specific %ProgramFiles%).
-    //   3. ProgramFiles(x86) env.
-    //   4. Hardcoded fallback at the legacy default path.
-    //
-    // Each root is `<root>\Windows Kits\10\Lib` (or for the registry's
-    // KitsRoot10, just `<KitsRoot10>\Lib`).
-    let mut sdk_roots: Vec<PathBuf> = Vec::new();
-    if let Some(reg_root) = read_registry_kits_root_10() {
-        sdk_roots.push(reg_root.join("Lib"));
-    }
-    for env_var in ["ProgramFiles", "ProgramFiles(x86)"] {
-        if let Ok(pf) = std::env::var(env_var) {
-            sdk_roots.push(PathBuf::from(pf).join(r"Windows Kits\10\Lib"));
-        }
-    }
-    sdk_roots.push(PathBuf::from(r"C:\Program Files (x86)\Windows Kits\10\Lib"));
-
-    let mut sdk_added = false;
-    for sdk_root in &sdk_roots {
-        if let Ok(entries) = std::fs::read_dir(sdk_root) {
-            let mut versions: Vec<_> = entries.filter_map(|e| e.ok()).collect();
-            versions.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
-            if let Some(entry) = versions.first() {
-                let um_path = entry.path().join("um").join(target_arch.msvc_dir());
-                let ucrt_path = entry.path().join("ucrt").join(target_arch.msvc_dir());
-                if um_path.exists() {
-                    paths.push(um_path.to_string_lossy().to_string());
-                    sdk_added = true;
-                }
-                if ucrt_path.exists() {
-                    paths.push(ucrt_path.to_string_lossy().to_string());
-                }
-                if sdk_added {
-                    break;
-                }
-            }
-        }
-    }
-
-    if !sdk_added && std::env::var("LIB").is_err() {
-        // Loud diagnostic — pre-fix this returned silently with only the
-        // MSVC CRT path, leading to a confusing LNK1181 from link.exe
-        // about user32.lib. Tell the user exactly what we tried and what
-        // the workarounds are.
-        eprintln!(
-            "Warning: Windows SDK lib path (Windows Kits\\10\\Lib\\<ver>\\um\\{}) not found.\n\
-             Tried: {}\n\
-             Linker will likely fail with LNK1181 (e.g. cannot open user32.lib).\n\
-             Workarounds:\n\
-             - Run `vcvars64.bat` before `perry compile` (sets `LIB` env)\n\
-             - Install Windows 10/11 SDK via Visual Studio Installer\n\
-             - Set the `LIB` env var manually to your SDK's matching `um` and `ucrt` paths",
-            target_arch.msvc_dir(),
-            sdk_roots
-                .iter()
-                .map(|p| p.display().to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
-    }
-
-    if paths.is_empty() {
-        None
-    } else {
-        Some(paths.join(";"))
-    }
-}
-
-/// Issue #300: read `KitsRoot10` from the Windows registry so we don't
-/// hardcode the SDK install location. Returns the path that
-/// `vcvars64.bat` would consult. Best-effort — silently returns None
-/// on any error (registry not available, key missing, etc.).
-#[cfg(target_os = "windows")]
-fn read_registry_kits_root_10() -> Option<PathBuf> {
-    use std::process::Command;
-    // We could pull in the `winreg` crate, but a `reg query` shell-out
-    // keeps the perry build dep-free for the same lookup. Output shape:
-    //     HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots
-    //         KitsRoot10    REG_SZ    C:\Program Files (x86)\Windows Kits\10\
-    let out = Command::new("reg")
-        .args([
-            "query",
-            r"HKLM\SOFTWARE\Microsoft\Windows Kits\Installed Roots",
-            "/v",
-            "KitsRoot10",
-        ])
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    for line in stdout.lines() {
-        let line = line.trim_start();
-        if let Some(rest) = line.strip_prefix("KitsRoot10") {
-            // Skip whitespace + REG_SZ + whitespace, take the rest.
-            let rest = rest.trim_start();
-            let rest = rest.strip_prefix("REG_SZ").unwrap_or(rest).trim();
-            if !rest.is_empty() {
-                let p = PathBuf::from(rest.trim_end_matches('\\'));
-                if p.exists() {
-                    return Some(p);
-                }
-            }
-        }
-    }
-    None
-}
 
 // #854: cfg-symmetric stub — the Windows build calls this (line ~482); the
 // non-Windows build keeps the same signature so callers compile cross-platform.
 #[allow(dead_code)]
-#[cfg(not(target_os = "windows"))]
 fn read_registry_kits_root_10() -> Option<PathBuf> {
     None
 }
 
-/// Issue #6023: locate the Windows SDK `bin\<ver>\x64` (or `x86`) directory
-/// containing `mt.exe`, the manifest tool MSVC `link.exe` shells out to when
-/// given `/MANIFEST:EMBED`. Perry launches a vswhere-located `link.exe` from a
-/// plain shell — not a `vcvars64.bat` developer prompt — so the SDK bin dir is
-/// normally *not* on `PATH` and the link dies with `LNK1158: cannot run
-/// 'mt.exe'`. Probes the same SDK roots as `find_msvc_lib_paths` (registry
-/// `KitsRoot10`, ProgramFiles envs, legacy hardcoded path), newest SDK
-/// version first.
-#[cfg(target_os = "windows")]
-pub(super) fn find_windows_sdk_mt_dir() -> Option<PathBuf> {
-    let mut bin_roots: Vec<PathBuf> = Vec::new();
-    if let Some(reg_root) = read_registry_kits_root_10() {
-        bin_roots.push(reg_root.join("bin"));
-    }
-    for env_var in ["ProgramFiles", "ProgramFiles(x86)"] {
-        if let Ok(pf) = std::env::var(env_var) {
-            bin_roots.push(PathBuf::from(pf).join(r"Windows Kits\10\bin"));
-        }
-    }
-    bin_roots.push(PathBuf::from(r"C:\Program Files (x86)\Windows Kits\10\bin"));
-    bin_roots
-        .into_iter()
-        .find_map(|root| newest_mt_dir_under(&root))
-}
 
 /// Given a Windows SDK `bin` root, return the arch dir holding `mt.exe`: the
 /// newest versioned subdir's native architecture (then compatible fallbacks),
@@ -877,7 +583,6 @@ pub(super) fn newest_mt_dir_under(bin_root: &Path) -> Option<PathBuf> {
     None
 }
 
-#[cfg(not(target_os = "windows"))]
 pub(super) fn find_msvc_lib_paths(target: Option<&str>) -> Option<String> {
     let target_arch = windows_target_arch(target)?;
     let sysroot = std::env::var("PERRY_WINDOWS_SYSROOT").ok()?;
@@ -966,40 +671,7 @@ pub fn find_library(name: &str, target: Option<&str>) -> Option<PathBuf> {
     find_library_with_candidates(name, target).ok()
 }
 
-/// Probe WinGet's Packages directory for a library file. WinGet stores
-/// `perry.exe` and the `.lib` files together in
-/// `%LOCALAPPDATA%\Microsoft\WinGet\Packages\PerryTS.Perry_<source-hash>\`,
-/// but exposes the binary via a launcher-shim `WinGet\Links\perry.exe`.
-/// The shim is a launcher .exe rather than a symlink, so `current_exe()`
-/// returns the shim path and the existing `dir.join(name)` lookups land
-/// in the wrong place. Closes #352.
-#[cfg(target_os = "windows")]
-fn winget_lib_candidates(name: &str) -> Vec<PathBuf> {
-    let Ok(local_app_data) = std::env::var("LOCALAPPDATA") else {
-        return Vec::new();
-    };
-    let packages = PathBuf::from(local_app_data)
-        .join("Microsoft")
-        .join("WinGet")
-        .join("Packages");
-    let Ok(entries) = std::fs::read_dir(&packages) else {
-        return Vec::new();
-    };
-    let mut out = Vec::new();
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path
-            .file_name()
-            .and_then(|s| s.to_str())
-            .is_some_and(|s| s.starts_with("PerryTS.Perry_"))
-        {
-            out.push(path.join(name));
-        }
-    }
-    out
-}
 
-#[cfg(not(target_os = "windows"))]
 fn winget_lib_candidates(_name: &str) -> Vec<PathBuf> {
     Vec::new()
 }
@@ -1041,7 +713,6 @@ fn apple_class_lib_name(name: &str, class: &str, is_sim: bool) -> String {
 /// This distinguishes `--target linux` on a Linux x64 install from a genuine
 /// x64-to-arm64 or glibc-to-musl cross-compile, whose archive search must remain
 /// triple-only.
-#[cfg(target_os = "linux")]
 fn is_native_linux_target(target: Option<&str>) -> bool {
     if cfg!(all(target_arch = "x86_64", target_env = "gnu")) {
         matches!(target, Some("linux") | Some("linux-x86_64"))
@@ -1236,13 +907,6 @@ pub(super) fn collect_library_candidates_from(
         // When targeting the host platform (e.g. --target windows on Windows),
         // also check the default target/release/ directory since native builds
         // put libraries there without the triple subdirectory.
-        #[cfg(target_os = "windows")]
-        if is_native_windows_target(target) {
-            candidates.push(PathBuf::from(format!("target/release/{}", name)));
-            candidates.push(PathBuf::from(format!("target/debug/{}", name)));
-            candidates.extend(winget_lib_candidates(name));
-        }
-        #[cfg(target_os = "linux")]
         if is_native_linux_target(target) {
             candidates.push(PathBuf::from(format!("target/release/{}", name)));
             candidates.push(PathBuf::from(format!("target/debug/{}", name)));
@@ -1254,11 +918,6 @@ pub(super) fn collect_library_candidates_from(
         // Windows/Linux branches above and probe the bare dirs too. Guarded on
         // the host cfg so a genuine cross-compile to macOS (e.g. from Linux)
         // still avoids picking up host-platform libs from `target/release/`.
-        #[cfg(target_os = "macos")]
-        if matches!(target, Some("macos")) {
-            candidates.push(PathBuf::from(format!("target/release/{}", name)));
-            candidates.push(PathBuf::from(format!("target/debug/{}", name)));
-        }
         // Also check directories relative to the perry executable.
         if let Some(exe) = exe {
             if let Some(dir) = exe.parent() {
@@ -1296,7 +955,6 @@ pub(super) fn collect_library_candidates_from(
                 // archives in the sibling `lib/`. The target=None host path
                 // probes that layout, but the explicit `--target linux` path
                 // used to omit it and lose every bundled archive (#9953).
-                #[cfg(target_os = "linux")]
                 if is_native_linux_target(target) {
                     push_executable_relative_host_candidates(&mut candidates, exe, name);
                 }
@@ -1607,16 +1265,6 @@ pub(super) fn find_harmonyos_sdk() -> Option<PathBuf> {
     // multi-profile installs may have other names alongside it (we'd
     // need to enumerate `Contents/sdk/*/openharmony/native` for those —
     // deferred until a user reports a non-default profile).
-    #[cfg(target_os = "macos")]
-    {
-        candidates.push(PathBuf::from(
-            "/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/native",
-        ));
-    }
-    #[cfg(target_os = "windows")]
-    if let Ok(userprofile) = std::env::var("USERPROFILE") {
-        candidates.push(PathBuf::from(userprofile).join("Huawei").join("Sdk"));
-    }
 
     for c in candidates {
         if let Some(sdk) = normalize(c) {

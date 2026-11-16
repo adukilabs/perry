@@ -5,7 +5,6 @@ use crate::object::ObjectHeader;
 use crate::string::{js_string_from_bytes, StringHeader};
 use std::cell::RefCell;
 use std::collections::HashMap;
-#[cfg(unix)]
 use std::ffi::CStr;
 use std::sync::OnceLock;
 use std::time::Instant;
@@ -32,24 +31,7 @@ pub use os_priority::{js_os_get_priority, js_os_set_priority};
 /// Returns: "darwin", "linux", "win32", "freebsd", etc.
 #[no_mangle]
 pub extern "C" fn js_os_platform() -> *mut StringHeader {
-    #[cfg(target_os = "macos")]
-    let platform = "darwin";
-    #[cfg(target_os = "ios")]
-    let platform = "darwin";
-    #[cfg(target_os = "linux")]
     let platform = "linux";
-    #[cfg(target_os = "windows")]
-    let platform = "win32";
-    #[cfg(target_os = "freebsd")]
-    let platform = "freebsd";
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "ios",
-        target_os = "linux",
-        target_os = "windows",
-        target_os = "freebsd"
-    )))]
-    let platform = "unknown";
 
     let bytes = platform.as_bytes();
     js_string_from_bytes(bytes.as_ptr(), bytes.len() as u32)
@@ -175,12 +157,7 @@ pub extern "C" fn js_os_homedir() -> *mut StringHeader {
             }
             None => {
                 // Fallback
-                #[cfg(unix)]
                 let fallback = "/home";
-                #[cfg(windows)]
-                let fallback = "C:\\Users";
-                #[cfg(not(any(unix, windows)))]
-                let fallback = "/";
                 js_string_from_bytes(fallback.as_ptr(), fallback.len() as u32)
             }
         }
@@ -218,7 +195,6 @@ fn nonempty_env(name: &str) -> Option<String> {
 }
 
 fn compute_tmpdir() -> String {
-    #[cfg(not(windows))]
     {
         let raw = nonempty_env("TMPDIR")
             .or_else(|| nonempty_env("TMP"))
@@ -226,23 +202,10 @@ fn compute_tmpdir() -> String {
             .unwrap_or_else(|| "/tmp".to_string());
         trim_one_trailing_sep_posix(&raw)
     }
-    #[cfg(windows)]
-    {
-        let raw = nonempty_env("TEMP")
-            .or_else(|| nonempty_env("TMP"))
-            .or_else(|| {
-                nonempty_env("SystemRoot")
-                    .or_else(|| nonempty_env("windir"))
-                    .map(|root| format!("{root}\\temp"))
-            })
-            .unwrap_or_else(|| "C:\\temp".to_string());
-        trim_one_trailing_sep_windows(&raw)
-    }
 }
 
 /// Strip a single trailing `/`, leaving a lone `/` (root) untouched. Matches
 /// Node's `path.length > 1 && path[len-1] === sep` check on POSIX.
-#[cfg(not(windows))]
 fn trim_one_trailing_sep_posix(path: &str) -> String {
     if path.len() > 1 && path.ends_with('/') {
         path[..path.len() - 1].to_string()
@@ -251,48 +214,10 @@ fn trim_one_trailing_sep_posix(path: &str) -> String {
     }
 }
 
-/// Windows variant: strip one trailing `/` or `\`, but leave root-like paths
-/// (`X:\`, `\`) intact. Node only trims when the char before the separator is
-/// not itself a separator and the result wouldn't be a bare drive root.
-#[cfg(windows)]
-fn trim_one_trailing_sep_windows(path: &str) -> String {
-    let bytes = path.as_bytes();
-    let len = bytes.len();
-    if len > 1 {
-        let last = bytes[len - 1];
-        if last == b'/' || last == b'\\' {
-            // Do not strip the slash of a drive root like `C:\`.
-            let is_drive_root = len == 3 && bytes[1] == b':';
-            if !is_drive_root {
-                return path[..len - 1].to_string();
-            }
-        }
-    }
-    path.to_string()
-}
 
 /// Get the total amount of system memory in bytes
 #[no_mangle]
 pub extern "C" fn js_os_totalmem() -> f64 {
-    #[cfg(any(target_os = "macos", target_os = "ios"))]
-    {
-        use std::mem;
-        let mut memsize: u64 = 0;
-        let mut size = mem::size_of::<u64>();
-        let mib = [libc::CTL_HW, libc::HW_MEMSIZE];
-        unsafe {
-            libc::sysctl(
-                mib.as_ptr() as *mut _,
-                2,
-                &mut memsize as *mut u64 as *mut _,
-                &mut size,
-                std::ptr::null_mut(),
-                0,
-            );
-        }
-        memsize as f64
-    }
-    #[cfg(target_os = "linux")]
     {
         unsafe {
             let mut info: libc::sysinfo = std::mem::zeroed();
@@ -300,72 +225,11 @@ pub extern "C" fn js_os_totalmem() -> f64 {
             (info.totalram as u64 * info.mem_unit as u64) as f64
         }
     }
-    #[cfg(target_os = "windows")]
-    {
-        #[repr(C)]
-        struct MEMORYSTATUSEX {
-            dw_length: u32,
-            dw_memory_load: u32,
-            ull_total_phys: u64,
-            ull_avail_phys: u64,
-            ull_total_page_file: u64,
-            ull_avail_page_file: u64,
-            ull_total_virtual: u64,
-            ull_avail_virtual: u64,
-            ull_avail_extended_virtual: u64,
-        }
-        extern "system" {
-            fn GlobalMemoryStatusEx(lpBuffer: *mut MEMORYSTATUSEX) -> i32;
-        }
-        unsafe {
-            let mut statex: MEMORYSTATUSEX = std::mem::zeroed();
-            statex.dw_length = std::mem::size_of::<MEMORYSTATUSEX>() as u32;
-            if GlobalMemoryStatusEx(&mut statex) != 0 {
-                statex.ull_total_phys as f64
-            } else {
-                0.0
-            }
-        }
-    }
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "ios",
-        target_os = "linux",
-        target_os = "windows"
-    )))]
-    {
-        0.0
-    }
 }
 
 /// Get the amount of free system memory in bytes
 #[no_mangle]
 pub extern "C" fn js_os_freemem() -> f64 {
-    #[cfg(any(target_os = "macos", target_os = "ios"))]
-    {
-        // #855: libc::mach_host_self is deprecated upstream — call
-        // `mach2::mach_init::mach_host_self()` instead. The rest of
-        // the host-statistics surface (host_statistics64,
-        // vm_statistics64, HOST_VM_INFO64) is still libc-provided
-        // because mach2 hasn't surfaced it yet (as of mach2 0.6).
-        unsafe {
-            let mut vm_info: libc::vm_statistics64 = std::mem::zeroed();
-            let mut count = (std::mem::size_of::<libc::vm_statistics64>()
-                / std::mem::size_of::<libc::integer_t>()) as u32;
-            let ret = libc::host_statistics64(
-                mach2::mach_init::mach_host_self(),
-                libc::HOST_VM_INFO64,
-                &mut vm_info as *mut _ as *mut _,
-                &mut count,
-            );
-            if ret != libc::KERN_SUCCESS {
-                return 0.0;
-            }
-            let page_size = libc::vm_page_size;
-            (vm_info.free_count as u64 * page_size as u64) as f64
-        }
-    }
-    #[cfg(target_os = "linux")]
     {
         unsafe {
             let mut info: libc::sysinfo = std::mem::zeroed();
@@ -373,90 +237,17 @@ pub extern "C" fn js_os_freemem() -> f64 {
             (info.freeram as u64 * info.mem_unit as u64) as f64
         }
     }
-    #[cfg(target_os = "windows")]
-    {
-        #[repr(C)]
-        struct MEMORYSTATUSEX {
-            dw_length: u32,
-            dw_memory_load: u32,
-            ull_total_phys: u64,
-            ull_avail_phys: u64,
-            ull_total_page_file: u64,
-            ull_avail_page_file: u64,
-            ull_total_virtual: u64,
-            ull_avail_virtual: u64,
-            ull_avail_extended_virtual: u64,
-        }
-        extern "system" {
-            fn GlobalMemoryStatusEx(lpBuffer: *mut MEMORYSTATUSEX) -> i32;
-        }
-        unsafe {
-            let mut statex: MEMORYSTATUSEX = std::mem::zeroed();
-            statex.dw_length = std::mem::size_of::<MEMORYSTATUSEX>() as u32;
-            if GlobalMemoryStatusEx(&mut statex) != 0 {
-                statex.ull_avail_phys as f64
-            } else {
-                0.0
-            }
-        }
-    }
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "ios",
-        target_os = "linux",
-        target_os = "windows"
-    )))]
-    {
-        0.0
-    }
 }
 
 /// Get the system uptime in seconds
 #[no_mangle]
 pub extern "C" fn js_os_uptime() -> f64 {
-    #[cfg(any(target_os = "macos", target_os = "ios"))]
-    {
-        use std::mem;
-        let mut boottime: libc::timeval = unsafe { std::mem::zeroed() };
-        let mut size = mem::size_of::<libc::timeval>();
-        let mib = [libc::CTL_KERN, libc::KERN_BOOTTIME];
-        unsafe {
-            libc::sysctl(
-                mib.as_ptr() as *mut _,
-                2,
-                &mut boottime as *mut libc::timeval as *mut _,
-                &mut size,
-                std::ptr::null_mut(),
-                0,
-            );
-        }
-        let mut now: libc::timeval = unsafe { std::mem::zeroed() };
-        unsafe { libc::gettimeofday(&mut now, std::ptr::null_mut()) };
-        (now.tv_sec - boottime.tv_sec) as f64
-    }
-    #[cfg(target_os = "linux")]
     {
         unsafe {
             let mut info: libc::sysinfo = std::mem::zeroed();
             libc::sysinfo(&mut info);
             info.uptime as f64
         }
-    }
-    #[cfg(target_os = "windows")]
-    {
-        extern "system" {
-            fn GetTickCount64() -> u64;
-        }
-        unsafe { (GetTickCount64() / 1000) as f64 }
-    }
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "ios",
-        target_os = "linux",
-        target_os = "windows"
-    )))]
-    {
-        0.0
     }
 }
 
@@ -466,7 +257,6 @@ pub extern "C" fn js_os_loadavg() -> *mut ArrayHeader {
     use crate::array::{js_array_alloc, js_array_push_f64};
 
     let arr = js_array_alloc(3);
-    #[cfg(all(unix, not(target_os = "android")))]
     {
         let mut loads = [0.0_f64; 3];
         unsafe {
@@ -480,22 +270,11 @@ pub extern "C" fn js_os_loadavg() -> *mut ArrayHeader {
         }
         result
     }
-    #[cfg(not(all(unix, not(target_os = "android"))))]
-    {
-        // Android's bionic libc does not provide getloadavg(3); Node's
-        // os.loadavg() returns [0, 0, 0] there too, so match that.
-        let mut result = arr;
-        for _ in 0..3 {
-            result = js_array_push_f64(result, 0.0);
-        }
-        result
-    }
 }
 
 /// Get the operating system version string.
 #[no_mangle]
 pub extern "C" fn js_os_version() -> *mut StringHeader {
-    #[cfg(unix)]
     {
         unsafe {
             let mut info: libc::utsname = std::mem::zeroed();
@@ -506,41 +285,6 @@ pub extern "C" fn js_os_version() -> *mut StringHeader {
             }
         }
 
-        let fallback = "unknown";
-        js_string_from_bytes(fallback.as_ptr(), fallback.len() as u32)
-    }
-    #[cfg(target_os = "windows")]
-    {
-        #[repr(C)]
-        struct RTL_OSVERSIONINFOW {
-            dw_os_version_info_size: u32,
-            dw_major_version: u32,
-            dw_minor_version: u32,
-            dw_build_number: u32,
-            dw_platform_id: u32,
-            sz_csd_version: [u16; 128],
-        }
-        extern "system" {
-            fn RtlGetVersion(lpVersionInformation: *mut RTL_OSVERSIONINFOW) -> i32;
-        }
-        unsafe {
-            let mut info: RTL_OSVERSIONINFOW = std::mem::zeroed();
-            info.dw_os_version_info_size = std::mem::size_of::<RTL_OSVERSIONINFOW>() as u32;
-            if RtlGetVersion(&mut info) == 0 {
-                let version = format!(
-                    "Windows {}.{}.{}",
-                    info.dw_major_version, info.dw_minor_version, info.dw_build_number
-                );
-                let bytes = version.as_bytes();
-                return js_string_from_bytes(bytes.as_ptr(), bytes.len() as u32);
-            }
-        }
-
-        let fallback = "Windows";
-        js_string_from_bytes(fallback.as_ptr(), fallback.len() as u32)
-    }
-    #[cfg(not(any(unix, target_os = "windows")))]
-    {
         let fallback = "unknown";
         js_string_from_bytes(fallback.as_ptr(), fallback.len() as u32)
     }
@@ -739,11 +483,6 @@ pub extern "C" fn js_process_argv() -> *mut ArrayHeader {
 /// The OS process id for names and log lines. `std::process::id()` panics on
 /// wasm32-wasi, which has no process ids; there it is 0, like `process.pid`.
 pub(crate) fn current_process_id() -> u32 {
-    #[cfg(target_os = "wasi")]
-    {
-        0
-    }
-    #[cfg(not(target_os = "wasi"))]
     {
         std::process::id()
     }
@@ -755,20 +494,8 @@ pub extern "C" fn js_process_pid() -> f64 {
     #[cfg(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64"))]
     {
         return crate::snap_census::input_call("ids.pid", &format!("{:?}", ()), || {
-            #[cfg(unix)]
             unsafe {
                 libc::getpid() as f64
-            }
-            #[cfg(windows)]
-            {
-                extern "system" {
-                    fn GetCurrentProcessId() -> u32;
-                }
-                unsafe { GetCurrentProcessId() as f64 }
-            }
-            #[cfg(not(any(unix, windows)))]
-            {
-                0.0
             }
         });
     }
@@ -776,20 +503,8 @@ pub extern "C" fn js_process_pid() -> f64 {
     {
         #[cfg(not(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64")))]
         {
-            #[cfg(unix)]
             unsafe {
                 libc::getpid() as f64
-            }
-            #[cfg(windows)]
-            {
-                extern "system" {
-                    fn GetCurrentProcessId() -> u32;
-                }
-                unsafe { GetCurrentProcessId() as f64 }
-            }
-            #[cfg(not(any(unix, windows)))]
-            {
-                0.0
             }
         }
     }
@@ -800,18 +515,8 @@ pub extern "C" fn js_process_ppid() -> f64 {
     #[cfg(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64"))]
     {
         return crate::snap_census::input_call("ids.ppid", &format!("{:?}", ()), || {
-            #[cfg(unix)]
             unsafe {
                 libc::getppid() as f64
-            }
-            #[cfg(windows)]
-            {
-                // Fallback: return 1 (system process)
-                1.0
-            }
-            #[cfg(not(any(unix, windows)))]
-            {
-                0.0
             }
         });
     }
@@ -819,18 +524,8 @@ pub extern "C" fn js_process_ppid() -> f64 {
     {
         #[cfg(not(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64")))]
         {
-            #[cfg(unix)]
             unsafe {
                 libc::getppid() as f64
-            }
-            #[cfg(windows)]
-            {
-                // Fallback: return 1 (system process)
-                1.0
-            }
-            #[cfg(not(any(unix, windows)))]
-            {
-                0.0
             }
         }
     }
@@ -1115,31 +810,12 @@ pub use process_streams::{
     stdin_encoding_flush_jsvalue, stdin_has_encoding, stdin_is_detached,
     stdin_keypress_events_enabled, stdin_listeners_keep_loop_alive, stdin_push_bytes,
 };
-#[cfg(target_os = "wasi")]
-pub(crate) use process_streams::{wasi_stdin_ready, wasi_stdin_wanted};
 
 /// Get the operating system name
 /// Returns: "Darwin", "Linux", "Windows_NT", etc.
 #[no_mangle]
 pub extern "C" fn js_os_type() -> *mut StringHeader {
-    #[cfg(target_os = "macos")]
-    let os_type = "Darwin";
-    #[cfg(target_os = "ios")]
-    let os_type = "Darwin";
-    #[cfg(target_os = "linux")]
     let os_type = "Linux";
-    #[cfg(target_os = "windows")]
-    let os_type = "Windows_NT";
-    #[cfg(target_os = "freebsd")]
-    let os_type = "FreeBSD";
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "ios",
-        target_os = "linux",
-        target_os = "windows",
-        target_os = "freebsd"
-    )))]
-    let os_type = "Unknown";
 
     let bytes = os_type.as_bytes();
     js_string_from_bytes(bytes.as_ptr(), bytes.len() as u32)
@@ -1148,7 +824,6 @@ pub extern "C" fn js_os_type() -> *mut StringHeader {
 /// Get the operating system release
 #[no_mangle]
 pub extern "C" fn js_os_release() -> *mut StringHeader {
-    #[cfg(unix)]
     {
         unsafe {
             let mut info: libc::utsname = std::mem::zeroed();
@@ -1163,49 +838,11 @@ pub extern "C" fn js_os_release() -> *mut StringHeader {
             }
         }
     }
-    #[cfg(target_os = "windows")]
-    {
-        #[repr(C)]
-        struct RTL_OSVERSIONINFOW {
-            dw_os_version_info_size: u32,
-            dw_major_version: u32,
-            dw_minor_version: u32,
-            dw_build_number: u32,
-            dw_platform_id: u32,
-            sz_csd_version: [u16; 128],
-        }
-        extern "system" {
-            fn RtlGetVersion(lpVersionInformation: *mut RTL_OSVERSIONINFOW) -> i32;
-        }
-        unsafe {
-            let mut info: RTL_OSVERSIONINFOW = std::mem::zeroed();
-            info.dw_os_version_info_size = std::mem::size_of::<RTL_OSVERSIONINFOW>() as u32;
-            if RtlGetVersion(&mut info) == 0 {
-                let release = format!(
-                    "{}.{}.{}",
-                    info.dw_major_version, info.dw_minor_version, info.dw_build_number
-                );
-                let bytes = release.as_bytes();
-                js_string_from_bytes(bytes.as_ptr(), bytes.len() as u32)
-            } else {
-                let fallback = "unknown";
-                js_string_from_bytes(fallback.as_ptr(), fallback.len() as u32)
-            }
-        }
-    }
-    #[cfg(not(any(unix, target_os = "windows")))]
-    {
-        let release = "unknown";
-        js_string_from_bytes(release.as_ptr(), release.len() as u32)
-    }
 }
 
 /// Get the end-of-line marker for the current operating system
 #[no_mangle]
 pub extern "C" fn js_os_eol() -> *mut StringHeader {
-    #[cfg(windows)]
-    let eol = "\r\n";
-    #[cfg(not(windows))]
     let eol = "\n";
 
     let bytes = eol.as_bytes();
@@ -1246,7 +883,6 @@ pub extern "C" fn js_os_cpus() -> *mut ArrayHeader {
             .max(1)
     }
 
-    #[cfg(target_os = "linux")]
     fn host_cpu_infos() -> Vec<CpuInfo> {
         use std::io::Read;
 
@@ -1328,136 +964,7 @@ pub extern "C" fn js_os_cpus() -> *mut ArrayHeader {
     // absent; per-core `times` from `host_processor_info` /
     // `PROCESSOR_CPU_LOAD_INFO` (CPU ticks → milliseconds via the 100 Hz
     // clock, matching how Node/libuv expose the counters).
-    #[cfg(any(target_os = "macos", target_os = "ios"))]
-    fn host_cpu_infos() -> Vec<CpuInfo> {
-        fn sysctl_string(name: &str) -> Option<String> {
-            let cname = std::ffi::CString::new(name).ok()?;
-            let mut size: usize = 0;
-            unsafe {
-                if libc::sysctlbyname(
-                    cname.as_ptr(),
-                    std::ptr::null_mut(),
-                    &mut size,
-                    std::ptr::null_mut(),
-                    0,
-                ) != 0
-                    || size == 0
-                {
-                    return None;
-                }
-                let mut buf = vec![0u8; size];
-                if libc::sysctlbyname(
-                    cname.as_ptr(),
-                    buf.as_mut_ptr() as *mut _,
-                    &mut size,
-                    std::ptr::null_mut(),
-                    0,
-                ) != 0
-                {
-                    return None;
-                }
-                // Drop the trailing NUL terminator sysctl includes in `size`.
-                while buf.last() == Some(&0) {
-                    buf.pop();
-                }
-                String::from_utf8(buf).ok()
-            }
-        }
 
-        fn sysctl_u64(name: &str) -> Option<u64> {
-            let cname = std::ffi::CString::new(name).ok()?;
-            let mut value: u64 = 0;
-            let mut size = std::mem::size_of::<u64>();
-            unsafe {
-                if libc::sysctlbyname(
-                    cname.as_ptr(),
-                    &mut value as *mut u64 as *mut _,
-                    &mut size,
-                    std::ptr::null_mut(),
-                    0,
-                ) != 0
-                {
-                    return None;
-                }
-            }
-            Some(value)
-        }
-
-        let model = sysctl_string("machdep.cpu.brand_string")
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| "unknown".to_string());
-        // `hw.cpufrequency` is in Hz on Intel; absent on Apple Silicon — libuv
-        // reports 2400 MHz there, so mirror that to keep `speed > 0`.
-        let speed = sysctl_u64("hw.cpufrequency")
-            .map(|hz| (hz / 1_000_000) as f64)
-            .filter(|mhz| *mhz > 0.0)
-            .unwrap_or(2400.0);
-
-        // Per-core tick counters via the Mach host processor info API.
-        let mut proc_count: libc::natural_t = 0;
-        let mut info_array: libc::processor_info_array_t = std::ptr::null_mut();
-        let mut info_count: libc::mach_msg_type_number_t = 0;
-        let kr = unsafe {
-            libc::host_processor_info(
-                mach2::mach_init::mach_host_self(),
-                libc::PROCESSOR_CPU_LOAD_INFO,
-                &mut proc_count,
-                &mut info_array,
-                &mut info_count,
-            )
-        };
-        if kr != libc::KERN_SUCCESS || info_array.is_null() || proc_count == 0 {
-            // Could not read tick counters; still return real model/speed.
-            return (0..cpu_count())
-                .map(|_| CpuInfo {
-                    model: model.clone(),
-                    speed,
-                    times: CpuTimes::default(),
-                })
-                .collect();
-        }
-
-        const CPU_STATE_MAX: usize = libc::CPU_STATE_MAX as usize;
-        let mut infos = Vec::with_capacity(proc_count as usize);
-        // Ticks → milliseconds: macOS clock is 100 Hz, so 1 tick = 10 ms.
-        let tick_ms = 10.0;
-        for i in 0..proc_count as usize {
-            let base = unsafe { info_array.add(i * CPU_STATE_MAX) };
-            let read =
-                |state: usize| -> f64 { unsafe { *base.add(state) as u32 as f64 * tick_ms } };
-            infos.push(CpuInfo {
-                model: model.clone(),
-                speed,
-                times: CpuTimes {
-                    user: read(libc::CPU_STATE_USER as usize),
-                    nice: read(libc::CPU_STATE_NICE as usize),
-                    sys: read(libc::CPU_STATE_SYSTEM as usize),
-                    idle: read(libc::CPU_STATE_IDLE as usize),
-                    irq: 0.0,
-                },
-            });
-        }
-
-        // Release the vm_allocate'd processor info buffer.
-        unsafe {
-            libc::vm_deallocate(
-                mach2::traps::mach_task_self(),
-                info_array as libc::vm_address_t,
-                (info_count as usize * std::mem::size_of::<libc::integer_t>()) as libc::vm_size_t,
-            );
-        }
-
-        if infos.is_empty() {
-            fallback_cpu_infos()
-        } else {
-            infos
-        }
-    }
-
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "ios")))]
-    fn host_cpu_infos() -> Vec<CpuInfo> {
-        fallback_cpu_infos()
-    }
 
     fn fallback_cpu_infos() -> Vec<CpuInfo> {
         (0..cpu_count())
@@ -1576,14 +1083,8 @@ fn js_os_user_info_impl(buffer_encoding: bool) -> *mut ObjectHeader {
 
     crate::object::runtime_layouts::runtime_record!(obj, RECORD_F414_0);
 
-    #[cfg(unix)]
     let uid = unsafe { libc::geteuid() as f64 };
-    #[cfg(not(unix))]
-    let uid = -1.0;
-    #[cfg(unix)]
     let gid = unsafe { libc::getegid() as f64 };
-    #[cfg(not(unix))]
-    let gid = -1.0;
 
     let username = std::env::var("USER")
         .or_else(|_| std::env::var("USERNAME"))
@@ -1598,7 +1099,6 @@ fn js_os_user_info_impl(buffer_encoding: bool) -> *mut ObjectHeader {
                 String::from_utf8_lossy(std::slice::from_raw_parts(data, len)).into_owned()
             }
         });
-    #[cfg(unix)]
     let shell = std::env::var("SHELL").unwrap_or_default();
 
     let string_value = |s: &str| -> JSValue {
@@ -1622,10 +1122,7 @@ fn js_os_user_info_impl(buffer_encoding: bool) -> *mut ObjectHeader {
     obj.set(1, JSValue::number(gid));
     obj.set(2, text_value(&username));
     obj.set(3, text_value(&homedir));
-    #[cfg(unix)]
     obj.set(4, text_value(&shell));
-    #[cfg(not(unix))]
-    obj.set(4, JSValue::null());
 
     obj.finish()
 }

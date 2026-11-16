@@ -70,7 +70,6 @@ mod tests {
         }
     }
 
-    #[cfg(unix)]
     #[test]
     fn equality_never_reads_past_a_guard_page() {
         unsafe {

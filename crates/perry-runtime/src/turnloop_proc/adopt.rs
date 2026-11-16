@@ -31,25 +31,13 @@ use turnloop::Result as TlResult;
 /// A descriptor on its way to the loop, in the form its platform names.
 pub(crate) enum Transport {
     /// A Unix descriptor of any kind: pipe, socket, tty or file.
-    #[cfg(unix)]
     Fd(std::os::fd::OwnedFd),
-    /// A Windows kernel object: pipe, console or file.
-    #[cfg(windows)]
-    Handle(std::os::windows::io::OwnedHandle),
-    /// A Windows socket, which is not a kernel object and has its own adopter.
-    #[cfg(windows)]
-    Socket(std::os::windows::io::OwnedSocket),
 }
 
 impl Transport {
     pub(crate) fn into_detached(self) -> TlResult<turnloop::Detached> {
         match self {
-            #[cfg(unix)]
             Transport::Fd(fd) => turnloop::Detached::from_fd(fd),
-            #[cfg(windows)]
-            Transport::Handle(h) => turnloop::Detached::from_handle(h),
-            #[cfg(windows)]
-            Transport::Socket(s) => turnloop::Detached::from_socket(s),
         }
     }
 }
@@ -64,7 +52,6 @@ impl Transport {
 // Datagram-side surface of the P2 handle table: real, exercised by
 // `turnloop_proc::tests`, and consumed in production only by
 // `dgram_reactor`, which the `mod-dgram` install brings in.
-#[cfg(unix)]
 pub(crate) fn duplicate_fd(fd: std::os::fd::BorrowedFd<'_>) -> std::io::Result<Transport> {
     use std::os::fd::AsRawFd;
     // SAFETY: `fd` is a live borrowed descriptor for the duration of the call,
@@ -79,36 +66,3 @@ pub(crate) fn duplicate_fd(fd: std::os::fd::BorrowedFd<'_>) -> std::io::Result<T
     }))
 }
 
-/// Windows counterpart: duplicate a socket into a second owned handle on the
-/// same underlying socket, for the same "options here, I/O on the loop" split.
-#[cfg(windows)]
-pub(crate) fn duplicate_socket(
-    socket: std::os::windows::io::BorrowedSocket<'_>,
-) -> std::io::Result<Transport> {
-    use std::os::windows::io::{AsRawSocket, FromRawSocket, OwnedSocket};
-    use windows_sys::Win32::Foundation::{DuplicateHandle, DUPLICATE_SAME_ACCESS, HANDLE};
-    use windows_sys::Win32::System::Threading::GetCurrentProcess;
-
-    let mut duplicate: HANDLE = std::ptr::null_mut();
-    // SAFETY: the source socket is live for the call and `duplicate` is
-    // writable output storage; the pseudo-handle from GetCurrentProcess needs
-    // no release.
-    let ok = unsafe {
-        DuplicateHandle(
-            GetCurrentProcess(),
-            socket.as_raw_socket() as HANDLE,
-            GetCurrentProcess(),
-            &mut duplicate,
-            0,
-            0,
-            DUPLICATE_SAME_ACCESS,
-        )
-    };
-    if ok == 0 {
-        return Err(std::io::Error::last_os_error());
-    }
-    // SAFETY: `duplicate` is a fresh handle this call owns.
-    Ok(Transport::Socket(unsafe {
-        OwnedSocket::from_raw_socket(duplicate as std::os::windows::raw::SOCKET)
-    }))
-}

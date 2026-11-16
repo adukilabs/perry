@@ -398,7 +398,6 @@ fn each_skipped_unwind_turns_its_witness_red() {
 /// Exercise the production wasm checkpoint restore with real subsystem
 /// entries. Equal frame marks deliberately prevent native mark unwinding from
 /// distinguishing the prefix; the lexical depths must make that distinction.
-#[cfg(not(windows))]
 pub(super) fn assert_wasm_depth_restore(name: &str, depth: fn() -> usize, push: fn(u32, usize)) {
     use crate::exception::wasm::{js_wasm_eh_checkpoint_save, js_wasm_eh_pad_enter};
     use perry_abi::WasmEhCheckpoint;
@@ -432,7 +431,6 @@ pub(super) fn assert_wasm_depth_restore(name: &str, depth: fn() -> usize, push: 
 }
 
 #[test]
-#[cfg(not(windows))]
 fn wasm_checkpoint_restores_new_target_and_shadow_without_an_own_frame() {
     use crate::exception::wasm::{js_wasm_eh_checkpoint_save, js_wasm_eh_pad_enter};
     use crate::gc::{js_shadow_frame_push, shadow_stack_depth};
@@ -463,7 +461,6 @@ fn wasm_checkpoint_restores_new_target_and_shadow_without_an_own_frame() {
 /// Nonempty contexts prove that restoring a depth applies its displaced
 /// actions in reverse order rather than simply truncating their stack.
 #[test]
-#[cfg(not(windows))]
 fn wasm_checkpoint_restores_nonempty_async_contexts() {
     use crate::async_context::{
         capture_context, context_guard_depth, enter_context, get_store,
@@ -515,7 +512,6 @@ fn wasm_checkpoint_restores_nonempty_async_contexts() {
 /// record: each field is its own stack depth, and a push moves exactly that
 /// field.
 #[test]
-#[cfg(not(windows))]
 fn catch_stack_record_reads_each_stack_depth() {
     type Field = fn(&super::CatchStackDepths) -> usize;
     let stacks: [(&str, fn() -> usize, fn(u32, usize), Field); 11] = [

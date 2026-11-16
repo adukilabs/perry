@@ -1,24 +1,19 @@
 //! Test the runtime's native page mapper. Production is in hot_text.c so an
 //! unordered link cannot perturb Rust code generation, ThinLTO names or data.
-#[cfg(target_os = "linux")]
 const HP: usize = 2 * 1024 * 1024;
 
-#[cfg(target_os = "linux")]
 extern "C" {
     fn js_back_hot_text(start: *const u8, limit: *const u8);
 }
 
-#[cfg(target_os = "linux")]
 unsafe fn back(start: usize, limit: usize) {
     js_back_hot_text(start as *const u8, limit as *const u8);
 }
 
-#[cfg(target_os = "linux")]
 fn thp_enabled(policy: &str) -> bool {
     policy.contains("[always]") || policy.contains("[madvise]")
 }
 
-#[cfg(target_os = "linux")]
 mod tests {
     use super::*;
 

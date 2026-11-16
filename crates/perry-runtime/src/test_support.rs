@@ -162,11 +162,6 @@ extern "C" fn capture_test_name() {
     any(target_os = "linux", target_os = "android", target_os = "freebsd"),
     link_section = ".init_array"
 )]
-#[cfg_attr(
-    any(target_os = "macos", target_os = "ios"),
-    link_section = "__DATA,__mod_init_func"
-)]
-#[cfg_attr(target_os = "windows", link_section = ".CRT$XCU")]
 static CAPTURE_TEST_NAME: extern "C" fn() = capture_test_name;
 
 /// The full libtest name of the test this process runs (`module::path::test`).
@@ -201,21 +196,9 @@ pub(crate) fn passed(status: std::process::ExitStatus) -> bool {
 
 /// Did `status` end the way a panicking test process ends (`process::abort`)?
 pub(crate) fn died_of_abort(status: std::process::ExitStatus) -> bool {
-    #[cfg(unix)]
     {
         use std::os::unix::process::ExitStatusExt;
         status.signal() == Some(libc::SIGABRT)
-    }
-    #[cfg(windows)]
-    {
-        // `process::abort` is `__fastfail(FAST_FAIL_FATAL_APP_EXIT)`.
-        status.code() == Some(0xC000_0409_u32 as i32)
-    }
-    #[cfg(not(any(unix, windows)))]
-    {
-        // No child processes to inspect (wasm32): nothing died of an abort.
-        let _ = status;
-        false
     }
 }
 

@@ -1,6 +1,5 @@
 //! A `node:process` namespace import must register literal stdin listeners.
 
-#![cfg(unix)]
 
 use std::io::Write;
 use std::path::PathBuf;

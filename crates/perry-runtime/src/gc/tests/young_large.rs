@@ -279,7 +279,6 @@ fn partial_large_leaf_backing_is_not_a_bump_target_or_densely_advised() {
             !(base..base + size).contains(&next),
             "ordinary forward search must not pack the tail"
         );
-        #[cfg(target_os = "linux")]
         {
             let maps = std::fs::read_to_string("/proc/self/smaps").unwrap();
             let mut inside = false;

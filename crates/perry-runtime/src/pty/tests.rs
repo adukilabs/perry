@@ -58,7 +58,6 @@ fn call(target: f64, name: &[u8], args: &[f64]) -> f64 {
 #[test]
 fn aliases_share_native_spawn_and_paused_output_precedes_exit() {
     // Skips (loudly) on a host that cannot open a pty: see `host_has_ptys`.
-    #[cfg(unix)]
     if !super::native::host_has_ptys() {
         return;
     }
@@ -81,13 +80,6 @@ fn aliases_share_native_spawn_and_paused_output_precedes_exit() {
             alias.len(),
         ));
         let spawn = scope.root_nanbox_f64(cp_get_field(ns.get_nanbox_f64(), b"spawn"));
-        #[cfg(windows)]
-        let (shell, args, script) = (
-            "cmd.exe",
-            vec!["/d", "/q"],
-            "echo %PERRY_PTY_MARKER%\r\nexit\r\n",
-        );
-        #[cfg(unix)]
         let (shell, args, script) = ("sh", vec![], "printf '%s\\n' \"$PERRY_PTY_MARKER\"\nexit\n");
         let mut argv = crate::array::js_array_alloc(args.len() as u32);
         for arg in args {

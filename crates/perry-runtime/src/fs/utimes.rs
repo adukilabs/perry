@@ -5,7 +5,6 @@
 
 use super::*;
 
-#[cfg(unix)]
 fn seconds_to_timespec(seconds: f64) -> libc::timespec {
     let safe = if seconds.is_finite() {
         seconds
@@ -70,7 +69,6 @@ pub(crate) fn to_unix_timestamp_or_throw(time_value: f64, arg_name: &str) -> f64
 /// Apply timestamps to a path. On `utimensat` failure builds a Node-shaped fs
 /// error with the real errno and `syscall: "utime"`/`"lutime"` and `path`
 /// (#2745). `Ok(())` on success.
-#[cfg(unix)]
 pub(crate) fn set_path_times_result(
     path: &str,
     atime: f64,
@@ -115,14 +113,8 @@ pub(crate) unsafe fn js_fs_utimes_result(
         Some(s) => s,
         None => return Ok(()),
     };
-    #[cfg(unix)]
     {
         set_path_times_result(&path, atime, mtime, nofollow)
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = (path, atime, mtime, nofollow);
-        Ok(())
     }
 }
 
@@ -175,7 +167,6 @@ pub(crate) unsafe fn js_fs_futimes_result(
         let Some(file) = reg.get(&fd) else {
             return Err(crate::fs::validate::ebadf_error("futime"));
         };
-        #[cfg(unix)]
         {
             use std::os::fd::AsRawFd;
             let times = [seconds_to_timespec(atime), seconds_to_timespec(mtime)];
@@ -187,11 +178,6 @@ pub(crate) unsafe fn js_fs_futimes_result(
                     "futime",
                 ))
             }
-        }
-        #[cfg(not(unix))]
-        {
-            let _ = (file, atime, mtime);
-            Ok(())
         }
     })
 }

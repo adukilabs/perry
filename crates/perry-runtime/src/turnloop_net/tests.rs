@@ -490,7 +490,6 @@ fn an_unresolvable_hostname_reports_enotfound_on_getaddrinfo() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn unix_domain_sockets_carry_the_same_lifecycle() {
     let _fixture = Fixture::start();
@@ -724,7 +723,6 @@ fn parking_a_deadline_keeps_its_handle_and_cancelling_destroys_it() {
 /// loop: its endpoints are reported, its bytes arrive as `NET_DATA` under the
 /// caller's id, its writes reach the peer, and it closes like any other handle.
 /// This is the path an HTTP `'upgrade'` takes into `node:net`.
-#[cfg(any(unix, windows))]
 #[test]
 fn an_adopted_stream_is_an_ordinary_socket_on_the_loop() {
     use std::io::{Read, Write};

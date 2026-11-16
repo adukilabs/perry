@@ -101,7 +101,6 @@ pub extern "C" fn js_child_process_spawn_background(
         // override triggers — the macOS fork/dyld deadlock fix (see
         // `options::cp_command_for_program`). `arg0` preserves argv[0].
         let mut command = {
-            #[cfg(unix)]
             {
                 let resolved = if cmd_str.contains('/') {
                     None
@@ -124,10 +123,6 @@ pub extern "C" fn js_child_process_spawn_background(
                     }
                     None => Command::new(&cmd_str),
                 }
-            }
-            #[cfg(not(unix))]
-            {
-                Command::new(&cmd_str)
             }
         };
 
@@ -217,7 +212,6 @@ pub fn spawn_detached_command(cmd: &str, args: &[&str], cwd: Option<&str>) -> Op
     command.stderr(Stdio::null());
 
     // Detach from process group so parent exit doesn't take the child with it.
-    #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
         unsafe {
@@ -230,12 +224,6 @@ pub fn spawn_detached_command(cmd: &str, args: &[&str], cwd: Option<&str>) -> Op
                 Ok(())
             });
         }
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        // DETACHED_PROCESS = 0x00000008, CREATE_NEW_PROCESS_GROUP = 0x00000200
-        command.creation_flags(0x00000008 | 0x00000200);
     }
 
     match command.spawn() {

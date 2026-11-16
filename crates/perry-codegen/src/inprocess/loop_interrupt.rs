@@ -229,7 +229,6 @@ entry:
     // uses 0.9 and rejects the old form before LLVM sees it. Prove that adding
     // the required terminator leaves the parsed poll module byte-identical;
     // the same linking and safepoint pipeline consumes that module afterward.
-    #[cfg(not(windows))]
     #[test]
     fn terminated_poll_input_preserves_the_llvm_ir() {
         let context = Context::create();

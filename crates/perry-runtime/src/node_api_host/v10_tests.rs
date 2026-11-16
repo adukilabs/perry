@@ -524,14 +524,6 @@ fn module_file_name_follows_the_addon_whose_code_runs() {
     assert_eq!(module_file_name(env), "", "no addon has loaded yet");
     // An absolute Windows path includes its drive; a rooted Unix spelling
     // otherwise inherits the runner's current drive during URL conversion.
-    #[cfg(windows)]
-    let (first_path, second_path, first_url, second_url) = (
-        "C:/opt/perry app/first.node",
-        "C:/opt/perry app/second.node",
-        "file:///C:/opt/perry%20app/first.node",
-        "file:///C:/opt/perry%20app/second.node",
-    );
-    #[cfg(not(windows))]
     let (first_path, second_path, first_url, second_url) = (
         "/opt/perry app/first.node",
         "/opt/perry app/second.node",

@@ -87,7 +87,6 @@ fn quote_boundaries_truncations_and_arbitrary_bytes_match_scalar_depth_oracle() 
 }
 
 #[test]
-#[cfg(unix)]
 fn guard_page_and_long_backslash_runs() {
     unsafe {
         let page = libc::sysconf(libc::_SC_PAGESIZE) as usize;

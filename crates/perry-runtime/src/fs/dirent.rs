@@ -2,7 +2,6 @@
 //! + `is_directory` + binary `readFileSync` helpers.
 
 use std::fs;
-#[cfg(unix)]
 use std::os::unix::fs::FileTypeExt;
 use std::path::Path;
 
@@ -57,45 +56,25 @@ impl DirentKind {
     }
 }
 
-#[cfg(unix)]
 fn dirent_is_block_device(ft: &fs::FileType) -> bool {
     ft.is_block_device()
 }
 
-#[cfg(not(unix))]
-fn dirent_is_block_device(_ft: &fs::FileType) -> bool {
-    false
-}
 
-#[cfg(unix)]
 fn dirent_is_character_device(ft: &fs::FileType) -> bool {
     ft.is_char_device()
 }
 
-#[cfg(not(unix))]
-fn dirent_is_character_device(_ft: &fs::FileType) -> bool {
-    false
-}
 
-#[cfg(unix)]
 fn dirent_is_fifo(ft: &fs::FileType) -> bool {
     ft.is_fifo()
 }
 
-#[cfg(not(unix))]
-fn dirent_is_fifo(_ft: &fs::FileType) -> bool {
-    false
-}
 
-#[cfg(unix)]
 fn dirent_is_socket(ft: &fs::FileType) -> bool {
     ft.is_socket()
 }
 
-#[cfg(not(unix))]
-fn dirent_is_socket(_ft: &fs::FileType) -> bool {
-    false
-}
 
 pub(crate) unsafe fn build_dirent_object(name: &str, parent_path: &str, kind: DirentKind) -> f64 {
     use crate::string::js_string_from_bytes;

@@ -58,43 +58,10 @@ pub(crate) fn native_object_file_stem(module_name: &str) -> String {
         stem.push('_');
     }
 
-    #[cfg(windows)]
-    if is_windows_reserved_file_stem(&stem) {
-        stem.push('_');
-    }
 
     stem
 }
 
-#[cfg(windows)]
-pub(crate) fn is_windows_reserved_file_stem(stem: &str) -> bool {
-    let lower = stem.to_ascii_lowercase();
-    matches!(
-        lower.as_str(),
-        "con"
-            | "prn"
-            | "aux"
-            | "nul"
-            | "com1"
-            | "com2"
-            | "com3"
-            | "com4"
-            | "com5"
-            | "com6"
-            | "com7"
-            | "com8"
-            | "com9"
-            | "lpt1"
-            | "lpt2"
-            | "lpt3"
-            | "lpt4"
-            | "lpt5"
-            | "lpt6"
-            | "lpt7"
-            | "lpt8"
-            | "lpt9"
-    )
-}
 
 pub(crate) fn canonical_class_source_prefix(
     class: &perry_hir::Class,
@@ -386,17 +353,6 @@ mod tests {
         assert_eq!(native_object_file_stem("///"), "_");
     }
 
-    #[cfg(windows)]
-    #[test]
-    fn native_object_file_stem_avoids_windows_reserved_names() {
-        assert_eq!(native_object_file_stem("con"), "con_");
-        assert_eq!(
-            native_object_file_stem("connected-domain"),
-            "connected_domain"
-        );
-        assert_eq!(native_object_file_stem("aux"), "aux_");
-        assert_eq!(native_object_file_stem("COM1"), "COM1_");
-    }
 
     #[test]
     fn object_cache_root_prefers_package_ancestor() {

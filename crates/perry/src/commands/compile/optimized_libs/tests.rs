@@ -927,8 +927,6 @@ fn addon_context(
             ship_package_payload: true,
             reach: reach.iter().copied().collect(),
             node_api_imports: imports.iter().map(|name| name.to_string()).collect(),
-            #[cfg(feature = "target-wasi")]
-            wasm_archives: Vec::new(),
         },
     );
     ctx

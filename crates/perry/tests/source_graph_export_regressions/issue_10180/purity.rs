@@ -44,7 +44,6 @@ fn inferred_purity_applies_to_first_party_forwarding_barrels() {
     assert_eq!(output, compile(dir.path(), true, false).1);
 }
 
-#[cfg(any(unix, windows))]
 #[test]
 fn inferred_purity_resolves_dependencies_from_the_source_visible_path() {
     let dir = fixture(None);
@@ -72,19 +71,7 @@ fn inferred_purity_resolves_dependencies_from_the_source_visible_path() {
     write(dir.path(), "visible/effect.js", "console.log('visible');");
     let actual = dir.path().join("actual/barrel");
     let alias = dir.path().join("visible/barrel");
-    #[cfg(unix)]
     std::os::unix::fs::symlink(&actual, &alias).unwrap();
-    #[cfg(windows)]
-    {
-        // Directory junctions need no administrator/developer-mode privilege.
-        let output = Command::new("cmd")
-            .args(["/C", "mklink", "/J"])
-            .arg(alias.to_string_lossy().replace('/', "\\"))
-            .arg(actual.to_string_lossy().replace('/', "\\"))
-            .output()
-            .unwrap();
-        assert!(output.status.success(), "{:?}", output);
-    }
     let (on, output) = compile(dir.path(), false, false);
     assert!(contains(&on, "/actual/barrel/unused.js"));
     assert!(contains(&on, "/visible/effect.js"));

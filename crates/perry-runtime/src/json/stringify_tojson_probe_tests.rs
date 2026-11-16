@@ -148,7 +148,6 @@ fn json_tojson_key_array_probe_observes_replacement_without_managed_scratch() {
     }
 }
 
-#[cfg(unix)]
 #[test]
 fn json_tojson_marker_comparisons_stop_before_guard_page() {
     unsafe {

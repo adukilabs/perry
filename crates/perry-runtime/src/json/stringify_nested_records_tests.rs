@@ -1,6 +1,5 @@
 use super::*;
 
-#[cfg(unix)]
 #[test]
 fn json_nested_record_short_copies_respect_guarded_source_and_destination() {
     unsafe {

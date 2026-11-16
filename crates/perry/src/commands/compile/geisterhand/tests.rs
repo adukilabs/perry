@@ -85,7 +85,6 @@ fn conflicting_artifacts_are_rejected() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn failed_build_does_not_use_reported_or_cached_artifacts() {
     let dir = tempfile::tempdir().unwrap();
@@ -106,7 +105,6 @@ fn failed_build_does_not_use_reported_or_cached_artifacts() {
 // have separate Rust TLS state; a single graph must make both archives observe
 // the same value. This detects the duplicate-runtime mechanism without relying
 // on ASLR, HashMap layout, a full stdlib build, or a running desktop session.
-#[cfg(unix)]
 #[test]
 fn warm_archives_are_rebuilt_as_one_runtime_graph() {
     fn write_crate(root: &Path, package: &str, name: &str, kind: &str, extra: &str, source: &str) {

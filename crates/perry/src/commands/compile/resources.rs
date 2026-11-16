@@ -523,7 +523,6 @@ mod native_resource_tests {
         assert!(!package_resource_dir.join("d3d12").exists());
     }
 
-    #[cfg(unix)]
     #[test]
     fn stages_vulkan_and_d3d12_shader_sources_with_fake_tools() {
         use std::os::unix::fs::PermissionsExt;

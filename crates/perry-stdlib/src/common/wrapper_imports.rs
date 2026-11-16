@@ -13,7 +13,6 @@
 //! Every adapter names these symbols through this module, so each has one
 //! declaration.
 
-#[cfg(not(target_env = "msvc"))]
 macro_rules! wrapper_symbols {
     ($(fn $name:ident($($arg:ident: $ty:ty),* $(,)?) $(-> $ret:ty)?;)*) => {
         #[allow(dead_code, improper_ctypes, clippy::too_many_arguments)]
@@ -23,26 +22,7 @@ macro_rules! wrapper_symbols {
     };
 }
 
-#[cfg(target_env = "msvc")]
-macro_rules! wrapper_symbols {
-    ($(fn $name:ident($($arg:ident: $ty:ty),* $(,)?) $(-> $ret:ty)?;)*) => {
-        $(
-            #[allow(dead_code, unused_variables, clippy::too_many_arguments)]
-            #[no_mangle]
-            #[linkage = "weak"]
-            pub(crate) unsafe extern "C" fn $name($($arg: $ty),*) $(-> $ret)? {
-                wrapper_not_linked(stringify!($name))
-            }
-        )*
-    };
-}
 
-#[cfg(target_env = "msvc")]
-#[cold]
-fn wrapper_not_linked(symbol: &str) -> ! {
-    eprintln!("perry: internal error: {symbol} was called but its wrapper archive is not linked");
-    std::process::abort()
-}
 
 wrapper_symbols! {
     fn js_ext_http2_session_dispatch_method(handle: i64, method_ptr: *const u8, method_len: usize, args_ptr: *const f64, args_len: usize) -> f64;

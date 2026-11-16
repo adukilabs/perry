@@ -10,7 +10,6 @@ use std::cell::RefCell;
 use std::collections::HashMap as StdHashMap;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom, Write};
-#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::sync::atomic::{AtomicI32, Ordering};
@@ -67,7 +66,6 @@ pub(crate) const CLASS_ID_FS_FILEHANDLE: u32 = 0xFFFF_008C;
 /// without `FD_CLOEXEC`. Every descriptor the runtime opens itself (Rust std
 /// files, sockets, epoll) is close-on-exec, and
 /// a descriptor that survived exec is not, so the flag is the exact test.
-#[cfg(unix)]
 fn inherited_unix_fds() -> Vec<i32> {
     let is_inherited = |fd: i32| {
         // SAFETY: F_GETFD only reads the descriptor flags.
@@ -128,7 +126,6 @@ fn std_fd_registry() -> FdTable {
     // then sees EOF, as in Node.
     // The registry is per thread but the descriptors are per process: the first
     // registry built claims them, so no two threads list one fd twice.
-    #[cfg(unix)]
     {
         use std::os::fd::FromRawFd;
         for fd in 0..=2 {
@@ -147,21 +144,11 @@ fn std_fd_registry() -> FdTable {
     // WASI has no `dup`: the registry entry wraps the descriptor itself, so
     // `closeSync(1)` closes stdout, as it does in Node. The single-threaded
     // module runs no thread-local destructors, so nothing else closes it.
-    #[cfg(target_os = "wasi")]
-    {
-        use std::os::fd::FromRawFd;
-        for fd in 0..=2 {
-            // SAFETY: descriptors 0..=2 are the preopened standard streams
-            // and this thread-local is their only owner.
-            map.insert(fd, unsafe { fs::File::from_raw_fd(fd) });
-        }
-    }
     map
 }
 
 /// Record every inherited descriptor above stderr in `map` as an adopted
 /// entry, and move the synthetic-id counter past them.
-#[cfg(unix)]
 fn adopt_inherited_fds(map: &mut FdTable) {
     use std::os::fd::FromRawFd;
     let inherited = inherited_unix_fds();
@@ -254,7 +241,6 @@ thread_local! {
 }
 
 static NEXT_FD: AtomicI32 = AtomicI32::new(100);
-#[cfg(unix)]
 static INHERITED_FDS_CLAIMED: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
@@ -475,20 +461,6 @@ pub extern "C-unwind" fn js_fs_read_file_sync_options(
     validate::validate_string_or_object_options("options", options_value);
     unsafe {
         // Debug: log path on Android
-        #[cfg(target_os = "android")]
-        {
-            extern "C" {
-                fn __android_log_print(prio: i32, tag: *const u8, fmt: *const u8, ...) -> i32;
-            }
-            let path_str_for_log = decode_path_value(path_value).unwrap_or_default();
-            let c_path = std::ffi::CString::new(path_str_for_log).unwrap_or_default();
-            __android_log_print(
-                3,
-                b"PerryFS\0".as_ptr(),
-                b"readFileSync: path='%s'\0".as_ptr(),
-                c_path.as_ptr(),
-            );
-        }
 
         match read_file_string_with_options(
             path_value,
@@ -498,44 +470,9 @@ pub extern "C-unwind" fn js_fs_read_file_sync_options(
                 .unwrap_or("utf8"),
         ) {
             Ok(text) => {
-                #[cfg(target_os = "android")]
-                {
-                    extern "C" {
-                        fn __android_log_print(
-                            prio: i32,
-                            tag: *const u8,
-                            fmt: *const u8,
-                            ...
-                        ) -> i32;
-                    }
-                    __android_log_print(
-                        3,
-                        b"PerryFS\0".as_ptr(),
-                        b"readFileSync: OK, %d bytes\0".as_ptr(),
-                        (*text).byte_len as i32,
-                    );
-                }
                 text
             }
             Err(failure) => {
-                #[cfg(target_os = "android")]
-                {
-                    extern "C" {
-                        fn __android_log_print(
-                            prio: i32,
-                            tag: *const u8,
-                            fmt: *const u8,
-                            ...
-                        ) -> i32;
-                    }
-                    let c_err = std::ffi::CString::new("read failed").unwrap_or_default();
-                    __android_log_print(
-                        6,
-                        b"PerryFS\0".as_ptr(),
-                        b"readFileSync: ERROR: %s\0".as_ptr(),
-                        c_err.as_ptr(),
-                    );
-                }
                 // Node's `readFileSync` THROWS for an unreadable path
                 // (ENOENT/EACCES/EISDIR/…). Returning an empty string here made
                 // callers that try/catch a missing file behave wrongly: e.g.
@@ -888,14 +825,9 @@ fn apply_dir_mode(path: &str, mode: Option<u32>) {
     let Some(mode) = mode else {
         return;
     };
-    #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let _ = fs::set_permissions(path, fs::Permissions::from_mode(mode & 0o777));
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = (path, mode);
     }
 }
 
@@ -915,9 +847,6 @@ fn mkdirp_first_created(path: &str) -> Option<String> {
     if Path::new(path).exists() {
         return None;
     }
-    #[cfg(windows)]
-    let is_sep = |c: char| c == '/' || c == '\\';
-    #[cfg(not(windows))]
     let is_sep = |c: char| c == '/';
     let mut cur = path;
     loop {
@@ -1052,7 +981,6 @@ pub(crate) unsafe fn js_fs_chmod_result(
         None => return Ok(()),
     };
 
-    #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let perms = fs::Permissions::from_mode(mode as u32);
@@ -1060,11 +988,6 @@ pub(crate) unsafe fn js_fs_chmod_result(
             Ok(_) => Ok(()),
             Err(err) => Err(fs_error(&err, "chmod", &path_str)),
         }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = (path_str, mode);
-        Ok(())
     }
 }
 
@@ -1258,57 +1181,6 @@ pub(crate) unsafe fn js_fs_lchmod_result(
     path_value: f64,
     mode: f64,
 ) -> Result<(), crate::error::CoreError> {
-    #[cfg(all(
-        unix,
-        any(
-            target_os = "macos",
-            target_os = "ios",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd",
-            target_os = "dragonfly"
-        )
-    ))]
-    {
-        // `libc` 0.2 doesn't expose `lchmod` uniformly across BSD targets,
-        // so declare it directly. Signature matches POSIX:
-        //   int lchmod(const char *path, mode_t mode);
-        extern "C" {
-            fn lchmod(path: *const libc::c_char, mode: libc::mode_t) -> libc::c_int;
-        }
-        let Some(path_str) = decode_path_value(path_value) else {
-            return Ok(());
-        };
-        let Ok(c_path) = std::ffi::CString::new(path_str.clone()) else {
-            return Ok(());
-        };
-        let rc = lchmod(c_path.as_ptr(), mode as libc::mode_t);
-        if rc == 0 {
-            Ok(())
-        } else {
-            Err(fs_error(
-                &std::io::Error::last_os_error(),
-                "open",
-                &path_str,
-            ))
-        }
-    }
-    #[cfg(all(
-        unix,
-        not(any(
-            target_os = "macos",
-            target_os = "ios",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd",
-            target_os = "dragonfly"
-        ))
-    ))]
-    {
-        let _ = (path_value, mode);
-        unreachable!("unsupported lchmod platforms throw before syscall dispatch")
-    }
-    #[cfg(not(unix))]
     {
         let _ = (path_value, mode);
         unreachable!("unsupported lchmod platforms throw before syscall dispatch")
@@ -1346,7 +1218,6 @@ pub(crate) unsafe fn js_fs_chown_result(
     crate::fs::validate::validate_path("path", path_value);
     crate::fs::validate::validate_int32(uid_value, "uid", -1, u32::MAX as i64);
     crate::fs::validate::validate_int32(gid_value, "gid", -1, u32::MAX as i64);
-    #[cfg(unix)]
     {
         let Some(path_str) = decode_path_value(path_value) else {
             return Ok(());
@@ -1371,11 +1242,6 @@ pub(crate) unsafe fn js_fs_chown_result(
                 &path_str,
             ))
         }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = (path_value, uid_value, gid_value, follow);
-        Ok(())
     }
 }
 
@@ -1485,13 +1351,10 @@ fn open_file_for_write_flag(
     // #9421: `{ mode }` was dropped, so every file Perry created landed
     // `0666 & ~umask` where Node honours the request. `OpenOptions::mode` is
     // the `open(2)` mode argument: consulted only when the file is created.
-    #[cfg(unix)]
     if let Some(mode) = mode {
         use std::os::unix::fs::OpenOptionsExt;
         opts.mode(mode & 0o7777);
     }
-    #[cfg(not(unix))]
-    let _ = mode;
     match flag {
         "a" | "a+" => {
             opts.create(true).append(true);
@@ -1643,7 +1506,6 @@ pub(crate) unsafe fn js_fs_access_result(
     } else {
         0
     };
-    #[cfg(unix)]
     {
         let Ok(c_path) = std::ffi::CString::new(path_str.clone()) else {
             return Ok(());
@@ -1653,19 +1515,6 @@ pub(crate) unsafe fn js_fs_access_result(
         } else {
             Err(fs_error(
                 &std::io::Error::last_os_error(),
-                "access",
-                &path_str,
-            ))
-        }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = mode;
-        if Path::new(&path_str).exists() {
-            Ok(())
-        } else {
-            Err(fs_error(
-                &std::io::Error::new(std::io::ErrorKind::NotFound, "not found"),
                 "access",
                 &path_str,
             ))
@@ -1718,12 +1567,6 @@ fn realpath_bytes_result(
         match fs::canonicalize(&path_str) {
             Ok(p) => {
                 let path = p.to_string_lossy();
-                #[cfg(windows)]
-                let path = if let Some(unc) = path.strip_prefix(r"\\?\UNC\") {
-                    format!(r"\\{}", unc)
-                } else {
-                    path.strip_prefix(r"\\?\").unwrap_or(&path).to_string()
-                };
                 Ok(path.as_bytes().to_vec())
             }
             Err(err) => Err(fs_error(&err, syscall, &path_str)),
@@ -2026,12 +1869,7 @@ pub(crate) unsafe fn js_fs_symlink_result(
         Some(s) => s,
         None => return Ok(()),
     };
-    #[cfg(unix)]
     let res = std::os::unix::fs::symlink(&target, &path);
-    #[cfg(windows)]
-    let res = std::os::windows::fs::symlink_file(&target, &path);
-    #[cfg(target_os = "wasi")]
-    let res = std::os::wasi::fs::symlink_path(&target, &path);
     match res {
         Ok(()) => Ok(()),
         Err(err) => Err(fs_error_with_dest(&err, "symlink", &target, &path)),

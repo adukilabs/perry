@@ -122,24 +122,6 @@ pub(super) fn emit_sandbox_sidecar(
     // is macOS-only and the matching seccomp / AppContainer /
     // ... support lands as #506 follow-up.
     if ctx.emit_sandbox {
-        #[cfg(target_os = "macos")]
-        {
-            match super::super::sandbox_profile::emit_macos_sandbox_profile(ctx, exe_path) {
-                Ok(path) => match format {
-                    OutputFormat::Text => {
-                        println!("Wrote sandbox profile: {}", path.display())
-                    }
-                    OutputFormat::Json => {}
-                },
-                Err(e) => match format {
-                    OutputFormat::Text => {
-                        eprintln!("warning: failed to emit sandbox profile: {}", e);
-                    }
-                    OutputFormat::Json => {}
-                },
-            }
-        }
-        #[cfg(not(target_os = "macos"))]
         {
             // The profile is written next to the binary only on macOS.
             let _ = exe_path;

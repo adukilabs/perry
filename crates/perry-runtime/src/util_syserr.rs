@@ -21,7 +21,6 @@ use crate::value::JSValue;
 const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
 
 /// errno-backed libuv codes: `(libc errno value, name, libuv message)`.
-#[cfg(unix)]
 fn errno_backed() -> Vec<(i32, &'static str, &'static str)> {
     let mut t: Vec<(i32, &'static str, &'static str)> = vec![
         (libc::EPERM, "EPERM", "operation not permitted"),
@@ -133,12 +132,6 @@ fn errno_backed() -> Vec<(i32, &'static str, &'static str)> {
         (libc::EPROTO, "EPROTO", "protocol error"),
     ];
     // BSD/darwin-only errno.
-    #[cfg(target_os = "macos")]
-    {
-        t.push((libc::EFTYPE, "EFTYPE", "inappropriate file type or format"));
-        t.push((libc::ENODATA, "ENODATA", "no data available"));
-    }
-    #[cfg(target_os = "linux")]
     {
         t.push((libc::ENODATA, "ENODATA", "no data available"));
         t.push((libc::EUNATCH, "EUNATCH", "protocol driver not attached"));
@@ -148,22 +141,7 @@ fn errno_backed() -> Vec<(i32, &'static str, &'static str)> {
     t
 }
 
-#[cfg(windows)]
-fn errno_backed() -> Vec<(i32, &'static str, &'static str)> {
-    // Keyed by the POSITIVE magnitude, like the unix table above: `lookup`
-    // negates it. Codes `uv_internal` already carries are skipped so the two
-    // tables cannot disagree about a key.
-    UV_WINDOWS_ERRNOS
-        .iter()
-        .filter(|(_, name, _)| !uv_internal().iter().any(|(_, other, _)| other == name))
-        .map(|(errno, name, message)| (-errno, *name, *message))
-        .collect()
-}
 
-#[cfg(not(any(unix, windows)))]
-fn errno_backed() -> Vec<(i32, &'static str, &'static str)> {
-    Vec::new()
-}
 
 /// libuv's error numbers on Windows, with libuv's messages.
 ///
@@ -331,14 +309,7 @@ fn uv_internal() -> &'static [(i32, &'static str, &'static str)] {
         (-3011, "EAI_SOCKTYPE", "socket type not supported"),
         (-3013, "EAI_BADHINTS", "invalid value for hints"),
         (-3014, "EAI_PROTOCOL", "resolved protocol is unknown"),
-        #[cfg(not(target_os = "macos"))]
         (-4028, "EFTYPE", "inappropriate file type or format"),
-        #[cfg(not(target_os = "linux"))]
-        (-4023, "EUNATCH", "protocol driver not attached"),
-        #[cfg(not(target_os = "linux"))]
-        (-4030, "EREMOTEIO", "remote I/O error"),
-        #[cfg(not(target_os = "linux"))]
-        (-4056, "ENONET", "machine is not on the network"),
         (-4080, "ECHARSET", "invalid Unicode character"),
         (-4094, "UNKNOWN", "unknown error"),
         (-4095, "EOF", "end of file"),
@@ -433,14 +404,12 @@ fn lookup(code: i64) -> Option<(&'static str, &'static str)> {
 
 /// libuv's name for a host errno as `raw_os_error` returns it (positive):
 /// `libc::ENXIO` -> "ENXIO". `None` when libuv's map has no such errno.
-#[cfg(unix)]
 pub(crate) fn system_error_name_for_errno(errno: i32) -> Option<&'static str> {
     lookup(-(errno as i64)).map(|(name, _)| name)
 }
 
 /// The libuv-style code (negative) libuv gives `name`: "ENOENT" -> -2 on
 /// unix, "EOF" -> -4095. `None` for a name outside libuv's map.
-#[cfg(unix)]
 pub(crate) fn system_error_code_for_name(name: &str) -> Option<i64> {
     if let Some((key, _, _)) = uv_internal().iter().find(|(_, other, _)| *other == name) {
         return Some(*key as i64);
@@ -570,7 +539,6 @@ mod tests {
 
     /// The Windows table and the tables serving `util.getSystemErrorMessage`
     /// must not drift: a code in both says the same thing.
-    #[cfg(unix)]
     #[test]
     fn windows_and_unix_tables_agree_on_messages() {
         for (_, name, message) in UV_WINDOWS_ERRNOS {
@@ -583,7 +551,6 @@ mod tests {
         }
     }
 
-    #[cfg(unix)]
     #[test]
     fn names_and_messages_match_libuv() {
         assert_eq!(system_error_name(-(libc::ENOENT as f64)), "ENOENT");
@@ -617,7 +584,6 @@ mod tests {
         );
     }
 
-    #[cfg(target_os = "linux")]
     #[test]
     fn linux_libuv_aliases_match_node_map() {
         let entry_count = errno_backed().len() + uv_internal().len();

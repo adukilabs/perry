@@ -12,10 +12,7 @@ fn reused_blocks_restart_the_window_and_cold_blocks_are_advised_once() {
         assert!(block_pool_put(raw, size));
         assert_eq!(advance_block_pool_reuse_window(), 0);
         let first_release = advance_block_pool_reuse_window();
-        #[cfg(any(unix, windows))]
         assert!(first_release > 0, "cold owned pages must be advised");
-        #[cfg(not(any(unix, windows)))]
-        assert_eq!(first_release, 0);
         assert_eq!(advance_block_pool_reuse_window(), 0, "no repeated advice");
         assert_eq!(block_pool_take(size), Some(raw), "mapping stays reusable");
         dealloc_for_test(raw, size);
@@ -26,7 +23,6 @@ unsafe fn dealloc_for_test(raw: *mut u8, size: usize) {
     crate::arena::region::unmap(raw, size);
 }
 
-#[cfg(target_os = "linux")]
 unsafe fn resident_pages(raw: *mut u8, size: usize) -> usize {
     let page = libc::sysconf(libc::_SC_PAGESIZE) as usize;
     let address = raw as usize;
@@ -40,7 +36,6 @@ unsafe fn resident_pages(raw: *mut u8, size: usize) -> usize {
     pages.iter().filter(|&&p| p & 1 != 0).count()
 }
 
-#[cfg(target_os = "linux")]
 #[test]
 fn real_collection_publication_keeps_warm_pages_and_releases_unused_pages() {
     crate::arena::tests::run_with_fresh_arenas(|| unsafe {
@@ -80,7 +75,6 @@ fn real_collection_publication_keeps_warm_pages_and_releases_unused_pages() {
     });
 }
 
-#[cfg(target_os = "linux")]
 #[test]
 fn collection_entry_discards_only_previously_idle_eden_pages_and_keeps_reuse_safe() {
     crate::arena::tests::run_with_fresh_arenas(|| unsafe {
@@ -168,7 +162,6 @@ fn idle_advice_state_fits_existing_arena_block_padding() {
     assert_eq!(std::mem::size_of::<ArenaBlock>(), 48);
 }
 
-#[cfg(target_os = "linux")]
 #[test]
 fn the_pool_charges_rounded_mapping_tails_and_releases_the_same_charge() {
     crate::arena::tests::run_with_fresh_arenas(|| unsafe {
@@ -189,233 +182,10 @@ fn the_pool_charges_rounded_mapping_tails_and_releases_the_same_charge() {
     });
 }
 
-#[cfg(target_vendor = "apple")]
-#[test]
-fn the_apple_pool_charges_whole_regions_and_releases_the_same_charge() {
-    crate::arena::tests::run_with_fresh_arenas(|| unsafe {
-        // A sub-region request still owns, and is charged, a whole region.
-        let size = BLOCK_SIZE / 2;
-        let raw = super::super::region::map(super::super::region::Kind::NurseryBlock, size);
-        assert!(!raw.is_null());
-        let before = block_pool_bytes_for_test();
-        assert!(block_pool_put(raw, size));
-        assert_eq!(block_pool_bytes_for_test() - before, BLOCK_SIZE);
-        assert_eq!(block_pool_take(size), Some(raw));
-        assert_eq!(block_pool_bytes_for_test(), before);
-        dealloc_for_test(raw, size);
-    });
-}
 
-#[cfg(target_vendor = "apple")]
-#[test]
-fn pooled_apple_reuse_reactivates_pages_before_handing_memory_out() {
-    crate::arena::tests::run_with_fresh_arenas(|| unsafe {
-        let size = 2 * BLOCK_SIZE;
-        let raw = super::super::region::map(super::super::region::Kind::NurseryBlock, size);
-        assert!(!raw.is_null());
-        std::ptr::write_bytes(raw, 0xa5, size);
-        assert!(block_pool_put(raw, size));
-        assert_eq!(advance_block_pool_reuse_window(), 0);
-        assert!(advance_block_pool_reuse_window() >= size);
-        let reusable = super::super::region::apple_tests::info_for(raw).pages_reusable;
-        assert!(reusable > 0, "live subject: cold pool pages");
-        assert_eq!(block_pool_take(size), Some(raw));
-        let reusable = super::super::region::apple_tests::info_for(raw).pages_reusable;
-        assert_eq!(
-            reusable, 0,
-            "pool must call REUSE before handing memory out"
-        );
-        std::ptr::write_bytes(raw, 0x5a, size);
-        assert_eq!(*raw.add(size - 1), 0x5a);
-        dealloc_for_test(raw, size);
-    });
-}
 
-#[cfg(target_vendor = "apple")]
-#[test]
-fn already_discarded_apple_block_reactivates_even_inside_a_new_pool_window() {
-    crate::arena::tests::run_with_fresh_arenas(|| unsafe {
-        let size = 2 * BLOCK_SIZE;
-        let raw = super::super::region::map(super::super::region::Kind::NurseryBlock, size);
-        std::ptr::write_bytes(raw, 0xa5, size);
-        assert_eq!(super::super::region::release(raw, size), size);
-        let reusable = super::super::region::apple_tests::info_for(raw).pages_reusable;
-        assert!(reusable > 0, "live subject: arena discarded before pooling");
-        assert!(block_pool_put(raw, size));
-        assert_eq!(
-            block_pool_take(size),
-            Some(raw),
-            "new window has not expired"
-        );
-        let reusable = super::super::region::apple_tests::info_for(raw).pages_reusable;
-        assert_eq!(reusable, 0, "new warm window must not suppress REUSE");
-        dealloc_for_test(raw, size);
-    });
-}
 
-#[cfg(target_vendor = "apple")]
-#[test]
-fn idle_apple_block_reactivates_when_it_becomes_current() {
-    crate::arena::tests::run_with_fresh_arenas(|| unsafe {
-        // A standalone arena over backing this test owns and unmaps, so no
-        // block retained in the TLS pool for stale-pointer witnesses is used.
-        let size = BLOCK_SIZE;
-        let kind = super::super::region::Kind::NurseryBlock;
-        let block = |offset: usize| ArenaBlock {
-            data: super::super::region::map(kind, size),
-            extent_kind: kind,
-            size,
-            offset,
-            object_starts: new_object_start_bitmap(size),
-            dead_cycles: 0,
-            old_free_holes: false,
-            pinned_summary: false,
-            idle_pages_discarded: false,
-        };
-        let full = block(size);
-        let mut idle = block(0);
-        std::ptr::write_bytes(idle.data, 0xa5, idle.size);
-        assert_eq!(discard_empty_block_pages(&idle), idle.size);
-        idle.idle_pages_discarded = true;
-        let idle_data = idle.data;
-        let mut arena = Arena {
-            blocks: vec![full, idle],
-            current: 0,
-            generation: HeapGeneration::Nursery,
-            space: HeapSpace::Survivor0,
-            allocated_bytes: 0,
-            large_allocated_bytes: 0,
-            young_large_bytes: 0,
-        };
-        let reusable = super::super::region::apple_tests::info_for(idle_data).pages_reusable;
-        assert!(reusable > 0, "live subject: idle arena pages");
 
-        // The bump path itself issues no syscall: a direct block bump leaves
-        // the pages reusable and the flag set.
-        assert_eq!(arena.blocks[1].alloc(16, 8), Some(idle_data));
-        assert!(arena.blocks[1].idle_pages_discarded);
-        assert!(super::super::region::apple_tests::info_for(idle_data).pages_reusable > 0);
-        arena.blocks[1].offset = 0;
 
-        // The arena hands the block out only by making it current, which
-        // reactivates it first.
-        assert_eq!(arena.try_alloc_after_gc(16, 8), Some(idle_data));
-        assert_eq!(arena.current, 1);
-        assert!(!arena.blocks[1].idle_pages_discarded);
-        let reusable = super::super::region::apple_tests::info_for(idle_data).pages_reusable;
-        assert_eq!(
-            reusable, 0,
-            "a block must be reactivated before it is handed out"
-        );
-        std::ptr::write_bytes(idle_data, 0x5a, 16);
-        assert_eq!(*idle_data, 0x5a);
 
-        // A reset that picks the discarded block goes through the same funnel.
-        arena.blocks[0].offset = 0;
-        std::ptr::write_bytes(arena.blocks[0].data, 0xa5, size);
-        assert_eq!(discard_empty_block_pages(&arena.blocks[0]), size);
-        arena.blocks[0].idle_pages_discarded = true;
-        arena.set_current(0);
-        assert!(!arena.blocks[0].idle_pages_discarded);
-        let reusable =
-            super::super::region::apple_tests::info_for(arena.blocks[0].data).pages_reusable;
-        assert_eq!(
-            reusable, 0,
-            "set_current must reactivate the new current block"
-        );
 
-        for block in &mut arena.blocks {
-            dealloc_for_test(block.data, block.size);
-            block.data = std::ptr::null_mut();
-            block.size = 0;
-        }
-    });
-}
-
-#[cfg(windows)]
-fn committed_for_test(raw: *mut u8, size: usize) -> usize {
-    super::super::region::windows_tests::committed_bytes(raw, size)
-}
-
-#[cfg(windows)]
-#[test]
-fn pooled_windows_reuse_commits_pages_before_handing_memory_out() {
-    crate::arena::tests::run_with_fresh_arenas(|| unsafe {
-        let size = 2 * BLOCK_SIZE;
-        let raw = super::super::region::map(super::super::region::Kind::NurseryBlock, size);
-        assert!(!raw.is_null());
-        std::ptr::write_bytes(raw, 0xa5, size);
-        assert!(block_pool_put(raw, size));
-        assert_eq!(advance_block_pool_reuse_window(), 0);
-        assert_eq!(advance_block_pool_reuse_window(), size);
-        assert_eq!(
-            committed_for_test(raw, size),
-            0,
-            "LIVE SUBJECT: cold pool pages are decommitted"
-        );
-        assert!(!crate::arena::region_contains(raw as usize, 16));
-        assert_eq!(block_pool_take(size), Some(raw));
-        assert_eq!(
-            committed_for_test(raw, size),
-            size,
-            "pool must commit before handing memory out"
-        );
-        assert!(crate::arena::region_contains(raw as usize, size));
-        std::ptr::write_bytes(raw, 0x5a, size);
-        assert_eq!(*raw.add(size - 1), 0x5a);
-        dealloc_for_test(raw, size);
-    });
-}
-
-#[cfg(windows)]
-#[test]
-fn already_discarded_windows_block_commits_even_inside_a_new_pool_window() {
-    crate::arena::tests::run_with_fresh_arenas(|| unsafe {
-        let size = 2 * BLOCK_SIZE;
-        let raw = super::super::region::map(super::super::region::Kind::NurseryBlock, size);
-        std::ptr::write_bytes(raw, 0xa5, size);
-        assert_eq!(super::super::region::release(raw, size), size);
-        assert_eq!(committed_for_test(raw, size), 0, "live subject");
-        assert!(block_pool_put(raw, size));
-        assert_eq!(
-            block_pool_take(size),
-            Some(raw),
-            "new window has not expired"
-        );
-        assert_eq!(
-            committed_for_test(raw, size),
-            size,
-            "new warm window must not suppress the commit"
-        );
-        std::ptr::write_bytes(raw, 0x5a, size);
-        dealloc_for_test(raw, size);
-    });
-}
-
-#[cfg(windows)]
-#[test]
-fn idle_windows_arena_blocks_keep_their_pages_until_they_leave_the_arena() {
-    crate::arena::tests::run_with_fresh_arenas(|| unsafe {
-        // An idle block is still registered heap space: address
-        // classification may read any candidate header in it, so its pages
-        // must stay readable. The pool decommits it once it left the arena.
-        let size = BLOCK_SIZE;
-        let kind = super::super::region::Kind::NurseryBlock;
-        let idle = ArenaBlock {
-            data: super::super::region::map(kind, size),
-            extent_kind: kind,
-            size,
-            offset: 0,
-            object_starts: new_object_start_bitmap(size),
-            dead_cycles: 1,
-            old_free_holes: false,
-            pinned_summary: false,
-            idle_pages_discarded: false,
-        };
-        std::ptr::write_bytes(idle.data, 0xa5, size);
-        assert_eq!(discard_empty_block_pages(&idle), 0);
-        assert_eq!(committed_for_test(idle.data, size), size);
-        assert_eq!(*idle.data.add(size - 1), 0xa5);
-        dealloc_for_test(idle.data, size);
-    });
-}

@@ -155,15 +155,9 @@ fn test_process(test: &str, marker: &str, mode: &str) -> std::process::Command {
 
 /// Did `status` end the way a panicking test process ends (`process::abort`)?
 fn died_of_abort(status: std::process::ExitStatus) -> bool {
-    #[cfg(unix)]
     {
         use std::os::unix::process::ExitStatusExt;
         status.signal() == Some(6) // SIGABRT
-    }
-    #[cfg(windows)]
-    {
-        // `process::abort` is `__fastfail(FAST_FAIL_FATAL_APP_EXIT)`.
-        status.code() == Some(0xC000_0409_u32 as i32)
     }
 }
 

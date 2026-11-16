@@ -14,7 +14,6 @@ use crate::closure::{
 };
 use crate::value::JSValue;
 
-#[cfg(unix)]
 use std::os::fd::AsRawFd;
 
 const BUN_TERMINAL_SHAPE_ID: u32 = 0x7FFF_FC40;
@@ -296,7 +295,6 @@ fn stdio_spec(
         let path = cp_get_field(value.get_nanbox_f64(), BUN_FILE_PATH_KEY);
         if !is_undefined(path) {
             let path = value_to_string(path);
-            #[cfg(unix)]
             {
                 let opened = if fd_index == 0 {
                     std::fs::File::open(&path)
@@ -326,13 +324,6 @@ fn stdio_spec(
                         )
                     }),
                 };
-            }
-            #[cfg(not(unix))]
-            {
-                let _ = (fd_index, held);
-                return Err(type_error(&format!(
-                    "Bun.spawn: Bun.file stdio is not supported on this platform ({path})"
-                )));
             }
         }
     }
@@ -566,13 +557,11 @@ fn finish_non_pty_subprocess(subprocess: f64, options: f64) -> f64 {
 // Bun.Terminal and PTY-backed Subprocess
 // -------------------------------------------------------------------------
 
-#[cfg(unix)]
 fn terminal_current(terminal: f64) -> Option<f64> {
     let current = cp_get_field(terminal, TERMINAL_CURRENT);
     (!is_nullish(current)).then_some(current)
 }
 
-#[cfg(unix)]
 fn terminal_set_refed(terminal: f64, refed: bool) {
     let scope = crate::gc::RuntimeHandleScope::new();
     let terminal = scope.root_nanbox_f64(terminal);
@@ -596,7 +585,6 @@ extern "C" fn bun_terminal_write(
     let scope = crate::gc::RuntimeHandleScope::new();
     let terminal = scope.root_nanbox_f64(captured_at(closure, 0));
     let data = scope.root_nanbox_f64(data);
-    #[cfg(unix)]
     if let Some(current) = terminal_current(terminal.get_nanbox_f64()) {
         let current = scope.root_nanbox_f64(current);
         let bytes = crate::child_process::cp_value_to_bytes(data.get_nanbox_f64());
@@ -628,7 +616,6 @@ extern "C" fn bun_terminal_resize(
     }
     cp_set_field(terminal.get_nanbox_f64(), b"cols", columns as f64);
     cp_set_field(terminal.get_nanbox_f64(), b"rows", rows as f64);
-    #[cfg(unix)]
     if let Some(current) = terminal_current(terminal.get_nanbox_f64()) {
         let _ = call_method(current, b"resize", &[columns as f64, rows as f64]);
     }
@@ -648,7 +635,6 @@ extern "C" fn bun_terminal_set_raw_mode(
         b"rawMode",
         if enabled { TAG_TRUE_F64 } else { TAG_FALSE_F64 },
     );
-    #[cfg(unix)]
     if let Some(current) = terminal_current(terminal.get_nanbox_f64()) {
         if let Some(handle) = crate::pty::pty_handle_of(current) {
             crate::pty::reactor::pty_live_set_raw_mode(handle, enabled);
@@ -663,7 +649,6 @@ extern "C" fn bun_terminal_ref(
 ) -> f64 {
     let scope = crate::gc::RuntimeHandleScope::new();
     let terminal = scope.root_nanbox_f64(captured_at(closure, 0));
-    #[cfg(unix)]
     terminal_set_refed(terminal.get_nanbox_f64(), true);
     terminal.get_nanbox_f64()
 }
@@ -674,7 +659,6 @@ extern "C" fn bun_terminal_unref(
 ) -> f64 {
     let scope = crate::gc::RuntimeHandleScope::new();
     let terminal = scope.root_nanbox_f64(captured_at(closure, 0));
-    #[cfg(unix)]
     terminal_set_refed(terminal.get_nanbox_f64(), false);
     terminal.get_nanbox_f64()
 }
@@ -688,7 +672,6 @@ extern "C" fn bun_terminal_close(
     if bool_field(terminal.get_nanbox_f64(), b"closed") {
         return cp_undefined();
     }
-    #[cfg(unix)]
     if let Some(current) = terminal_current(terminal.get_nanbox_f64()) {
         let current = scope.root_nanbox_f64(current);
         let signal = scope.root_nanbox_f64(cp_box_string("SIGHUP"));
@@ -713,16 +696,7 @@ fn terminal_options_i32(options: f64, key: &[u8], default: i32) -> i32 {
 /// callback owner. The underlying PTY is attached lazily by `Bun.spawn`.
 #[no_mangle]
 pub extern "C" fn js_bun_terminal_new(options: f64) -> f64 {
-    #[cfg(not(unix))]
-    {
-        let _ = options;
-        crate::exception::throw_open(crate::child_process::cp_make_error(
-            "Bun.Terminal is only supported on POSIX platforms by Perry",
-            &[],
-        ));
-    }
 
-    #[cfg(unix)]
     {
         let scope = crate::gc::RuntimeHandleScope::new();
         let options = scope.root_nanbox_f64(options);
@@ -796,7 +770,6 @@ pub extern "C" fn js_bun_terminal_new(options: f64) -> f64 {
     }
 }
 
-#[cfg(unix)]
 extern "C" fn bun_terminal_data_bridge(
     closure: *const ClosureHeader,
     _this: crate::closure::JsThis,
@@ -818,7 +791,6 @@ extern "C" fn bun_terminal_data_bridge(
     cp_undefined()
 }
 
-#[cfg(unix)]
 extern "C" fn bun_pty_subprocess_exit(
     closure: *const ClosureHeader,
     _this: crate::closure::JsThis,
@@ -880,7 +852,6 @@ extern "C" fn bun_pty_subprocess_exit(
     cp_undefined()
 }
 
-#[cfg(unix)]
 extern "C" fn bun_pty_subprocess_kill(
     closure: *const ClosureHeader,
     _this: crate::closure::JsThis,
@@ -909,7 +880,6 @@ extern "C" fn bun_pty_subprocess_kill(
     cp_undefined()
 }
 
-#[cfg(unix)]
 extern "C" fn bun_pty_subprocess_ref(
     closure: *const ClosureHeader,
     _this: crate::closure::JsThis,
@@ -920,7 +890,6 @@ extern "C" fn bun_pty_subprocess_ref(
     subprocess.get_nanbox_f64()
 }
 
-#[cfg(unix)]
 extern "C" fn bun_pty_subprocess_unref(
     closure: *const ClosureHeader,
     _this: crate::closure::JsThis,
@@ -934,7 +903,6 @@ extern "C" fn bun_pty_subprocess_unref(
     subprocess.get_nanbox_f64()
 }
 
-#[cfg(unix)]
 extern "C" fn bun_pty_subprocess_dispose(
     closure: *const ClosureHeader,
     this: crate::closure::JsThis,
@@ -943,7 +911,6 @@ extern "C" fn bun_pty_subprocess_dispose(
     cp_undefined()
 }
 
-#[cfg(unix)]
 fn finish_pty_subprocess(command: &str, args: &[String], options: f64, terminal: f64) -> f64 {
     let scope = crate::gc::RuntimeHandleScope::new();
     let terminal = scope.root_nanbox_f64(terminal);
@@ -1126,7 +1093,6 @@ pub extern "C" fn js_bun_spawn(command_or_options: f64, options: f64) -> f64 {
     let terminal_option =
         scope.root_nanbox_f64(cp_get_field(options.get_nanbox_f64(), b"terminal"));
     if !is_nullish(terminal_option.get_nanbox_f64()) {
-        #[cfg(unix)]
         {
             let terminal = if bool_field(terminal_option.get_nanbox_f64(), TERMINAL_MARKER) {
                 terminal_option.get_nanbox_f64()
@@ -1138,13 +1104,6 @@ pub extern "C" fn js_bun_spawn(command_or_options: f64, options: f64) -> f64 {
                 ));
             };
             return finish_pty_subprocess(&command, &args, options.get_nanbox_f64(), terminal);
-        }
-        #[cfg(not(unix))]
-        {
-            crate::exception::throw_open(crate::child_process::cp_make_error(
-                "Bun.spawn terminal is only supported on POSIX platforms by Perry",
-                &[],
-            ));
         }
     }
 

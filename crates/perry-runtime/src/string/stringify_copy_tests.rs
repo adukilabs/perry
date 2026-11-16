@@ -40,7 +40,6 @@ fn json_short_string_append_matches_standard_push() {
     }
 }
 
-#[cfg(unix)]
 #[test]
 fn json_piece_copy_neither_reads_nor_writes_past_guard_pages() {
     unsafe {

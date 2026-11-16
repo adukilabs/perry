@@ -268,7 +268,6 @@ pub extern "C" fn js_interval_timer_has_pending() -> i32 {
 pub extern "C" fn js_immediate_has_pending() -> i32 {
     // A parked EOF is check-phase work too: it is delivered when the next
     // check phase ends, so the loop must not park ahead of it.
-    #[cfg(not(target_arch = "wasm32"))]
     if crate::turnloop_net::eof_parked() {
         return 1;
     }

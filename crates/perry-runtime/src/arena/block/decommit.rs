@@ -2,7 +2,6 @@
 //! available for reuse. Allocator-owned bytes in either boundary page must
 //! never be discarded: arena allocations are only guaranteed 16-byte alignment.
 
-#[cfg(unix)]
 fn page_size() -> Option<usize> {
     static SIZE: std::sync::OnceLock<Option<usize>> = std::sync::OnceLock::new();
     *SIZE.get_or_init(|| {
@@ -12,7 +11,6 @@ fn page_size() -> Option<usize> {
 }
 
 /// Offset and length of complete pages contained in the owned byte range.
-#[cfg(any(unix, test))]
 fn interior_pages(address: usize, size: usize, page: usize) -> Option<(usize, usize)> {
     if page == 0 {
         return None;
@@ -26,7 +24,6 @@ fn interior_pages(address: usize, size: usize, page: usize) -> Option<(usize, us
 /// the bytes accepted by the kernel, so tests can distinguish success from a
 /// silently rejected (e.g. unaligned) advice call.
 pub(crate) unsafe fn release(data: *mut u8, size: usize) -> usize {
-    #[cfg(unix)]
     {
         let Some(page) = page_size() else { return 0 };
         let Some((skip, length)) = interior_pages(data as usize, size, page) else {
@@ -35,10 +32,7 @@ pub(crate) unsafe fn release(data: *mut u8, size: usize) -> usize {
         // Linux's MADV_FREE retains pages in RSS until pressure. DONTNEED
         // drops the empty private pages now; bump allocation initializes the
         // payload again on reuse. Other Unix targets retain their FREE policy.
-        #[cfg(target_os = "linux")]
         let advice = libc::MADV_DONTNEED;
-        #[cfg(not(target_os = "linux"))]
-        let advice = libc::MADV_FREE;
         if libc::madvise(data.add(skip).cast(), length, advice) == 0 {
             return length;
         }
@@ -50,8 +44,6 @@ pub(crate) unsafe fn release(data: *mut u8, size: usize) -> usize {
     }
     #[cfg(not(wasm_discard))]
     {
-        #[cfg(not(unix))]
-        let _ = (data, size);
         0
     }
 }
@@ -70,7 +62,6 @@ mod tests {
         assert_eq!(interior_pages(usize::MAX - 15, 4096, 4096), None);
     }
 
-    #[cfg(target_os = "linux")]
     #[test]
     fn kernel_releases_interior_pages_without_touching_either_neighbor() {
         unsafe {

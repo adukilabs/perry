@@ -73,7 +73,6 @@ pub(crate) fn open_options_from_flag_str(flags: &str) -> (fs::OpenOptions, bool)
     (opts, append_mode)
 }
 
-#[cfg(unix)]
 fn apply_numeric_open_flags(opts: &mut fs::OpenOptions, flags: i32) -> bool {
     use std::os::unix::fs::OpenOptionsExt;
     match flags & libc::O_ACCMODE {
@@ -110,34 +109,6 @@ fn apply_numeric_open_flags(opts: &mut fs::OpenOptions, flags: i32) -> bool {
     append_mode
 }
 
-#[cfg(not(unix))]
-fn apply_numeric_open_flags(opts: &mut fs::OpenOptions, flags: i32) -> bool {
-    let append_mode = flags & 0x8 != 0;
-    let access = flags & 0x3;
-    match access {
-        1 => {
-            opts.write(true);
-        }
-        2 => {
-            opts.read(true).write(true);
-        }
-        _ => {
-            opts.read(true);
-        }
-    }
-    if flags & 0x200 != 0 && flags & 0x800 != 0 {
-        opts.create_new(true);
-    } else if flags & 0x200 != 0 {
-        opts.create(true);
-    }
-    if flags & 0x400 != 0 {
-        opts.truncate(true);
-    }
-    if append_mode {
-        opts.append(true).write(true);
-    }
-    append_mode
-}
 
 pub(crate) unsafe fn fs_open_sync_result(
     path_value: f64,
@@ -765,16 +736,6 @@ unsafe fn build_statfs_object(fields: StatFsFields, bigint: bool) -> f64 {
     f64::from_bits(crate::value::JSValue::pointer(obj as *const u8).bits())
 }
 
-#[cfg(any(
-    target_os = "android",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "ios",
-    target_os = "linux",
-    target_os = "macos",
-    target_os = "tvos",
-    target_os = "watchos"
-))]
 unsafe fn statfs_type(c_path: *const libc::c_char) -> u64 {
     let mut stat: libc::statfs = std::mem::zeroed();
     if libc::statfs(c_path, &mut stat) == 0 {
@@ -784,19 +745,6 @@ unsafe fn statfs_type(c_path: *const libc::c_char) -> u64 {
     }
 }
 
-#[cfg(not(any(
-    target_os = "android",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "ios",
-    target_os = "linux",
-    target_os = "macos",
-    target_os = "tvos",
-    target_os = "watchos"
-)))]
-unsafe fn statfs_type(_c_path: *const libc::c_char) -> u64 {
-    0
-}
 
 /// `fs.statfsSync(path)` — stable StatFs subset used by Node/Bun tests.
 #[no_mangle]
@@ -822,7 +770,6 @@ pub extern "C" fn js_fs_statfs_sync_options(path_value: f64, options_value: f64)
                 crate::exception::throw_core(fs_error(&err, "statfs", ""))
             }
         };
-        #[cfg(unix)]
         {
             let c_path = match std::ffi::CString::new(path.as_bytes()) {
                 Ok(s) => s,
@@ -854,11 +801,6 @@ pub extern "C" fn js_fs_statfs_sync_options(path_value: f64, options_value: f64)
             // Node does instead of swallowing it into default stats.
             let err = std::io::Error::last_os_error();
             crate::exception::throw_core(fs_error(&err, "statfs", &path))
-        }
-        #[cfg(not(unix))]
-        {
-            let _ = path;
-            build_statfs_object(StatFsFields::default(), bigint)
         }
     }
 }

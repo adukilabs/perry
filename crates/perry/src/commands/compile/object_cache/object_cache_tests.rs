@@ -1393,7 +1393,6 @@ fn key_changes_with_contract_sabotage_selectors() {
     }
 }
 
-#[cfg(unix)]
 #[test]
 fn key_changes_with_non_unicode_contract_mode() {
     use std::os::unix::ffi::OsStringExt;

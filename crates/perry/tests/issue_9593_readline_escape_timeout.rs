@@ -7,7 +7,6 @@
 //! while an unrelated 50 ms interval made it arrive after about 50 ms.  Node's
 //! default is 500 ms in both cases.
 
-#![cfg(unix)]
 
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};

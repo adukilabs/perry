@@ -217,7 +217,6 @@ fn a_malloc_pin_does_not_arm_the_latch() {
 /// line of defence was exercised and fired; if the child exits cleanly the
 /// guard is inert and this test fails.
 #[test]
-#[cfg(unix)]
 fn raw_young_pin_that_bypasses_pin_object_aborts_the_copier() {
     use std::os::unix::process::ExitStatusExt;
 

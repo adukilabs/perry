@@ -117,23 +117,11 @@ pub(crate) fn current_thread_id() -> u64 {
 /// for teardown-path "am I the main thread" reads, where the main thread is
 /// alive by definition and the caller may already be TLS-dead.
 fn current_os_thread_id() -> u64 {
-    #[cfg(unix)]
     {
         unsafe { libc::pthread_self() as u64 }
     }
-    #[cfg(windows)]
-    {
-        extern "system" {
-            fn GetCurrentThreadId() -> u32;
-        }
-        u64::from(unsafe { GetCurrentThreadId() })
-    }
     // WASI preview 2 is single-threaded (#11377): the one thread is the main
     // thread. Non-zero, because `MAIN_OS_THREAD_ID == 0` means "not recorded".
-    #[cfg(target_os = "wasi")]
-    {
-        1
-    }
 }
 
 static MAIN_OS_THREAD_ID: AtomicU64 = AtomicU64::new(0);

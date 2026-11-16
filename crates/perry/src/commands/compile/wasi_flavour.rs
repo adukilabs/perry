@@ -24,11 +24,6 @@ impl Flavour {
         }
     }
 
-    /// The `--target` name.
-    #[cfg(feature = "target-wasi")]
-    pub(crate) fn target(self) -> &'static str {
-        self.cli_name()
-    }
 
     /// The `--target` name, in every build: [`canonical_target`] folds
     /// aliases into it even when the compiler lacks `target-wasi`, so such a

@@ -86,14 +86,12 @@ mod native_payload_buffer;
 mod native_payload_callbacks;
 mod native_payload_streams;
 mod native_this_alias;
-#[cfg(not(target_arch = "wasm32"))]
 mod net_transport;
 mod noncollecting_root_lock;
 mod object_create;
 mod old_birth_tenured;
 mod old_free_intrusive;
 mod oldgen;
-mod os_tag;
 mod pinned_roots;
 mod pool_handle_weak_keys;
 mod precise_root_contract;
@@ -169,7 +167,6 @@ mod private_evaluation_storage;
 mod event_internal_slots;
 mod external_buffer;
 
-#[cfg(target_os = "linux")]
 mod eden_entry_residency;
 
 mod buffer_bytes;

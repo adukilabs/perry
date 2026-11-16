@@ -305,7 +305,6 @@ mod tests {
         assert!(read_user_allowscripts(td.path()).is_empty());
     }
 
-    #[cfg(unix)]
     #[test]
     fn run_lifecycle_executes_script() {
         // Real shell-out: write a tiny package, allowlist it via
@@ -339,7 +338,6 @@ mod tests {
         assert!(sentinel.exists(), "postinstall sentinel was not created");
     }
 
-    #[cfg(unix)]
     #[test]
     fn run_lifecycle_skips_untrusted() {
         let td = TempDir::new().unwrap();

@@ -28,10 +28,7 @@ fn check_project(files: usize) {
     let dir = tempfile::tempdir().unwrap();
     let project = dir.path();
     std::fs::create_dir_all(project.join("node_modules/.bin")).unwrap();
-    #[cfg(unix)]
     std::os::unix::fs::symlink(&binary, project.join("node_modules/.bin/tsgo")).unwrap();
-    #[cfg(not(unix))]
-    std::fs::copy(&binary, project.join("node_modules/.bin/tsgo.exe")).unwrap();
     std::fs::write(project.join("tsconfig.json"), r#"{"compilerOptions":{"strict":true,"target":"ES2022","module":"NodeNext","moduleResolution":"NodeNext","allowImportingTsExtensions":true,"noEmit":true},"include":["*.ts"]}"#).unwrap();
     let mut main = String::new();
     for i in 0..files - 1 {
@@ -111,7 +108,6 @@ fn real_tsgo_three_hundred_files() {
     check_project(300);
 }
 
-#[cfg(unix)]
 #[test]
 #[ignore = "requires compiled runtime archives"]
 fn unsupported_tsgo_versions_continue_without_opening_ipc() {

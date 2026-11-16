@@ -45,13 +45,6 @@ use super::{fp_chain, unwind, ResolvedRoot, StackMapIndex, DWARF_REG_SP_AARCH64}
 /// unrelated stack words must not be able to pass by luck.
 const SENTINEL: u64 = 0xCAFE_F00D;
 
-#[cfg(target_vendor = "apple")]
-macro_rules! asm_symbol {
-    ($name:literal) => {
-        concat!("_", $name)
-    };
-}
-#[cfg(not(target_vendor = "apple"))]
 macro_rules! asm_symbol {
     ($name:literal) => {
         $name

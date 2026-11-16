@@ -2,8 +2,6 @@ use super::*;
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_6869676857617465724d61726b"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -14,8 +12,6 @@ wasm_string_image!(IMAGE_0);
 
 #[used(linker)]
 #[export_name = "perry_atom_6869676857617465724d61726b"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -32,8 +28,6 @@ wasm_atom!(ATOM_0);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_627566666572"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -44,8 +38,6 @@ wasm_string_image!(IMAGE_1);
 
 #[used(linker)]
 #[export_name = "perry_atom_627566666572"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -62,8 +54,6 @@ wasm_atom!(ATOM_1);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_627566666572496e646578"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -74,8 +64,6 @@ wasm_string_image!(IMAGE_2);
 
 #[used(linker)]
 #[export_name = "perry_atom_627566666572496e646578"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -92,8 +80,6 @@ wasm_atom!(ATOM_2);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_6c656e677468"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -104,8 +90,6 @@ wasm_string_image!(IMAGE_3);
 
 #[used(linker)]
 #[export_name = "perry_atom_6c656e677468"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -122,8 +106,6 @@ wasm_atom!(ATOM_3);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_7069706573"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -134,8 +116,6 @@ wasm_string_image!(IMAGE_4);
 
 #[used(linker)]
 #[export_name = "perry_atom_7069706573"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -152,8 +132,6 @@ wasm_atom!(ATOM_4);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_6177616974447261696e57726974657273"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -164,8 +142,6 @@ wasm_string_image!(IMAGE_5);
 
 #[used(linker)]
 #[export_name = "perry_atom_6177616974447261696e57726974657273"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -182,8 +158,6 @@ wasm_atom!(ATOM_5);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_636f726b6564"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -194,8 +168,6 @@ wasm_string_image!(IMAGE_6);
 
 #[used(linker)]
 #[export_name = "perry_atom_636f726b6564"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -212,8 +184,6 @@ wasm_atom!(ATOM_6);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_6f6e7772697465"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -224,8 +194,6 @@ wasm_string_image!(IMAGE_7);
 
 #[used(linker)]
 #[export_name = "perry_atom_6f6e7772697465"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -242,8 +210,6 @@ wasm_atom!(ATOM_7);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_77726974656c656e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -254,8 +220,6 @@ wasm_string_image!(IMAGE_8);
 
 #[used(linker)]
 #[export_name = "perry_atom_77726974656c656e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -272,8 +236,6 @@ wasm_atom!(ATOM_8);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_6275666665726564496e646578"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -284,8 +246,6 @@ wasm_string_image!(IMAGE_9);
 
 #[used(linker)]
 #[export_name = "perry_atom_6275666665726564496e646578"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -302,8 +262,6 @@ wasm_atom!(ATOM_9);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_70656e64696e676362"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -314,8 +272,6 @@ wasm_string_image!(IMAGE_10);
 
 #[used(linker)]
 #[export_name = "perry_atom_70656e64696e676362"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -332,8 +288,6 @@ wasm_atom!(ATOM_10);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_233c70657272793a75726c2d7365617263682d706172616d732d656e74726965733e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -344,8 +298,6 @@ wasm_string_image!(IMAGE_11);
 
 #[used(linker)]
 #[export_name = "perry_atom_233c70657272793a75726c2d7365617263682d706172616d732d656e74726965733e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -362,8 +314,6 @@ wasm_atom!(ATOM_11);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_233c70657272793a75726c2d7365617263682d706172616d732d6f776e65723e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -374,8 +324,6 @@ wasm_string_image!(IMAGE_12);
 
 #[used(linker)]
 #[export_name = "perry_atom_233c70657272793a75726c2d7365617263682d706172616d732d6f776e65723e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -392,8 +340,6 @@ wasm_atom!(ATOM_12);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_233c70657272793a75726c2d687265663e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -404,8 +350,6 @@ wasm_string_image!(IMAGE_13);
 
 #[used(linker)]
 #[export_name = "perry_atom_233c70657272793a75726c2d687265663e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -422,8 +366,6 @@ wasm_atom!(ATOM_13);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_233c70657272793a75726c2d70726f746f636f6c3e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -434,8 +376,6 @@ wasm_string_image!(IMAGE_14);
 
 #[used(linker)]
 #[export_name = "perry_atom_233c70657272793a75726c2d70726f746f636f6c3e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -452,8 +392,6 @@ wasm_atom!(ATOM_14);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_233c70657272793a75726c2d686f73743e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -464,8 +402,6 @@ wasm_string_image!(IMAGE_15);
 
 #[used(linker)]
 #[export_name = "perry_atom_233c70657272793a75726c2d686f73743e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -482,8 +418,6 @@ wasm_atom!(ATOM_15);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_233c70657272793a75726c2d686f73746e616d653e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -494,8 +428,6 @@ wasm_string_image!(IMAGE_16);
 
 #[used(linker)]
 #[export_name = "perry_atom_233c70657272793a75726c2d686f73746e616d653e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -512,8 +444,6 @@ wasm_atom!(ATOM_16);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_233c70657272793a75726c2d706f72743e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -524,8 +454,6 @@ wasm_string_image!(IMAGE_17);
 
 #[used(linker)]
 #[export_name = "perry_atom_233c70657272793a75726c2d706f72743e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -542,8 +470,6 @@ wasm_atom!(ATOM_17);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_233c70657272793a75726c2d706174686e616d653e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -554,8 +480,6 @@ wasm_string_image!(IMAGE_18);
 
 #[used(linker)]
 #[export_name = "perry_atom_233c70657272793a75726c2d706174686e616d653e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -572,8 +496,6 @@ wasm_atom!(ATOM_18);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_233c70657272793a75726c2d7365617263683e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -584,8 +506,6 @@ wasm_string_image!(IMAGE_19);
 
 #[used(linker)]
 #[export_name = "perry_atom_233c70657272793a75726c2d7365617263683e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -602,8 +522,6 @@ wasm_atom!(ATOM_19);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_233c70657272793a75726c2d686173683e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -614,8 +532,6 @@ wasm_string_image!(IMAGE_20);
 
 #[used(linker)]
 #[export_name = "perry_atom_233c70657272793a75726c2d686173683e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -632,8 +548,6 @@ wasm_atom!(ATOM_20);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_233c70657272793a75726c2d6f726967696e3e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -644,8 +558,6 @@ wasm_string_image!(IMAGE_21);
 
 #[used(linker)]
 #[export_name = "perry_atom_233c70657272793a75726c2d6f726967696e3e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -662,8 +574,6 @@ wasm_atom!(ATOM_21);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_233c70657272793a75726c2d7365617263682d706172616d733e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -674,8 +584,6 @@ wasm_string_image!(IMAGE_22);
 
 #[used(linker)]
 #[export_name = "perry_atom_233c70657272793a75726c2d7365617263682d706172616d733e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -692,8 +600,6 @@ wasm_atom!(ATOM_22);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_233c70657272793a75726c2d757365726e616d653e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -704,8 +610,6 @@ wasm_string_image!(IMAGE_23);
 
 #[used(linker)]
 #[export_name = "perry_atom_233c70657272793a75726c2d757365726e616d653e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -722,8 +626,6 @@ wasm_atom!(ATOM_23);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_233c70657272793a75726c2d70617373776f72643e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -734,8 +636,6 @@ wasm_string_image!(IMAGE_24);
 
 #[used(linker)]
 #[export_name = "perry_atom_233c70657272793a75726c2d70617373776f72643e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -752,8 +652,6 @@ wasm_atom!(ATOM_24);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_76616c7565"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -764,8 +662,6 @@ wasm_string_image!(IMAGE_25);
 
 #[used(linker)]
 #[export_name = "perry_atom_76616c7565"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -782,8 +678,6 @@ wasm_atom!(ATOM_25);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_646f6e65"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -794,8 +688,6 @@ wasm_string_image!(IMAGE_26);
 
 #[used(linker)]
 #[export_name = "perry_atom_646f6e65"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -812,8 +704,6 @@ wasm_atom!(ATOM_26);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_696e646578"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -824,8 +714,6 @@ wasm_string_image!(IMAGE_27);
 
 #[used(linker)]
 #[export_name = "perry_atom_696e646578"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -842,8 +730,6 @@ wasm_atom!(ATOM_27);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_696e707574"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -854,8 +740,6 @@ wasm_string_image!(IMAGE_28);
 
 #[used(linker)]
 #[export_name = "perry_atom_696e707574"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -872,8 +756,6 @@ wasm_atom!(ATOM_28);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_67726f757073"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -884,8 +766,6 @@ wasm_string_image!(IMAGE_29);
 
 #[used(linker)]
 #[export_name = "perry_atom_67726f757073"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -902,8 +782,6 @@ wasm_atom!(ATOM_29);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_696e6469636573"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -914,8 +792,6 @@ wasm_string_image!(IMAGE_30);
 
 #[used(linker)]
 #[export_name = "perry_atom_696e6469636573"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -932,8 +808,6 @@ wasm_atom!(ATOM_30);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_666173744368756e6b"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -944,8 +818,6 @@ wasm_string_image!(IMAGE_31);
 
 #[used(linker)]
 #[export_name = "perry_atom_666173744368756e6b"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -962,8 +834,6 @@ wasm_atom!(ATOM_31);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_706970654f6e44617461"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -974,8 +844,6 @@ wasm_string_image!(IMAGE_32);
 
 #[used(linker)]
 #[export_name = "perry_atom_706970654f6e44617461"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -992,8 +860,6 @@ wasm_atom!(ATOM_32);
 
 #[used(linker)]
 #[export_name = "perry_image_literal_0_706970655061757365"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -1004,8 +870,6 @@ wasm_string_image!(IMAGE_33);
 
 #[used(linker)]
 #[export_name = "perry_atom_706970655061757365"]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"

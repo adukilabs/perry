@@ -56,23 +56,6 @@ fn locates_artifact_from_bare_crate_name() {
     assert_eq!(found.as_deref(), Some(lib_path.as_path()));
 }
 
-/// On MSVC, cargo emits `{crate_name}.lib` literally — there is no
-/// automatic `lib` prefix. So a crate whose name actually starts
-/// with `lib` (e.g. `libfoo`) produces `libfoo.lib`, and Perry's
-/// variant logic must NOT strip the `lib` prefix in that case.
-#[test]
-#[cfg(target_os = "windows")]
-fn windows_preserves_lib_prefix_when_crate_name_starts_with_lib() {
-    let tmp = tempfile::tempdir().expect("create tmpdir");
-    let target_dir = tmp.path().join("target");
-    let release_dir = target_dir.join("release");
-    fs::create_dir_all(&release_dir).expect("mkdir release");
-    let lib_path = release_dir.join("libfoo.lib");
-    fs::write(&lib_path, b"fake archive").expect("write lib");
-
-    let found = locate_native_lib_artifact(&target_dir, None, "libfoo");
-    assert_eq!(found.as_deref(), Some(lib_path.as_path()));
-}
 
 /// Cross-platform check on the variant set itself so non-Windows
 /// CI also covers the `lib`-prefix preservation logic.
@@ -114,22 +97,6 @@ fn variant_set_does_not_translate_static_lib_on_unix() {
     assert_eq!(variants, vec!["libperry_ext_webgpu.a".to_string()]);
 }
 
-/// End-to-end: a manifest declaring `libperry_ext_webgpu.a` resolves
-/// the on-disk `perry_ext_webgpu.lib` that cargo actually produced on
-/// Windows. Refs #5812.
-#[test]
-#[cfg(target_os = "windows")]
-fn locates_msvc_artifact_from_unix_manifest_name() {
-    let tmp = tempfile::tempdir().expect("create tmpdir");
-    let target_dir = tmp.path().join("target");
-    let release_dir = target_dir.join("release");
-    fs::create_dir_all(&release_dir).expect("mkdir release");
-    let lib_path = release_dir.join("perry_ext_webgpu.lib");
-    fs::write(&lib_path, b"fake archive").expect("write lib");
-
-    let found = locate_native_lib_artifact(&target_dir, None, "libperry_ext_webgpu.a");
-    assert_eq!(found.as_deref(), Some(lib_path.as_path()));
-}
 
 #[test]
 fn returns_none_when_artifact_missing() {

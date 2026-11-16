@@ -403,7 +403,6 @@ mod tests {
         );
         assert_ne!(out.status.code(), Some(77), "the throw returned");
         assert!(!out.status.success());
-        #[cfg(unix)]
         {
             use std::os::unix::process::ExitStatusExt;
             assert_eq!(out.status.signal(), Some(6), "expected SIGABRT");

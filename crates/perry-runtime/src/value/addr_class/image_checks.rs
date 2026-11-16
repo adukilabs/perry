@@ -41,8 +41,6 @@ pub(super) const fn literal_image() -> Image {
 }
 
 #[used]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows")),
     link_section = "perry_strings"
@@ -124,17 +122,6 @@ pub(super) fn section_holds_the_in_section_image() {
 /// A counterfeit with a correct marker is rejected wherever it lives: data,
 /// stack and heap. Nothing below `__data_end` is a string image.
 pub(super) fn rejects_counterfeits_in_data_stack_and_heap() {
-    #[cfg(target_family = "wasm")]
-    {
-        unsafe extern "C" {
-            static __data_end: u8;
-        }
-        let data_end = std::ptr::addr_of!(__data_end) as usize;
-        assert!(
-            (&COUNTERFEIT_DATA as *const Image as usize) < data_end,
-            "the data counterfeit must sit below __data_end to prove anything"
-        );
-    }
     let _scope = crate::gc::GcSuppressScope::new();
     let stack = literal_image();
     let heap = Box::new(literal_image());
@@ -155,35 +142,3 @@ pub(super) fn rejects_counterfeits_in_data_stack_and_heap() {
     }
 }
 
-/// Run every check on this thread; a failed assertion aborts the program.
-#[cfg(all(feature = "wasm-image-selftest", target_family = "wasm"))]
-pub(super) fn run_all() {
-    let checks: [(&str, fn()); 4] = [
-        (
-            "admits_image_heap_and_malloc_strings",
-            admits_image_heap_and_malloc_strings,
-        ),
-        (
-            "rejects_null_forged_and_image_edge_addresses",
-            rejects_null_forged_and_image_edge_addresses,
-        ),
-        (
-            "section_holds_the_in_section_image",
-            section_holds_the_in_section_image,
-        ),
-        (
-            "rejects_counterfeits_in_data_stack_and_heap",
-            rejects_counterfeits_in_data_stack_and_heap,
-        ),
-    ];
-    for (name, check) in checks {
-        check();
-        eprintln!("perry wasm image selftest: ok {name}");
-    }
-    let (start, end) = super::image::bounds();
-    eprintln!(
-        "perry wasm image selftest: {} checks passed, perry_strings {start:#x}..{end:#x} ({} bytes)",
-        checks.len(),
-        end - start
-    );
-}

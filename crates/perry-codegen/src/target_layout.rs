@@ -564,33 +564,6 @@ mod tests {
         assert!(!wasm32_lowering("arm64_32-apple-watchos"));
     }
 
-    /// With the feature, a wasm32 WASI module compiles end to end and its
-    /// runtime calls come out adapted (the i64-handle call below would be a
-    /// link-time signature mismatch without the pass).
-    #[cfg(feature = "target-wasi")]
-    #[test]
-    fn compile_module_lowers_a_wasm32_wasi_module() {
-        let module = perry_hir::Module::new("wasi_smoke");
-        let opts = crate::CompileOptions {
-            target: Some("wasm32-unknown-wasip2".into()),
-            emit_ir_only: true,
-            is_entry_module: true,
-            output_type: "executable".into(),
-            disable_constfn_shapes: false,
-            ..Default::default()
-        };
-        let ir = String::from_utf8(crate::compile_module(&module, opts).expect("wasm32 compiles"))
-            .expect("IR is UTF-8");
-        assert!(
-            ir.contains("target triple = \"wasm32-unknown-wasip2\""),
-            "{ir}"
-        );
-        // Every runtime declaration is the runtime's real signature.
-        assert!(
-            ir.contains("declare ptr @js_string_from_bytes(ptr, i32)"),
-            "{ir}"
-        );
-    }
 
     /// The refusal must be reached by the real entry point, not just exist.
     #[test]

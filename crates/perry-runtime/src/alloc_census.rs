@@ -321,16 +321,7 @@ unsafe impl<A: GlobalAlloc> GlobalAlloc for CensusAlloc<A> {
     }
 }
 
-#[cfg(target_vendor = "apple")]
-fn main_image_load_address() -> usize {
-    unsafe extern "C" {
-        fn _dyld_get_image_header(index: u32) -> *const core::ffi::c_void;
-    }
-    // SAFETY: image 0 is the main executable; the call takes no pointer.
-    (unsafe { _dyld_get_image_header(0) }) as usize
-}
 
-#[cfg(all(unix, not(target_vendor = "apple")))]
 fn main_image_load_address() -> usize {
     // This function is statically linked into the executable. Resolve its own
     // address, rather than a libc symbol (which would identify libc's image).
@@ -348,18 +339,7 @@ fn main_image_load_address() -> usize {
     }
 }
 
-#[cfg(windows)]
-fn main_image_load_address() -> usize {
-    unsafe extern "system" {
-        fn GetModuleHandleW(name: *const u16) -> *mut core::ffi::c_void;
-    }
-    unsafe { GetModuleHandleW(core::ptr::null()) as usize }
-}
 
-#[cfg(not(any(unix, windows)))]
-fn main_image_load_address() -> usize {
-    0
-}
 
 /// Append one JSON document to `PERRY_ALLOC_CENSUS`.
 pub(crate) fn alloc_census_dump(label: &str) {
@@ -475,7 +455,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg(target_os = "linux")]
     fn image_base_is_the_executables_elf_header() {
         let base = main_image_load_address();
         assert_ne!(base, 0);
@@ -524,7 +503,6 @@ mod tests {
         let doc: serde_json::Value = serde_json::from_str(output.trim()).unwrap();
         assert_eq!(doc["label"], "fresh-thread");
         assert!(doc["totals"]["live_bytes"].as_i64().unwrap() >= 2 * 1024 * 1024);
-        #[cfg(any(unix, windows))]
         assert!(doc["load_address"].as_u64().unwrap() > 0);
     }
 }

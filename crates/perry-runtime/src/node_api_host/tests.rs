@@ -1335,7 +1335,6 @@ fn async_work_executes_off_thread_and_completes_on_owner() {
     // both satisfy every assertion below — so the pool's own counter is read
     // around the queue. A run that fell back to the thread path leaves it
     // unchanged, and this says so instead of passing quietly.
-    #[cfg(not(target_arch = "wasm32"))]
     let pool_before = crate::turnloop_pool::submitted_total();
     let env = test_env();
     let mut name = std::ptr::null_mut();
@@ -1369,7 +1368,6 @@ fn async_work_executes_off_thread_and_completes_on_owner() {
     assert_eq!(ASYNC_EXECUTED.load(Ordering::SeqCst), 1);
     assert_eq!(ASYNC_OFF_THREAD_REJECTED.load(Ordering::SeqCst), 1);
     assert_eq!(ASYNC_COMPLETED.load(Ordering::SeqCst), 1);
-    #[cfg(not(target_arch = "wasm32"))]
     assert_eq!(
         crate::turnloop_pool::submitted_total(),
         pool_before + 1,

@@ -242,8 +242,6 @@ mod cycle;
 /// `malloc_trim` maintenance, split out of `cycle.rs` for the 2000-line cap.
 mod cycle_malloc_trim;
 use cycle::*;
-#[cfg(any(target_vendor = "apple", windows))]
-pub(crate) use cycle_malloc_trim::purge_allocator_on_region_growth;
 #[cfg(test)]
 pub(crate) use cycle_malloc_trim::{
     reset_test_malloc_trim_call_count, test_malloc_trim_call_count,
@@ -1277,7 +1275,6 @@ pub fn gc_init() {
     reg_scanner!(crate::child_process::reactor::cp_reactor_scan_roots_mut);
     // #6563: live node-pty IPty objects are likewise reachable only from the
     // pty reactor's registry while their onData/onExit handlers are pending.
-    #[cfg(any(unix, windows))]
     reg_scanner!(crate::pty::reactor::pty_reactor_scan_roots_mut);
     // #4911: a bound node:dgram socket is reachable only from the dgram
     // reactor's registry while its recv thread runs; scan + rewrite it so a GC
@@ -1500,8 +1497,6 @@ pub unsafe extern "C" fn js_gc_init_with_layouts(
     // literally. No-op for piped/redirected streams; a failing
     // SetConsoleMode is ignored — this never fails startup. Idempotent, so
     // a second js_gc_init on another thread is harmless.
-    #[cfg(windows)]
-    crate::win_console::enable_vt_output();
     // #6882/#7450: macOS decodes mimalloc's default VM tag (100) as
     // `IOAccelerator`, so the whole JS heap renders as GPU-driver memory in
     // vmmap/Instruments/`footprint`. The retag to tag 240 that fixes this
@@ -1516,8 +1511,6 @@ pub unsafe extern "C" fn js_gc_init_with_layouts(
     crate::node_submodules::diagnostics_channel_init_main_thread();
     crate::node_submodules::init_trace_events_runtime();
     gc_init();
-    #[cfg(all(feature = "wasm-image-selftest", target_family = "wasm"))]
-    crate::value::addr_class::wasm_image_selftest();
     // Optional runtime features install from the program's generated
     // installer (see `crate::feature_hooks`), before any user code runs.
     crate::feature_hooks::run_feature_installer();

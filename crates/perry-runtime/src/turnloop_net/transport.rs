@@ -63,14 +63,7 @@ pub(super) const LINK_NULL: Token = Token(LINK_TAG);
 /// (`perry_ffi::turnloop_net::TransportCore`). Folded into the ABI digest
 /// (`js_perry_net_abi_layout`), so a binding built against another block size
 /// is refused at registration; the assertion below keeps the core inside it.
-#[cfg(not(windows))]
 pub const TRANSPORT_CORE_WORDS: usize = 39;
-/// Windows' `Entry` carries the pipe drain and EOF-timer fields (48 bytes)
-/// and a wider `PathBuf` (8): 46 words by construction, reserved with a
-/// two-word margin because no Windows build checked it exactly; the
-/// assertion below fails that build if the estimate is short.
-#[cfg(windows)]
-pub const TRANSPORT_CORE_WORDS: usize = 48;
 
 const _: () = assert!(
     std::mem::size_of::<TransportCore>() <= TRANSPORT_CORE_WORDS * 8
@@ -735,7 +728,6 @@ pub unsafe fn pipe_connect(
 ///
 /// # Safety
 /// See [`bind`].
-#[cfg(any(unix, windows))]
 pub unsafe fn adopt_stream(
     core: *mut TransportCore,
     link: OwnerLink,
@@ -751,10 +743,7 @@ pub unsafe fn adopt_stream(
         )
     };
     with_driver(move |driver| {
-        #[cfg(unix)]
         let detached = turnloop::Detached::from_fd(socket);
-        #[cfg(windows)]
-        let detached = turnloop::Detached::from_socket(socket);
         let detached = detached.map_err(|e| map_error(e, "adopt"))?;
         let handle = driver
             .attach(detached, name.token(OP_READ))
@@ -782,7 +771,6 @@ pub unsafe fn adopt_stream(
 /// # Safety
 /// See [`bind`]. Above 2, nothing else may use or close `fd` after a
 /// successful call.
-#[cfg(any(unix, windows))]
 pub unsafe fn adopt_descriptor(
     core: *mut TransportCore,
     link: OwnerLink,
@@ -799,7 +787,6 @@ pub unsafe fn adopt_descriptor(
     } else {
         crate::fs::take_registered_fd(fd)
     };
-    #[cfg(unix)]
     let owned = if let Some(file) = registered {
         std::os::fd::OwnedFd::from(file)
     } else if stdio {
@@ -821,32 +808,8 @@ pub unsafe fn adopt_descriptor(
         // SAFETY: `fd` is open (checked above) and the caller hands it over.
         unsafe { std::os::fd::OwnedFd::from_raw_fd(fd) }
     };
-    #[cfg(windows)]
-    let owned = if let Some(file) = registered {
-        std::os::windows::io::OwnedHandle::from(file)
-    } else {
-        use std::os::windows::io::{BorrowedHandle, RawHandle};
-        // SAFETY: the CRT reports the handle behind its descriptor table entry.
-        let raw = unsafe { libc::get_osfhandle(fd) };
-        if raw == -1 || raw == -2 || raw == 0 {
-            return Err(map_error(Error::new(ErrorKind::InvalidInput), "adopt"));
-        }
-        // SAFETY: the CRT owns `raw` until the descriptor is closed below.
-        let borrowed = unsafe { BorrowedHandle::borrow_raw(raw as RawHandle) };
-        let owned = borrowed
-            .try_clone_to_owned()
-            .map_err(|e| map_error(e.into(), "adopt"))?;
-        if !stdio {
-            // SAFETY: the duplicate is ours; closing the descriptor ends the CRT's copy.
-            unsafe { libc::close(fd) };
-        }
-        owned
-    };
     with_driver(move |driver| {
-        #[cfg(unix)]
         let detached = turnloop::Detached::from_fd(owned);
-        #[cfg(windows)]
-        let detached = turnloop::Detached::from_handle(owned);
         let detached = detached.map_err(|e| map_error(e, "adopt"))?;
         let handle = driver
             .attach(detached, name.token(OP_READ))
@@ -934,15 +897,6 @@ pub unsafe fn close(core: *mut TransportCore, link: OwnerLink) -> NetResult<bool
         let Some(entry) = c.entry.take() else {
             return Ok(false);
         };
-        #[cfg(windows)]
-        let mut entry = entry;
-        #[cfg(windows)]
-        {
-            windows_pipe::cancel_eof(driver, name, &mut entry);
-            if let Some(op) = entry.pipe_drain.take() {
-                driver.cancel(op);
-            }
-        }
         if entry.closing {
             // A failed connect attempt's close is already in flight; its
             // `Closed` no longer matches the core and is delivered as this
@@ -1244,14 +1198,6 @@ unsafe fn flush(
             }
         }
     }
-    #[cfg(windows)]
-    if failure.is_none()
-        && backlog.shutdown.is_some()
-        && entry.inflight > 0
-        && windows_pipe::is_pipe(driver, entry)
-    {
-        return None;
-    }
     if failure.is_none() {
         if let Some(user) = backlog.shutdown.take() {
             match write_queue::submit_shutdown(driver, name, entry, user) {
@@ -1432,10 +1378,6 @@ pub(super) fn dispatch(completion: Completion) {
         match op {
             OP_TIMER => dispatch_timer(link, handle, result),
             OP_RESOLVE => dispatch_resolve(link, op_id, terminal, result),
-            #[cfg(windows)]
-            OP_PIPE_EOF => dispatch_pipe_eof(link, handle, result),
-            #[cfg(windows)]
-            OP_PIPE_DRAIN => dispatch_pipe_drain(link, op_id, terminal, result),
             _ => dispatch_stream(route, op, link, handle, terminal, result),
         }
     }
@@ -1701,22 +1643,6 @@ unsafe fn dispatch_stream(
                 return;
             };
             let route = c.route;
-            #[cfg(windows)]
-            {
-                let name = Name::Link {
-                    route,
-                    cell: link.0,
-                };
-                if let Some(entry) = c.entry.as_mut() {
-                    if entry.pipe_eof_timer.is_some() {
-                        let created =
-                            with_driver(|driver| windows_pipe::arm_eof(driver, name, entry));
-                        if matches!(created, Some(Ok(true))) {
-                            hold(link);
-                        }
-                    }
-                }
-            }
             let bytes = lease.as_ref().map(|l| l.as_slice()).unwrap_or(&[]);
             debug_assert!(bytes.len() == n || lease.is_none());
             if n != 0 {
@@ -1731,14 +1657,6 @@ unsafe fn dispatch_stream(
             };
             let route = c.route;
             if let Some(entry) = c.entry.as_mut() {
-                #[cfg(windows)]
-                {
-                    let name = Name::Link {
-                        route,
-                        cell: link.0,
-                    };
-                    let _ = with_driver(|driver| windows_pipe::cancel_eof(driver, name, entry));
-                }
                 entry.read_op = None;
             }
             if defer_eof::park(defer_eof::Key::Link(link.0), route, handle) {
@@ -1879,108 +1797,8 @@ unsafe fn accepted(
     }
 }
 
-#[cfg(windows)]
-unsafe fn dispatch_pipe_eof(link: OwnerLink, handle: Option<Handle>, result: OpResult) {
-    match result {
-        OpResult::Timer => {
-            let Some(c) = core_of(link) else {
-                return;
-            };
-            let live = c
-                .entry
-                .as_ref()
-                .is_some_and(|e| !e.closing && e.pipe_eof_timer == handle);
-            if !live {
-                return;
-            }
-            let route = c.route;
-            let name = Name::Link {
-                route,
-                cell: link.0,
-            };
-            sink::emit(route, NetCompletion::eof(link.0 as i64).linked());
-            close_stream(link, name);
-        }
-        // The EOF timer handle's own `Closed`: its ref.
-        OpResult::Closed => release(link),
-        _ => {}
-    }
-}
 
-#[cfg(windows)]
-unsafe fn dispatch_pipe_drain(
-    link: OwnerLink,
-    op_id: Option<OpId>,
-    terminal: bool,
-    result: OpResult,
-) {
-    let live = core_of(link).and_then(|c| {
-        let route = c.route;
-        c.entry
-            .as_ref()
-            .is_some_and(|e| !e.closing && e.pipe_drain == op_id)
-            .then_some(route)
-    });
-    if let Some(route) = live {
-        let name = Name::Link {
-            route,
-            cell: link.0,
-        };
-        match result {
-            OpResult::Blocking(_) => {
-                let Some(c) = core_of(link) else {
-                    return;
-                };
-                let user = retire(c, OP_SHUTDOWN).first().map_or(0, |r| r.0);
-                sink::emit(route, NetCompletion::shutdown(link.0 as i64, user).linked());
-                let armed = core_of(link)
-                    .and_then(|c| c.entry.as_mut())
-                    .and_then(|entry| {
-                        with_driver(|driver| windows_pipe::arm_eof(driver, name, entry))
-                    });
-                match armed {
-                    Some(Ok(true)) => hold(link),
-                    Some(Ok(false)) => {}
-                    _ => {
-                        sink::emit(route, NetCompletion::eof(link.0 as i64).linked());
-                        close_stream(link, name);
-                    }
-                }
-            }
-            OpResult::Err(error) => {
-                let users: Vec<u64> = core_of(link)
-                    .map(|c| retire(c, OP_SHUTDOWN).into_iter().map(|r| r.0).collect())
-                    .unwrap_or_default();
-                report_error(route, link, &users, 0, map_error(error, "shutdown"), true);
-                close_stream(link, name);
-            }
-            _ => {}
-        }
-    }
-    if terminal {
-        release(link);
-    }
-}
 
-/// The runtime's own close of a stream (a Windows pipe's EOF): the handle
-/// stays in the core, closing, and its `Closed` is delivered as the close.
-#[cfg(windows)]
-unsafe fn close_stream(link: OwnerLink, name: Name) {
-    let Some(entry) = core_of(link).and_then(|c| c.entry.as_mut()) else {
-        return;
-    };
-    if entry.closing {
-        return;
-    }
-    entry.closing = true;
-    let _ = with_driver(|driver| windows_pipe::cancel_eof(driver, name, entry));
-    if let Some(op) = entry.pipe_drain.take() {
-        let _ = with_driver(|driver| driver.cancel(op));
-    }
-    census::note_submit(OP_CLOSE);
-    let handle = entry.handle;
-    let _ = with_driver(|driver| driver.close(handle, name.token(OP_CLOSE)));
-}
 
 // ── The core as an ABI value ────────────────────────────────────────────────
 

@@ -259,13 +259,11 @@ mod tests {
         );
     }
 
-    #[cfg(target_os = "linux")]
     #[test]
     fn discovers_a_map_from_a_later_loaded_shared_object() {
         crate::test_support::isolated_test(discovers_later_loaded_map_body);
     }
 
-    #[cfg(target_os = "linux")]
     fn discovers_later_loaded_map_body() {
         use std::ffi::CString;
         use std::fmt::Write as _;
@@ -383,7 +381,6 @@ mod tests {
         unsafe { libc::dlclose(handle) };
     }
 
-    #[cfg(target_os = "linux")]
     #[test]
     fn rejects_an_unreadable_loaded_shared_object() {
         // This fixture deliberately poisons the process's loaded-image set.
@@ -391,7 +388,6 @@ mod tests {
         crate::test_support::isolated_test(rejects_unreadable_loaded_object_body);
     }
 
-    #[cfg(target_os = "linux")]
     fn rejects_unreadable_loaded_object_body() {
         use std::ffi::CString;
         use std::os::unix::ffi::OsStrExt;

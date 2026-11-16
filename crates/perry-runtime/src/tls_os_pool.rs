@@ -82,12 +82,6 @@ fn key() -> libc::pthread_key_t {
         key
     })
 }
-/// HotKey must report teardown before consulting its cached HotTls pointer.
-#[cfg(target_os = "android")]
-pub(crate) fn is_destroyed() -> bool {
-    KEY.get()
-        .is_some_and(|key| unsafe { libc::pthread_getspecific(*key) } == DESTROYED)
-}
 
 fn pool() -> Result<*mut Pool, AccessError> {
     let key = key();

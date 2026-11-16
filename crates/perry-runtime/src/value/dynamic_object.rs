@@ -904,36 +904,6 @@ mod length_handle_band_tests {
         assert_eq!(js_value_length_property_f64(42.0).to_bits(), TAG_UNDEFINED);
     }
 
-    #[cfg(target_os = "macos")]
-    #[test]
-    fn low_macos_allocation_reaches_both_length_dispatch_paths() {
-        let _lock = crate::gc::global_side_table_test_lock();
-        crate::gc::initialize_runtime_fixture();
-        let scope = crate::gc::RuntimeHandleScope::new();
-        let array = scope.root_raw_mut_ptr(crate::typedarray_hook_slots::typed_array_alloc(
-            crate::typedarray_hook_slots::KIND_UINT8,
-            37,
-        ));
-        let addr =
-            array.get_raw_mut_ptr::<crate::typedarray_hook_slots::TypedArrayHeader>() as usize;
-        assert!(
-            (addr_class::HANDLE_BAND_MAX..0x200_0000_0000).contains(&addr),
-            "fixture must exercise the macOS address range that the old 2 TiB floor rejected; got {addr:#x}"
-        );
-        // Admission requires allocator ownership as well as a typed-array
-        // header. A private mmap with a fabricated header proves neither;
-        // use the real byte-store birth while retaining the low-address gate.
-        assert_eq!(
-            js_value_length_f64(crate::value::js_nanbox_pointer(addr as i64)),
-            37.0,
-            "POINTER_TAG length dispatch must accept a live low macOS allocation"
-        );
-        assert_eq!(
-            js_value_length_f64(f64::from_bits(addr as u64)),
-            37.0,
-            "raw-bitcast length dispatch must accept the same allocation"
-        );
-    }
 
     /// A POINTER_TAG-boxed *handle-band* value (Web Fetch
     /// Headers/Request/Response/Blob ids, net/http handles, zlib/proxy ids —

@@ -6,7 +6,6 @@
 //! live. The fixture uses direct Node-API C calls so no Node/V8 runtime can
 //! accidentally make the test green.
 
-#![cfg(any(unix, windows))]
 
 #[path = "../src/commands/compile/collect_modules/native_addon/imports.rs"]
 mod addon_imports;
@@ -18,59 +17,37 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 const ADDON_C: &str = include_str!("fixtures/node_api_host/addon.c");
-#[cfg(unix)]
 const ADDON_OPEN_WORLD_C: &str = include_str!("fixtures/node_api_host/addon_open_world.c");
-#[cfg(unix)]
 const ADDON_OPEN_WORLD_MAIN: &str = include_str!("fixtures/node_api_host/addon_open_world_main.js");
-#[cfg(unix)]
 const ADDON_OPEN_WORLD_EXPECTED: &str =
     include_str!("fixtures/node_api_host/addon_open_world_expected.txt");
-#[cfg(unix)]
 const ADDON_V10_C: &str = include_str!("fixtures/node_api_host/addon_v10.c");
-#[cfg(unix)]
 const ADDON_V10_MAIN: &str = include_str!("fixtures/node_api_host/addon_v10_main.js");
-#[cfg(unix)]
 const ADDON_V10_EXPECTED: &str = include_str!("fixtures/node_api_host/addon_v10_expected.txt");
-#[cfg(unix)]
 const ADDON_EXIT_FINALIZER_C: &str = include_str!("fixtures/node_api_host/addon_exit_finalizer.c");
-#[cfg(unix)]
 const ADDON_EXIT_FINALIZER_MAIN: &str =
     include_str!("fixtures/node_api_host/addon_exit_finalizer_main.js");
-#[cfg(unix)]
 const ADDON_SCOPE_RETURN_C: &str = include_str!("fixtures/node_api_host/addon_scope_return.c");
-#[cfg(unix)]
 const ADDON_SCOPE_RETURN_MAIN: &str =
     include_str!("fixtures/node_api_host/addon_scope_return_main.js");
-#[cfg(unix)]
 const ADDON_SCOPE_RETURN_EXPECTED: &str =
     include_str!("fixtures/node_api_host/addon_scope_return_expected.txt");
-#[cfg(unix)]
 const ADDON_NAMED_PROPS_C: &str = include_str!("fixtures/node_api_host/addon_named_props.c");
-#[cfg(unix)]
 const ADDON_NAMED_PROPS_MAIN: &str =
     include_str!("fixtures/node_api_host/addon_named_props_main.js");
-#[cfg(unix)]
 const ADDON_NAMED_PROPS_EXPECTED: &str =
     include_str!("fixtures/node_api_host/addon_named_props_expected.txt");
-#[cfg(unix)]
 const ADDON_TYPEDARRAY_INFO_C: &str =
     include_str!("fixtures/node_api_host/addon_typedarray_info.c");
-#[cfg(unix)]
 const ADDON_TYPEDARRAY_INFO_MAIN: &str =
     include_str!("fixtures/node_api_host/addon_typedarray_info_main.js");
-#[cfg(unix)]
 const ADDON_TYPEDARRAY_INFO_EXPECTED: &str =
     include_str!("fixtures/node_api_host/addon_typedarray_info_expected.txt");
-#[cfg(target_os = "linux")]
 const ADDON_LAZY_SYMBOL_C: &str = include_str!("fixtures/node_api_host/addon_lazy_symbol.c");
-#[cfg(target_os = "linux")]
 const ADDON_LAZY_SYMBOL_MAIN: &str =
     include_str!("fixtures/node_api_host/addon_lazy_symbol_main.js");
-#[cfg(target_os = "linux")]
 const ADDON_LAZY_SYMBOL_EXPECTED: &str =
     include_str!("fixtures/node_api_host/addon_lazy_symbol_expected.txt");
-#[cfg(windows)]
-const ADDON_DEF: &str = include_str!("fixtures/node_api_host/addon.def");
 const HOST_SYMBOLS: &str =
     include_str!("../../perry-runtime-manifest/src/node_api_host_symbols.txt");
 
@@ -119,46 +96,11 @@ fn compile_addon(root: &Path, package: &Path) {
     std::fs::write(&source, ADDON_C).expect("write addon C fixture");
     let addon = package.join("addon.node");
 
-    #[cfg(windows)]
-    {
-        let definition = root.join("addon.def");
-        let import_library = root.join("app.lib");
-        std::fs::write(&definition, ADDON_DEF).expect("write addon export definition");
-        let machine = match std::env::consts::ARCH {
-            "x86_64" => "i386:x86-64",
-            "aarch64" => "arm64",
-            arch => panic!("unsupported Windows Node-API fixture architecture `{arch}`"),
-        };
-        let mut dlltool = Command::new("llvm-dlltool");
-        dlltool
-            .current_dir(root)
-            .arg("-m")
-            .arg(machine)
-            .arg("-d")
-            .arg(&definition)
-            .arg("-l")
-            .arg(&import_library);
-        run(dlltool, "llvm-dlltool import-library generation");
 
-        let mut clang = Command::new("clang");
-        clang
-            .current_dir(root)
-            .arg("-shared")
-            .arg("-o")
-            .arg(&addon)
-            .arg(&source)
-            .arg(&import_library);
-        run(clang, "Windows Node-API fixture build");
-    }
-
-    #[cfg(unix)]
     {
         let mut clang = Command::new("clang");
         clang.current_dir(root).arg("-shared");
-        #[cfg(not(target_os = "macos"))]
         clang.arg("-fPIC");
-        #[cfg(target_os = "macos")]
-        clang.args(["-undefined", "dynamic_lookup"]);
         clang.arg("-o").arg(&addon).arg(&source);
         run(clang, "Unix Node-API fixture build");
     }
@@ -272,10 +214,6 @@ fn install_pinned_package(root: &Path, package: &str, subject: &str) -> bool {
 #[test]
 fn real_node_api_addon_resolves_from_host_and_authenticates_sidecar() {
     if !require_tool("clang") {
-        return;
-    }
-    #[cfg(windows)]
-    if !require_tool("llvm-dlltool") {
         return;
     }
 
@@ -510,16 +448,6 @@ module.exports = addon
             .is_empty(),
         "the fixture addon reads no global, property or prototype: closed"
     );
-    #[cfg(windows)]
-    for import in addon.imports().expect("read PE import libraries") {
-        if String::from_utf8_lossy(import.name()).starts_with("napi_") {
-            assert_eq!(
-                String::from_utf8_lossy(import.library()).to_ascii_lowercase(),
-                "app.exe",
-                "Node-API import must resolve from the Perry host executable"
-            );
-        }
-    }
 
     let run_output = run(Command::new(&executable), "compiled Node-API host");
     let stdout = String::from_utf8_lossy(&run_output.stdout);
@@ -625,7 +553,6 @@ module.exports = addon
 /// whose code runs, and `napi_typeof` reports compiled classes as functions.
 /// The same fixture runs under Node when it provides Node-API 10, and both
 /// must print the checked-in transcript.
-#[cfg(unix)]
 #[test]
 fn node_api_10_addons_match_node() {
     if !require_tool("clang") {
@@ -667,10 +594,7 @@ exports.loadNewer = () => require("./newer.node")
     for (version, name) in [(10, "current"), (8, "legacy"), (11, "newer")] {
         let mut clang = Command::new("clang");
         clang.current_dir(root).arg("-shared");
-        #[cfg(not(target_os = "macos"))]
         clang.arg("-fPIC");
-        #[cfg(target_os = "macos")]
-        clang.args(["-undefined", "dynamic_lookup"]);
         clang
             .arg(format!("-DFIXTURE_API_VERSION={version}"))
             .arg("-o")
@@ -754,7 +678,6 @@ exports.loadNewer = () => require("./newer.node")
 /// runs them in Node's order: the cleanup queue (cleanup hooks, async cleanup
 /// hooks and thread-safe functions) newest first, then the finalizers of the
 /// closed thread-safe functions.
-#[cfg(unix)]
 #[test]
 fn process_exit_skips_node_api_environment_teardown() {
     if !require_tool("clang") {
@@ -792,10 +715,7 @@ fn process_exit_skips_node_api_environment_teardown() {
     std::fs::write(&source, ADDON_EXIT_FINALIZER_C).expect("write exit finalizer fixture");
     let mut clang = Command::new("clang");
     clang.current_dir(root).arg("-shared");
-    #[cfg(not(target_os = "macos"))]
     clang.arg("-fPIC");
-    #[cfg(target_os = "macos")]
-    clang.args(["-undefined", "dynamic_lookup"]);
     clang.arg("-o").arg(package.join("addon.node")).arg(&source);
     run(clang, "exit finalizer fixture build");
     let entry = root.join("main.js");
@@ -854,7 +774,6 @@ fn process_exit_skips_node_api_environment_teardown() {
 /// A Node-API callback that closes its own handle scope before it returns the
 /// object it built there returns that object (node-addon-api's
 /// `Napi::HandleScope` shape), as under Node.
-#[cfg(unix)]
 #[test]
 fn objects_built_in_a_closed_callback_scope_are_returned() {
     if !require_tool("clang") {
@@ -892,10 +811,7 @@ fn objects_built_in_a_closed_callback_scope_are_returned() {
     std::fs::write(&source, ADDON_SCOPE_RETURN_C).expect("write scope return fixture");
     let mut clang = Command::new("clang");
     clang.current_dir(root).arg("-shared");
-    #[cfg(not(target_os = "macos"))]
     clang.arg("-fPIC");
-    #[cfg(target_os = "macos")]
-    clang.args(["-undefined", "dynamic_lookup"]);
     clang.arg("-o").arg(package.join("addon.node")).arg(&source);
     run(clang, "scope return fixture build");
     let entry = root.join("main.js");
@@ -944,7 +860,6 @@ fn objects_built_in_a_closed_callback_scope_are_returned() {
 /// `napi_get_named_property`, `napi_call_function`): it is open, so the
 /// program is a dynamic-code site (`Function` from a runtime string) and
 /// reaches every builtin module as `process.getBuiltinModule` does.
-#[cfg(unix)]
 #[test]
 fn open_addon_reaches_function_and_builtin_modules() {
     if !require_tool("clang") {
@@ -983,10 +898,7 @@ fn open_addon_reaches_function_and_builtin_modules() {
     let addon = package.join("addon.node");
     let mut clang = Command::new("clang");
     clang.current_dir(root).arg("-shared");
-    #[cfg(not(target_os = "macos"))]
     clang.arg("-fPIC");
-    #[cfg(target_os = "macos")]
-    clang.args(["-undefined", "dynamic_lookup"]);
     clang.arg("-o").arg(&addon).arg(&source);
     run(clang, "open addon fixture build");
     let addon_bytes = std::fs::read(&addon).expect("read open addon");
@@ -1076,7 +988,6 @@ fn open_addon_reaches_function_and_builtin_modules() {
 /// inherited property) is no error, and objects the addon builds with named
 /// stores read back in JavaScript with their keys in store order. An own
 /// addon store must shadow an inherited data value in compiled reads too.
-#[cfg(unix)]
 #[test]
 fn named_property_operations_match_node() {
     if !require_tool("clang") {
@@ -1114,10 +1025,7 @@ fn named_property_operations_match_node() {
     std::fs::write(&source, ADDON_NAMED_PROPS_C).expect("write named props fixture");
     let mut clang = Command::new("clang");
     clang.current_dir(root).arg("-shared");
-    #[cfg(not(target_os = "macos"))]
     clang.arg("-fPIC");
-    #[cfg(target_os = "macos")]
-    clang.args(["-undefined", "dynamic_lookup"]);
     clang.arg("-o").arg(package.join("addon.node")).arg(&source);
     run(clang, "named props fixture build");
     let entry = root.join("main.js");
@@ -1165,7 +1073,6 @@ fn named_property_operations_match_node() {
 /// Node's `napi_typedarray_type` numbering, length, byte offset and data for
 /// plain, offset, Buffer, detached and out-of-bounds views, a NULL data
 /// pointer once detached, and the same ArrayBuffer as `view.buffer`.
-#[cfg(unix)]
 #[test]
 fn typedarray_info_matches_node() {
     if !require_tool("clang") {
@@ -1203,10 +1110,7 @@ fn typedarray_info_matches_node() {
     std::fs::write(&source, ADDON_TYPEDARRAY_INFO_C).expect("write typedarray info fixture");
     let mut clang = Command::new("clang");
     clang.current_dir(root).arg("-shared");
-    #[cfg(not(target_os = "macos"))]
     clang.arg("-fPIC");
-    #[cfg(target_os = "macos")]
-    clang.args(["-undefined", "dynamic_lookup"]);
     clang.arg("-o").arg(package.join("addon.node")).arg(&source);
     run(clang, "typedarray info fixture build");
     let entry = root.join("main.js");
@@ -1256,7 +1160,6 @@ fn typedarray_info_matches_node() {
 /// rely on it), while an explicit `os.constants.dlopen.RTLD_NOW` still
 /// rejects it at load. Linux only: the fixture leaves the symbol undefined
 /// in an ELF shared object linked with `-z lazy`.
-#[cfg(target_os = "linux")]
 #[test]
 fn addon_with_an_undefined_symbol_on_an_unused_path_loads_lazily() {
     if !require_tool("clang") {
@@ -1343,10 +1246,6 @@ fn addon_with_an_undefined_symbol_on_an_unused_path_loads_lazily() {
 #[test]
 fn bun_import_meta_require_project_addon_survives_source_removal() {
     if !require_tool("clang") {
-        return;
-    }
-    #[cfg(windows)]
-    if !require_tool("llvm-dlltool") {
         return;
     }
 

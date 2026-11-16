@@ -91,41 +91,14 @@ pub(super) const CRYPTO_NAMESPACE_KEYS: &[&[u8]] = &[
     b"getRandomValues",
 ];
 fn dns_lookup_flag_constant(property: &str) -> Option<f64> {
-    #[cfg(unix)]
     fn ai_addrconfig() -> f64 {
         libc::AI_ADDRCONFIG as f64
     }
-    #[cfg(windows)]
-    fn ai_addrconfig() -> f64 {
-        0x0400 as f64
-    }
-    #[cfg(not(any(unix, windows)))]
-    fn ai_addrconfig() -> f64 {
-        0x0020 as f64
-    }
-    #[cfg(unix)]
     fn ai_v4mapped() -> f64 {
         libc::AI_V4MAPPED as f64
     }
-    #[cfg(windows)]
-    fn ai_v4mapped() -> f64 {
-        0x0800 as f64
-    }
-    #[cfg(not(any(unix, windows)))]
-    fn ai_v4mapped() -> f64 {
-        0x0008 as f64
-    }
-    #[cfg(unix)]
     fn ai_all() -> f64 {
         libc::AI_ALL as f64
-    }
-    #[cfg(windows)]
-    fn ai_all() -> f64 {
-        0x0100 as f64
-    }
-    #[cfg(not(any(unix, windows)))]
-    fn ai_all() -> f64 {
-        0x0010 as f64
     }
 
     match property {
@@ -279,57 +252,28 @@ pub(crate) unsafe fn selected_native_module_constant(
     }
 
     let o_nofollow: f64 = {
-        #[cfg(target_os = "macos")]
-        {
-            0x0100 as f64
-        }
-        #[cfg(target_os = "linux")]
         {
             0x20000 as f64
         }
-        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-        {
-            0x0100 as f64
-        }
     };
     let o_creat = {
-        #[cfg(unix)]
         {
             libc::O_CREAT as f64
         }
-        #[cfg(not(unix))]
-        {
-            0x200 as f64
-        }
     };
     let o_trunc = {
-        #[cfg(unix)]
         {
             libc::O_TRUNC as f64
         }
-        #[cfg(not(unix))]
-        {
-            0x400 as f64
-        }
     };
     let o_append = {
-        #[cfg(unix)]
         {
             libc::O_APPEND as f64
         }
-        #[cfg(not(unix))]
-        {
-            0x8 as f64
-        }
     };
     let o_excl = {
-        #[cfg(unix)]
         {
             libc::O_EXCL as f64
-        }
-        #[cfg(not(unix))]
-        {
-            0x800 as f64
         }
     };
 
@@ -400,7 +344,6 @@ pub(crate) unsafe fn selected_native_module_constant(
     };
 
     let os_dlopen_const = |prop: &str| -> Option<f64> {
-        #[cfg(unix)]
         {
             match prop {
                 "RTLD_LAZY" => Some(libc::RTLD_LAZY as f64),
@@ -411,11 +354,6 @@ pub(crate) unsafe fn selected_native_module_constant(
                 "RTLD_DEEPBIND" => Some(libc::RTLD_DEEPBIND as f64),
                 _ => None,
             }
-        }
-        #[cfg(not(unix))]
-        {
-            let _ = prop;
-            None
         }
     };
 
@@ -912,67 +850,21 @@ pub(crate) fn native_module_constant_is_live(module_name: &str, property: &str) 
 /// platforms). The verbatim reference + literal-universe oracle below runs
 /// on EVERY platform in CI, covering the sides not testable locally.
 static FS_CONST_TAIL_TABLE: &[(&str, f64)] = &[
-    #[cfg(target_os = "linux")]
     ("O_DIRECT", (libc::O_DIRECT as i64) as f64),
-    #[cfg(unix)]
     ("O_DIRECTORY", (libc::O_DIRECTORY as i64) as f64),
-    #[cfg(all(not(unix), not(any(unix))))]
-    ("O_DIRECTORY", (0x10000) as f64),
-    #[cfg(any(target_os = "macos", target_os = "ios"))]
-    ("O_DSYNC", (0x400000) as f64),
-    #[cfg(all(
-        all(unix, not(any(target_os = "macos", target_os = "ios"))),
-        not(any(any(target_os = "macos", target_os = "ios")))
-    ))]
     ("O_DSYNC", (libc::O_DSYNC as i64) as f64),
-    #[cfg(target_os = "linux")]
     ("O_NOATIME", (libc::O_NOATIME as i64) as f64),
-    #[cfg(unix)]
     ("O_NOCTTY", (libc::O_NOCTTY as i64) as f64),
-    #[cfg(all(not(unix), not(any(unix))))]
-    ("O_NOCTTY", (0) as f64),
-    #[cfg(unix)]
     ("O_NONBLOCK", (libc::O_NONBLOCK as i64) as f64),
-    #[cfg(all(not(unix), not(any(unix))))]
-    ("O_NONBLOCK", (0x800) as f64),
-    #[cfg(any(target_os = "macos", target_os = "ios"))]
-    ("O_SYMLINK", (0x200000) as f64),
-    #[cfg(unix)]
     ("O_SYNC", (libc::O_SYNC as i64) as f64),
-    #[cfg(all(not(unix), not(any(unix))))]
-    ("O_SYNC", (0x101000) as f64),
-    #[cfg(unix)]
     ("S_IFBLK", (libc::S_IFBLK as i64) as f64),
-    #[cfg(all(not(unix), not(any(unix))))]
-    ("S_IFBLK", (0x6000) as f64),
-    #[cfg(unix)]
     ("S_IFCHR", (libc::S_IFCHR as i64) as f64),
-    #[cfg(all(not(unix), not(any(unix))))]
-    ("S_IFCHR", (0x2000) as f64),
-    #[cfg(unix)]
     ("S_IFDIR", (libc::S_IFDIR as i64) as f64),
-    #[cfg(all(not(unix), not(any(unix))))]
-    ("S_IFDIR", (0x4000) as f64),
-    #[cfg(unix)]
     ("S_IFIFO", (libc::S_IFIFO as i64) as f64),
-    #[cfg(all(not(unix), not(any(unix))))]
-    ("S_IFIFO", (0x1000) as f64),
-    #[cfg(unix)]
     ("S_IFLNK", (libc::S_IFLNK as i64) as f64),
-    #[cfg(all(not(unix), not(any(unix))))]
-    ("S_IFLNK", (0xA000) as f64),
-    #[cfg(unix)]
     ("S_IFMT", (libc::S_IFMT as i64) as f64),
-    #[cfg(all(not(unix), not(any(unix))))]
-    ("S_IFMT", (0xF000) as f64),
-    #[cfg(unix)]
     ("S_IFREG", (libc::S_IFREG as i64) as f64),
-    #[cfg(all(not(unix), not(any(unix))))]
-    ("S_IFREG", (0x8000) as f64),
-    #[cfg(unix)]
     ("S_IFSOCK", (libc::S_IFSOCK as i64) as f64),
-    #[cfg(all(not(unix), not(any(unix))))]
-    ("S_IFSOCK", (0xC000) as f64),
     ("S_IRWXG", (0o070) as f64),
     ("S_IRWXO", (0o007) as f64),
     ("S_IRWXU", (0o700) as f64),
@@ -987,9 +879,6 @@ static FS_CONST_TAIL_TABLE: &[(&str, f64)] = &[
     ("UV_FS_COPYFILE_EXCL", (1) as f64),
     ("UV_FS_COPYFILE_FICLONE", (2) as f64),
     ("UV_FS_COPYFILE_FICLONE_FORCE", (4) as f64),
-    #[cfg(windows)]
-    ("UV_FS_O_FILEMAP", (0x2000_0000) as f64),
-    #[cfg(all(not(windows), not(any(windows))))]
     ("UV_FS_O_FILEMAP", (0) as f64),
     ("UV_FS_SYMLINK_DIR", (1) as f64),
     ("UV_FS_SYMLINK_JUNCTION", (2) as f64),
@@ -1024,76 +913,30 @@ fn fs_const_tail_reference(prop: &str) -> Option<f64> {
         "UV_FS_COPYFILE_FICLONE" => Some(2),
         "UV_FS_COPYFILE_FICLONE_FORCE" => Some(4),
         // libuv filemap open flag (Windows-only; 0 elsewhere, matching Node).
-        #[cfg(windows)]
-        "UV_FS_O_FILEMAP" => Some(0x2000_0000),
-        #[cfg(not(windows))]
         "UV_FS_O_FILEMAP" => Some(0),
         // POSIX combined rwx permission masks (stable across platforms).
         "S_IRWXU" => Some(0o700),
         "S_IRWXG" => Some(0o070),
         "S_IRWXO" => Some(0o007),
         // POSIX file-type masks (S_IFMT family) — stable across Linux/macOS.
-        #[cfg(unix)]
         "S_IFMT" => Some(libc::S_IFMT as i64),
-        #[cfg(unix)]
         "S_IFREG" => Some(libc::S_IFREG as i64),
-        #[cfg(unix)]
         "S_IFDIR" => Some(libc::S_IFDIR as i64),
-        #[cfg(unix)]
         "S_IFCHR" => Some(libc::S_IFCHR as i64),
-        #[cfg(unix)]
         "S_IFBLK" => Some(libc::S_IFBLK as i64),
-        #[cfg(unix)]
         "S_IFIFO" => Some(libc::S_IFIFO as i64),
-        #[cfg(unix)]
         "S_IFLNK" => Some(libc::S_IFLNK as i64),
-        #[cfg(unix)]
         "S_IFSOCK" => Some(libc::S_IFSOCK as i64),
-        #[cfg(not(unix))]
-        "S_IFMT" => Some(0xF000),
-        #[cfg(not(unix))]
-        "S_IFREG" => Some(0x8000),
-        #[cfg(not(unix))]
-        "S_IFDIR" => Some(0x4000),
-        #[cfg(not(unix))]
-        "S_IFCHR" => Some(0x2000),
-        #[cfg(not(unix))]
-        "S_IFBLK" => Some(0x6000),
-        #[cfg(not(unix))]
-        "S_IFIFO" => Some(0x1000),
-        #[cfg(not(unix))]
-        "S_IFLNK" => Some(0xA000),
-        #[cfg(not(unix))]
-        "S_IFSOCK" => Some(0xC000),
         // OS-specific open() flags.
-        #[cfg(unix)]
         "O_DIRECTORY" => Some(libc::O_DIRECTORY as i64),
-        #[cfg(unix)]
         "O_NOCTTY" => Some(libc::O_NOCTTY as i64),
-        #[cfg(unix)]
         "O_NONBLOCK" => Some(libc::O_NONBLOCK as i64),
-        #[cfg(unix)]
         "O_SYNC" => Some(libc::O_SYNC as i64),
-        #[cfg(any(target_os = "macos", target_os = "ios"))]
-        "O_DSYNC" => Some(0x400000),
-        #[cfg(all(unix, not(any(target_os = "macos", target_os = "ios"))))]
         "O_DSYNC" => Some(libc::O_DSYNC as i64),
-        #[cfg(any(target_os = "macos", target_os = "ios"))]
-        "O_SYMLINK" => Some(0x200000),
         // Linux-only open() flags (Node returns undefined for these on
         // platforms that lack them).
-        #[cfg(target_os = "linux")]
         "O_DIRECT" => Some(libc::O_DIRECT as i64),
-        #[cfg(target_os = "linux")]
         "O_NOATIME" => Some(libc::O_NOATIME as i64),
-        #[cfg(not(unix))]
-        "O_DIRECTORY" => Some(0x10000),
-        #[cfg(not(unix))]
-        "O_NOCTTY" => Some(0),
-        #[cfg(not(unix))]
-        "O_NONBLOCK" => Some(0x800),
-        #[cfg(not(unix))]
-        "O_SYNC" => Some(0x101000),
         _ => None,
     };
     v.map(|n| n as f64)

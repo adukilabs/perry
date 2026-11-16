@@ -125,7 +125,6 @@ fn arbitrary_byte_shapes_and_ascii_transitions_keep_legacy_units() {
     }
 }
 
-#[cfg(unix)]
 #[test]
 fn vector_loads_stay_inside_guarded_input() {
     struct Pages(*mut u8, usize);

@@ -4,7 +4,6 @@ use crate::value::JSValue;
 
 pub(crate) const CP_SIGTERM: i32 = 15;
 
-#[cfg(unix)]
 pub(crate) fn cp_signal_name(sig: i32) -> &'static str {
     match sig {
         x if x == libc::SIGHUP => "SIGHUP",
@@ -28,20 +27,7 @@ pub(crate) fn cp_signal_name(sig: i32) -> &'static str {
     }
 }
 
-#[cfg(not(unix))]
-pub(crate) fn cp_signal_name(sig: i32) -> &'static str {
-    match sig {
-        1 => "SIGHUP",
-        2 => "SIGINT",
-        6 => "SIGABRT",
-        9 => "SIGKILL",
-        11 => "SIGSEGV",
-        15 => "SIGTERM",
-        _ => "SIGTERM",
-    }
-}
 
-#[cfg(unix)]
 pub(crate) fn cp_signal_number(name: &str) -> Option<i32> {
     Some(match name {
         "SIGHUP" => libc::SIGHUP,
@@ -65,23 +51,6 @@ pub(crate) fn cp_signal_number(name: &str) -> Option<i32> {
     })
 }
 
-/// Non-unix inverse of `cp_signal_name`, using the conventional POSIX numbers
-/// for the names the non-unix `cp_signal_name` can report back. The number is
-/// only a reporting token on Windows — every terminating signal degrades to
-/// `TerminateProcess` at the kill site, exactly like Node — so the table
-/// deliberately mirrors `cp_signal_name` above and nothing more.
-#[cfg(not(unix))]
-pub(crate) fn cp_signal_number(name: &str) -> Option<i32> {
-    Some(match name {
-        "SIGHUP" => 1,
-        "SIGINT" => 2,
-        "SIGABRT" => 6,
-        "SIGKILL" => 9,
-        "SIGSEGV" => 11,
-        "SIGTERM" => 15,
-        _ => return None,
-    })
-}
 
 pub(crate) fn cp_signal_from_value(signal: f64) -> i32 {
     let js = JSValue::from_bits(signal.to_bits());

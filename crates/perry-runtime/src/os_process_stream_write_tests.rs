@@ -161,7 +161,6 @@ fn a_non_chunk_value_keeps_its_display_text() {
     assert_eq!(written(42.0, heap_string(b"hex")), b"42");
 }
 
-#[cfg(unix)]
 fn pattern(len: usize) -> Vec<u8> {
     (0..len)
         .map(|i| (i.wrapping_mul(31) ^ (i >> 8)) as u8)
@@ -171,7 +170,6 @@ fn pattern(len: usize) -> Vec<u8> {
 /// A non-blocking pipe holds 16–64 KiB. A 3 MiB chunk therefore hits `EAGAIN`
 /// dozens of times while the reader dawdles; `Stdout::write_all` would have
 /// returned that error after an unknown prefix and the stub dropped it.
-#[cfg(unix)]
 #[test]
 fn write_all_fd_completes_a_large_chunk_on_a_non_blocking_pipe() {
     use std::io::Read;
@@ -227,7 +225,6 @@ fn write_all_fd_completes_a_large_chunk_on_a_non_blocking_pipe() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn write_all_fd_reports_a_closed_reader_instead_of_spinning() {
     let mut fds = [0_i32; 2];

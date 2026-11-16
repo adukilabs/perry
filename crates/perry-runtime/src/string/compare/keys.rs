@@ -215,7 +215,6 @@ mod tests_sso_helpers {
         }
     }
 
-    #[cfg(unix)]
     #[test]
     fn inline_key_equality_stops_at_the_guard_page_for_every_length() {
         unsafe {

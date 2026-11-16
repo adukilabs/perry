@@ -14,7 +14,6 @@
 //! (`openpty`), so no controlling terminal on the test process is needed —
 //! CI runners included. POSIX-only, like the implementation.
 
-#![cfg(unix)]
 
 use std::path::PathBuf;
 use std::process::Command;

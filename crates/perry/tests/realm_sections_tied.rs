@@ -6,7 +6,6 @@
 //! ordered and unordered inputs: "perry_realm has both ordered [...] and
 //! unordered [...] sections", "final link failed: bad value". Checked on the
 //! objects, so the test needs no old linker.
-#![cfg(target_os = "linux")]
 
 use object::read::elf::{ElfFile64, FileHeader, SectionHeader};
 use object::{Endianness, Object, ObjectSection, ObjectSymbol};

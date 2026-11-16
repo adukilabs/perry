@@ -16,7 +16,6 @@ fn perry_bin() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_perry"))
 }
 
-#[cfg(unix)]
 #[test]
 fn compile_package_subpath_follows_exports_over_same_named_file() {
     let dir = tempfile::tempdir().expect("tempdir");

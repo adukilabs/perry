@@ -201,9 +201,6 @@ unsafe fn call_resolved_body(
         a[..args.len()].copy_from_slice(args);
         use crate::closure::body_call::js_body_call;
         let code = info.code;
-        #[cfg(target_os = "wasi")]
-        let width = usize::from(info.params);
-        #[cfg(not(target_os = "wasi"))]
         let width = if info.flags & crate::closure::FN_BUILTIN != 0 {
             usize::from(info.params)
         } else {

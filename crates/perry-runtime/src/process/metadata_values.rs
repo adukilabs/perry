@@ -10,8 +10,6 @@ pub(crate) fn process_release_value() -> f64 {
     );
     obj.set(1, JSValue::from_bits((module_string_value("")).to_bits()));
     obj.set(2, JSValue::from_bits((module_string_value("")).to_bits()));
-    #[cfg(windows)]
-    obj.set(3, JSValue::from_bits((module_string_value("")).to_bits()));
     module_object_value(obj.finish())
 }
 

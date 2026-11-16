@@ -1,16 +1,12 @@
 //! Which tool merges one module's codegen units with a relocatable link
 //! (`ld -r`) on Unix hosts. Split out of `linker.rs` for the 2,000-line cap.
-#[cfg(not(target_os = "windows"))]
 use std::env;
-#[cfg(not(target_os = "windows"))]
 use std::path::PathBuf;
 
-#[cfg(not(target_os = "windows"))]
 fn is_elf_object(obj: &[u8]) -> bool {
     obj.starts_with(b"\x7fELF")
 }
 
-#[cfg(not(target_os = "windows"))]
 fn ndk_home_from_env() -> Option<PathBuf> {
     ["ANDROID_NDK_HOME", "ANDROID_NDK_ROOT", "ANDROID_NDK"]
         .iter()
@@ -28,7 +24,6 @@ fn ndk_home_from_env() -> Option<PathBuf> {
 /// units on a macOS host go through `ld.lld`: the NDK's when an NDK is
 /// configured, otherwise the first on PATH. `PERRY_LD` still overrides the
 /// tool; ld64's flag is only added for non-ELF units.
-#[cfg(not(target_os = "windows"))]
 fn select_unix_partial_linker(
     first_obj: &[u8],
     host_macos: bool,
@@ -54,7 +49,6 @@ fn select_unix_partial_linker(
 
 /// [`select_unix_partial_linker`] for these units with this process's
 /// environment, plus a hint for the spawn-failure message.
-#[cfg(not(target_os = "windows"))]
 pub(super) fn unix_partial_linker(objs: &[Vec<u8>]) -> (String, bool, &'static str) {
     let first = objs.first().map(Vec::as_slice).unwrap_or_default();
     let (tool, ld64) = select_unix_partial_linker(

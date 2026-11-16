@@ -305,7 +305,6 @@ fn keep_ir_bypasses_the_failure_cap() {
     let _ = fs::remove_dir_all(&root);
 }
 
-#[cfg(unix)]
 #[test]
 fn stale_reaper_removes_only_dead_unkept_scratch() {
     let root = env::temp_dir().join(format!(

@@ -25,7 +25,6 @@ use super::{MutableRootSlot, MutableRootSlotKind};
 use crate::gc::telemetry::RootSourcesTraceStats;
 // The Windows walker spells `core::ffi::c_void` inline; this import serves
 // the Itanium/pthread declarations, which do not exist there.
-#[cfg(not(target_os = "windows"))]
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{OnceLock, RwLock, RwLockReadGuard};
@@ -1337,13 +1336,6 @@ fn sve_vector_length_bytes() -> Option<usize> {
     })
 }
 
-#[cfg(all(target_arch = "aarch64", not(target_os = "linux")))]
-fn sve_vector_length_bytes() -> Option<usize> {
-    // No non-Linux aarch64 target Perry supports implements SVE, and neither
-    // backend for them emits `addvl`. Fail closed if one ever does, rather
-    // than invent a length.
-    None
-}
 
 type VerifyWalk =
     for<'a> fn(&StackMapIndex, &'a mut dyn FnMut(MutableRootSlot)) -> NativeStackWalkStats;
@@ -1432,7 +1424,6 @@ pub(super) fn visit_stack_map_root_slots(
 // Same platform set as the section loader (`stack_maps_sections.rs`): the
 // Itanium unwinder personality and
 // `_Unwind_*` API are present on every Apple platform, not just macOS.
-#[cfg(any(target_vendor = "apple", target_os = "linux"))]
 mod unwind {
     use super::*;
 
@@ -1598,38 +1589,6 @@ mod unwind {
     }
 }
 
-/// Windows x86-64 (#7354): walk native frames with `RtlVirtualUnwind`, the
-/// documented Win64 unwinder. `_Unwind_Backtrace` does not exist here.
-///
-/// `RtlLookupFunctionEntry` + `RtlVirtualUnwind` step a `CONTEXT` outward one
-/// frame at a time, and each step yields the frame's `Rip`, `Rsp` and `Rbp`
-/// **directly** — so unlike the Itanium path above there is no CFA derivation:
-/// an SP-relative root's base is the real `Rsp` the unwinder just restored.
-/// (`Rip` after a step is the return address, same as `_Unwind_GetIP`, which
-/// is what `match_records`' ±16 window plus containment check expects.)
-///
-/// Fail-closed contract, stricter than the Itanium module because a wrong base
-/// here has no verifying backstop: any anomaly — a base register the virtual
-/// unwind cannot have restored, a slot outside this thread's stack, a frame
-/// with no unwind info, a step that does not move outward — abandons the walk
-/// and returns, rather than visiting a slot the collector would then *write*
-/// through.
-
-#[cfg(not(any(
-    target_vendor = "apple",
-    target_os = "linux",
-    all(target_os = "windows", target_arch = "x86_64")
-)))]
-mod unwind {
-    use super::*;
-
-    pub(super) fn visit(
-        _index: &StackMapIndex,
-        _visit: &mut impl FnMut(ResolvedRoot),
-    ) -> NativeStackWalkStats {
-        NativeStackWalkStats::default()
-    }
-}
 
 /// Raw x29-chain walker.
 ///
@@ -1663,19 +1622,10 @@ mod fp_chain {
     // `pthread_get_stackaddr_np` is Apple-wide, not macOS-only. Gating it to
     // macOS is what broke the iOS build outright — which is the good outcome:
     // the alternative was this module quietly not existing there.
-    #[cfg(target_vendor = "apple")]
-    fn stack_top() -> usize {
-        unsafe extern "C" {
-            fn pthread_self() -> *mut c_void;
-            fn pthread_get_stackaddr_np(thread: *mut c_void) -> *mut c_void;
-        }
-        unsafe { pthread_get_stackaddr_np(pthread_self()) as usize }
-    }
 
     /// Linux (#7173): stack bounds via pthread attrs — the returned address
     /// is the LOW end, so the exclusive top is addr + size. A failure returns
     /// 0 and the caller falls back to the platform unwinder.
-    #[cfg(target_os = "linux")]
     fn stack_top() -> usize {
         crate::native_stack::stack_top()
     }

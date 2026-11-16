@@ -776,24 +776,6 @@ pub(crate) fn build_and_run_link(
             }
             cmd.arg(format!("/DEF:{}", def_path.display()));
         } else {
-            #[cfg(target_os = "macos")]
-            {
-                // Force-keep all functions from plugin-related native libraries
-                for native_lib in &ctx.native_libraries {
-                    if native_lib.module.contains("plugin") {
-                        for func in &native_lib.functions {
-                            cmd.arg(format!("-Wl,-u,_{}", func.name));
-                        }
-                    }
-                }
-                // Force-keep Perry runtime symbols that plugin dylibs reference.
-                // These are collected from the Perry runtime's public API.
-                // Using -u tells the linker "treat as referenced" so dead_strip keeps them.
-                for sym in PLUGIN_HOST_SYMBOLS {
-                    cmd.arg(format!("-Wl,-u,_{}", sym));
-                }
-            }
-            #[cfg(target_os = "linux")]
             {
                 cmd.arg("-rdynamic");
             }

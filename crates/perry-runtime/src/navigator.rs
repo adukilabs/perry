@@ -29,14 +29,6 @@ fn nb_str(s: &str) -> JSValue {
 /// Node `navigator.platform` value — the browser-style platform token, which
 /// differs from `os.platform()` (`"darwin"` etc).
 fn navigator_platform() -> &'static str {
-    #[cfg(target_os = "macos")]
-    {
-        "MacIntel"
-    }
-    #[cfg(target_os = "windows")]
-    {
-        "Win32"
-    }
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     {
         "Linux x86_64"

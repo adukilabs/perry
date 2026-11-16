@@ -99,15 +99,6 @@ pub(crate) fn cp_emit(target: f64, event: &str, args: &[f64]) -> bool {
 #[cfg(test)]
 mod relocation_tests;
 
-/// Deliver real pipe EOF and retain it for readers attaching after the event.
-/// Keep this separate from public `.emit("end")`, which is not a pipe EOF.
-#[cfg(not(unix))]
-pub(crate) fn cp_readable_end(stream: f64) {
-    let scope = crate::gc::RuntimeHandleScope::new();
-    let stream = scope.root_nanbox_f64(stream);
-    crate::node_stream::async_iterator::mark_foreign_readable_ended(stream.get_nanbox_f64());
-    cp_emit(stream.get_nanbox_f64(), "end", &[]);
-}
 
 // ----- method bodies (each receives the closure; slot 0 = host `this`) -----
 
@@ -181,18 +172,6 @@ pub(crate) extern "C" fn cp_method_child_spawn(
 ) -> f64 {
     crate::child_process::validate::cp_validate_child_process_spawn(options);
     cp_this(this, closure)
-}
-/// `child.stdout.setEncoding(encoding)` switches emitted chunks from Buffers
-/// to decoded strings. The reactor reads this field when it delivers data.
-#[cfg(not(unix))]
-pub(crate) extern "C" fn cp_method_set_encoding(
-    closure: *const ClosureHeader,
-    _this: crate::closure::JsThis,
-    encoding: f64,
-) -> f64 {
-    let this = cp_this(_this, closure);
-    cp_set_field(this, b"__cpEncoding", encoding);
-    this
 }
 pub(crate) extern "C" fn cp_method_kill(
     closure: *const ClosureHeader,
@@ -290,188 +269,12 @@ pub(crate) extern "C" fn cp_method_remove_all_listeners(
     this
 }
 
-#[cfg(not(unix))]
-pub(crate) extern "C" fn cp_method_read(
-    _closure: *const ClosureHeader,
-    _this: crate::closure::JsThis,
-    _n: f64,
-) -> f64 {
-    TAG_NULL_F64
-}
 
-/// `child.stdout.pipe(dest)` — forward every `data` chunk to `dest.write(chunk)`
-/// and call `dest.end()` at source EOF. Node skips the end-call for
-/// `process.stdout`/`process.stderr`; those stream objects expose no `end`
-/// method, so the lookup-miss skip below matches that naturally. Returns
-/// `dest` (Node returns the destination for chaining).
-#[cfg(not(unix))]
-pub(crate) extern "C" fn cp_method_pipe(
-    closure: *const ClosureHeader,
-    _this: crate::closure::JsThis,
-    dest: f64,
-) -> f64 {
-    let this = cp_this(_this, closure);
 
-    let data_thunk = js_closure_alloc(crate::fn_info!(cp_pipe_data_thunk, 1; with_declared(1)), 1);
-    js_closure_set_capture_ptr(data_thunk, 0, dest.to_bits() as i64);
-    cp_register(
-        this,
-        cp_box_string("data"),
-        cp_box_ptr(data_thunk as *const u8),
-    );
 
-    let end_thunk = js_closure_alloc(crate::fn_info!(cp_pipe_end_thunk, 0; with_declared(0)), 1);
-    js_closure_set_capture_ptr(end_thunk, 0, dest.to_bits() as i64);
-    cp_register(
-        this,
-        cp_box_string("end"),
-        cp_box_ptr(end_thunk as *const u8),
-    );
 
-    dest
-}
 
-/// Pipe `data` forwarder: slot 0 = the destination; call `dest.write(chunk)`.
-#[cfg(not(unix))]
-pub(crate) extern "C" fn cp_pipe_data_thunk(
-    closure: *const ClosureHeader,
-    _this: crate::closure::JsThis,
-    chunk: f64,
-) -> f64 {
-    let dest = f64::from_bits(js_closure_get_capture_ptr(closure, 0) as u64);
-    let write = cp_get_field(dest, b"write");
-    if !crate::fs::extract_closure_ptr(write).is_null() {
-        let args = [chunk];
-        unsafe {
-            let _ =
-                native_call_value_this(write, JsThis::from_f64(dest), args.as_ptr(), args.len());
-        }
-    }
-    cp_undefined()
-}
 
-/// Pipe `end` forwarder: slot 0 = the destination; call `dest.end()` when the
-/// destination has one (`process.stdout`/`process.stderr` do not — matching
-/// Node's doEnd exclusion for them).
-#[cfg(not(unix))]
-pub(crate) extern "C" fn cp_pipe_end_thunk(
-    closure: *const ClosureHeader,
-    _this: crate::closure::JsThis,
-) -> f64 {
-    let dest = f64::from_bits(js_closure_get_capture_ptr(closure, 0) as u64);
-    let end = cp_get_field(dest, b"end");
-    if !crate::fs::extract_closure_ptr(end).is_null() {
-        let args = [cp_undefined()];
-        unsafe {
-            let _ = native_call_value_this(end, JsThis::from_f64(dest), args.as_ptr(), 0);
-        }
-    }
-    cp_undefined()
-}
-/// Return the last callable argument from the two optional trailing stream
-/// slots (`write(chunk, cb)` / `write(chunk, encoding, cb)`, and the matching
-/// `end` overloads).
-#[cfg(not(unix))]
-fn cp_stream_callback(arg2: f64, arg3: f64) -> Option<f64> {
-    [arg3, arg2]
-        .into_iter()
-        .find(|value| !crate::fs::extract_closure_ptr(*value).is_null())
-}
-
-/// Defer a successful writable completion callback to the next event-loop
-/// turn. The wrapper closure roots the callback until delivery and invokes it
-/// with no arguments, so `callback(error)` observes `undefined` on success.
-#[cfg(not(unix))]
-fn cp_defer_stream_callback(callback: f64) {
-    let scope = crate::gc::RuntimeHandleScope::new();
-    let callback = scope.root_nanbox_f64(callback);
-    let deferred = scope.root_raw_mut_ptr(js_closure_alloc(
-        crate::fn_info!(cp_stream_callback_thunk, 0; with_declared(0)),
-        1,
-    ));
-    deferred.with_mut_ptr(|deferred: *mut ClosureHeader| {
-        js_closure_set_capture_ptr(deferred, 0, callback.get_nanbox_f64().to_bits() as i64);
-    });
-    deferred.with_mut_ptr(|deferred: *mut ClosureHeader| {
-        crate::builtins::js_queue_next_tick(deferred as i64);
-    });
-}
-
-/// Deliver a deferred child-stdin completion callback captured in slot zero.
-#[cfg(not(unix))]
-pub(crate) extern "C" fn cp_stream_callback_thunk(
-    closure: *const ClosureHeader,
-    _this: crate::closure::JsThis,
-) -> f64 {
-    let callback = f64::from_bits(js_closure_get_capture_ptr(closure, 0) as u64);
-    let args: [f64; 0] = [];
-    unsafe {
-        let _ = js_native_call_value(
-            callback,
-            crate::closure::plain_call_receiver(),
-            args.as_ptr(),
-            0,
-        );
-    }
-    cp_undefined()
-}
-
-/// `child.stdin.write(chunk[, encoding][, callback])` — #1934 / #8512. The
-/// `this` is the stdin Writable; route the bytes to the live child's stdin and
-/// complete the optional callback asynchronously. OpenCode's Effect
-/// `NodeSink.fromWritable` waits for this callback before sending the next LSP
-/// frame, so dropping it stalls long-running language servers.
-///
-/// #9493: libuv's try-write. The bytes the pipe accepts now are committed
-/// synchronously; the remainder is queued behind a drain thread instead of
-/// parking the main thread, the return value is Node's `writableLength <
-/// writableHighWaterMark`, and a `false` is followed by `'drain'` (the MCP
-/// stdio client waits on exactly that pair). The callback of a queued write
-/// fires once its bytes are written; a fully-committed write's callback is
-/// deferred to the next turn as before.
-#[cfg(not(unix))]
-pub(crate) extern "C" fn cp_method_stdin_write(
-    closure: *const ClosureHeader,
-    _this: crate::closure::JsThis,
-    chunk: f64,
-    arg2: f64,
-    arg3: f64,
-) -> f64 {
-    let this = cp_this(_this, closure);
-    let scope = crate::gc::RuntimeHandleScope::new();
-    let callback = match cp_stream_callback(arg2, arg3) {
-        Some(cb) => Some(scope.root_nanbox_f64(cb)),
-        None => None,
-    };
-    let mut result = TAG_TRUE_F64;
-    let mut callback_queued = false;
-    if let Some(handle) = cp_handle_of(this) {
-        let bytes = cp_value_to_bytes(chunk);
-        let callback_bits = callback.as_ref().map(|cb| cb.get_nanbox_f64().to_bits());
-        if let Some(outcome) = reactor::cp_live_stdin_write(handle, &bytes, callback_bits) {
-            callback_queued = outcome.callback_queued;
-            if !outcome.below_high_water_mark {
-                result = TAG_FALSE_F64;
-            }
-            cp_set_field(this, b"writableLength", outcome.writable_length as f64);
-            cp_set_field(
-                this,
-                b"writableNeedDrain",
-                if outcome.below_high_water_mark {
-                    TAG_FALSE_F64
-                } else {
-                    TAG_TRUE_F64
-                },
-            );
-        }
-    }
-    if !callback_queued {
-        if let Some(callback) = callback {
-            cp_defer_stream_callback(callback.get_nanbox_f64());
-        }
-    }
-    result
-}
 
 /// `child.send(message[, sendHandle][, options][, callback])` — serialize
 /// `message` and write it to the IPC channel of a `fork()`ed child (#1933 /
@@ -630,57 +433,6 @@ extern "C" fn cp_disconnect_emit_thunk(
     cp_undefined()
 }
 
-/// `child.stdin.end([chunk][, encoding][, callback])` — write the optional
-/// final chunk, close the pipe so the child sees EOF, then complete the
-/// optional callback asynchronously (#1934 / #8512).
-#[cfg(not(unix))]
-pub(crate) extern "C" fn cp_method_stdin_end(
-    closure: *const ClosureHeader,
-    _this: crate::closure::JsThis,
-    chunk: f64,
-    arg2: f64,
-    arg3: f64,
-) -> f64 {
-    let this = cp_this(_this, closure);
-    let scope = crate::gc::RuntimeHandleScope::new();
-    let callback = match cp_stream_callback(arg2, arg3)
-        .or_else(|| (!crate::fs::extract_closure_ptr(chunk).is_null()).then_some(chunk))
-    {
-        Some(cb) => Some(scope.root_nanbox_f64(cb)),
-        None => None,
-    };
-    let mut close_pending_on = None;
-    if let Some(handle) = cp_handle_of(this) {
-        // Optional final data chunk. Skip `undefined`, the `0.0` arg-padding
-        // sentinel, and a callback argument (`end(cb)`).
-        let bits = chunk.to_bits();
-        if !JSValue::from_bits(bits).is_undefined()
-            && bits != 0
-            && crate::fs::extract_closure_ptr(chunk).is_null()
-        {
-            let bytes = cp_value_to_bytes(chunk);
-            if !bytes.is_empty() {
-                let _ = reactor::cp_live_stdin_write(handle, &bytes, None);
-            }
-        }
-        // #9493: with bytes still queued behind the pipe, the close — and the
-        // callback — wait for the drain thread, so the child never sees EOF
-        // ahead of data it was sent.
-        if !reactor::cp_live_stdin_close(handle) {
-            close_pending_on = Some(handle);
-        }
-    }
-    cp_set_field(this, b"writable", TAG_FALSE_F64);
-    if let Some(callback) = callback {
-        let queued = close_pending_on.is_some_and(|handle| {
-            reactor::cp_live_stdin_queue_callback(handle, callback.get_nanbox_f64().to_bits())
-        });
-        if !queued {
-            cp_defer_stream_callback(callback.get_nanbox_f64());
-        }
-    }
-    this
-}
 
 /// Read the reactor registry key (`__cpHandle`) off a ChildProcess / stdio
 /// sub-object, set by `spawn`. `None` when absent (e.g. a buffered child).

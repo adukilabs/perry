@@ -183,33 +183,7 @@ const _: () = assert!(HANDLE_BAND_MAX == STREAM_ID_BAND_END);
 #[inline(always)]
 pub fn is_valid_obj_ptr(ptr: *const u8) -> bool {
     let addr = ptr as u64;
-    #[cfg(any(
-        target_os = "android",
-        target_os = "macos",
-        target_os = "linux",
-        target_os = "windows",
-        target_os = "ios",
-        target_os = "tvos",
-        target_os = "watchos",
-        target_os = "visionos",
-        // WASI (#11378): the whole wasm32 heap lives below 4 GiB, so the
-        // 2 TiB floor below would reject every object. The link reserves a
-        // stack-first region that keeps the heap above the handle band.
-        target_os = "wasi",
-    ))]
     const HEAP_MIN: u64 = 0x1000;
-    #[cfg(not(any(
-        target_os = "android",
-        target_os = "macos",
-        target_os = "linux",
-        target_os = "windows",
-        target_os = "ios",
-        target_os = "tvos",
-        target_os = "watchos",
-        target_os = "visionos",
-        target_os = "wasi",
-    )))]
-    const HEAP_MIN: u64 = 0x200_0000_0000;
     #[cfg(all(
         target_arch = "aarch64",
         any(target_os = "android", target_os = "linux")
@@ -820,18 +794,6 @@ mod tests {
         assert!(!is_proxy_cell(STREAM_ID_BAND_START));
     }
 
-    #[cfg(target_os = "macos")]
-    #[test]
-    fn macos_accepts_heap_addresses_below_two_tb() {
-        // The Rust test harness has observed mimalloc allocations around
-        // 45 GB. Classification is purely numeric and must not dereference
-        // this representative address. In #8905 this gate was reached by the
-        // RegExp header-brand fallback across prebuilt-stdlib runtime copies;
-        // rejecting the address made dependency-side `.test()` dispatch miss.
-        let low_macos_heap_addr = 0x0000_000a_0000_0000usize;
-        assert!(is_valid_obj_ptr(low_macos_heap_addr as *const u8));
-        assert!(is_plausible_heap_addr(low_macos_heap_addr));
-    }
 
     #[cfg(all(
         target_arch = "aarch64",
@@ -908,12 +870,6 @@ mod image_checks;
 #[path = "addr_class/image_tests.rs"]
 mod image_tests;
 
-/// Run the image classifier checks inside the linked program (see
-/// `image_checks.rs`); only an archive built for that purpose carries them.
-#[cfg(all(feature = "wasm-image-selftest", target_family = "wasm"))]
-pub(crate) fn wasm_image_selftest() {
-    image_checks::run_all();
-}
 
 #[path = "addr_class/image.rs"]
 mod image;
@@ -981,32 +937,3 @@ pub(crate) fn image_string_for_tests() -> *const crate::string::StringHeader {
     image_tests::image_string()
 }
 
-/// Linear memory starts at address 0, so on wasm32 the link decides whether a
-/// real address can fall in the small-handle band. The stack goes first and
-/// static data after it (`link/wasi.rs` `STACK_SIZE`, `build.rs` for the
-/// runtime's own test link): a property-key atom in the data segment below
-/// `HANDLE_BAND_MAX` was read as a handle id, and `JSON.parse` or a
-/// Writable's `write` read back undefined.
-#[cfg(all(test, target_arch = "wasm32"))]
-mod linear_memory_layout_tests {
-    use super::HANDLE_BAND_MAX;
-
-    extern "C" {
-        /// wasm-ld: the end of the stack, where static data begins.
-        static __stack_high: u8;
-    }
-
-    #[test]
-    fn static_data_lies_above_the_handle_band() {
-        let data_start = unsafe { std::ptr::addr_of!(__stack_high) } as usize;
-        assert!(
-            data_start >= HANDLE_BAND_MAX,
-            "static data starts at {data_start:#x}, inside the handle band"
-        );
-        let atom = crate::string::intern_ascii_literal(b"write") as usize;
-        assert!(
-            atom >= HANDLE_BAND_MAX,
-            "key atom {atom:#x} in the handle band"
-        );
-    }
-}

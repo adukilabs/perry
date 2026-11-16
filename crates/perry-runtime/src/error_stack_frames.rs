@@ -208,12 +208,7 @@ mod walk {
     // type from `stack_guard.rs`'s `libc`-typed declaration of the same
     // symbol, which `-D warnings` promotes `clashing_extern_declarations`
     // into a hard build failure.
-    #[cfg(target_vendor = "apple")]
-    fn stack_top_uncached() -> usize {
-        unsafe { libc::pthread_get_stackaddr_np(libc::pthread_self()) as usize }
-    }
 
-    #[cfg(all(target_os = "linux", not(target_vendor = "apple")))]
     fn stack_top_uncached() -> usize {
         crate::native_stack::stack_top()
     }
@@ -520,7 +515,6 @@ pub(crate) fn describe_ip(ip: usize) -> String {
     if let Some((start, name)) = js.filter(|(_, name)| !name.is_empty()) {
         return format_js_description(ip, start, &name);
     }
-    #[cfg(unix)]
     {
         if let Some(info) = dladdr_info(ip) {
             if info.dli_sname.is_null() {
@@ -539,7 +533,6 @@ pub(crate) fn describe_ip(ip: usize) -> String {
     format!("{ip:#x}")
 }
 
-#[cfg(unix)]
 fn describe_unnamed_native_ip(ip: usize, image_base: usize) -> String {
     if stack_symbols_enabled() {
         if let Some((name, off)) = static_symbol_for_ip(ip, image_base) {
@@ -561,7 +554,6 @@ fn format_js_description(ip: usize, start: usize, name: &str) -> String {
     }
 }
 
-#[cfg(unix)]
 fn dladdr_info(ip: usize) -> Option<libc::Dl_info> {
     let mut info: libc::Dl_info = unsafe { std::mem::zeroed() };
     // SAFETY: `dladdr` only reads the address and fills `info`.
@@ -578,7 +570,6 @@ fn dladdr_info(ip: usize) -> Option<libc::Dl_info> {
 /// this is a constant `false` and the table drops out of the link, and a
 /// binary built without it aborts at startup when the knob is set (see
 /// `gc::instruments::INSTRUMENT_KNOBS`).
-#[cfg(unix)]
 fn stack_symbols_enabled() -> bool {
     if !cfg!(perry_gc_instruments) {
         return false;
@@ -592,7 +583,6 @@ fn stack_symbols_enabled() -> bool {
 /// Loaded base of this executable, derived without opening the executable or
 /// spawning a tool. Zero is the cached failure sentinel; supported Unix image
 /// bases are non-null.
-#[cfg(unix)]
 fn executable_image_base() -> Option<usize> {
     static IMAGE_BASE: OnceLock<usize> = OnceLock::new();
     let base = *crate::once_init::get_or_init(&IMAGE_BASE, || {
@@ -605,20 +595,17 @@ fn executable_image_base() -> Option<usize> {
     (base != 0).then_some(base)
 }
 
-#[cfg(unix)]
 struct StaticSymbolIndex {
     image_base: usize,
     /// Runtime-relocated `(text symbol start, demangled name)` entries.
     entries: Vec<(usize, String)>,
 }
 
-#[cfg(unix)]
 fn static_symbol_index() -> &'static Option<StaticSymbolIndex> {
     static INDEX: OnceLock<Option<StaticSymbolIndex>> = OnceLock::new();
     INDEX.get_or_init(load_static_symbol_index)
 }
 
-#[cfg(unix)]
 fn relocated_address(address: usize, preferred_base: usize, image_base: usize) -> Option<usize> {
     if image_base >= preferred_base {
         address.checked_add(image_base - preferred_base)
@@ -627,7 +614,6 @@ fn relocated_address(address: usize, preferred_base: usize, image_base: usize) -
     }
 }
 
-#[cfg(unix)]
 fn demangle_nm_symbol(name: &str) -> String {
     // Mach-O's assembler-level symbol spelling adds one leading underscore
     // before Rust's `_R...` / `_ZN...` mangling. `nm -C` implementations that
@@ -648,7 +634,6 @@ fn demangle_nm_symbol(name: &str) -> String {
 /// hand, without making an object-file parser part of every shipped runtime.
 /// A stripped image, a host without `nm`, or an unfamiliar `nm` format simply
 /// leaves the old bare-address fallback in place.
-#[cfg(unix)]
 fn load_static_symbol_index() -> Option<StaticSymbolIndex> {
     let executable = std::env::current_exe().ok()?;
     #[cfg(test)]
@@ -728,7 +713,6 @@ fn load_static_symbol_index() -> Option<StaticSymbolIndex> {
     })
 }
 
-#[cfg(unix)]
 fn static_symbol_for_ip(ip: usize, image_base: usize) -> Option<(&'static str, usize)> {
     let index = static_symbol_index().as_ref()?;
     // Never apply the executable's lower-bound table to a shared library.
@@ -790,7 +774,6 @@ fn symbol_for_ip(
     // of an unregistered function (a module initializer, a thunk, runtime
     // code placed after the bundle) and is dropped rather than reported
     // under its neighbour's name.
-    #[cfg(not(windows))]
     if let Some(fn_start) = crate::eh_walker::function_start_for(ip as u64) {
         if fn_start != start as u64 {
             return None;
@@ -1097,7 +1080,6 @@ pub(crate) unsafe fn materialize_error_stack(error: *mut ErrorHeader) -> *mut St
 mod tests {
     use super::*;
 
-    #[cfg(unix)]
     #[inline(never)]
     fn kept_runtime_symbol_probe(value: usize) -> usize {
         std::hint::black_box(value)
@@ -1314,7 +1296,6 @@ mod tests {
     /// offset and must never enter the `nm` spawn path. The child process gives
     /// the cached flag a deterministic unset environment; removing the gate is
     /// sabotage-proved by the spawn counter becoming non-zero.
-    #[cfg(unix)]
     #[test]
     fn describe_ip_defaults_to_an_executable_offset_without_spawning_nm() {
         const CHILD_ENV: &str = "PERRY_TEST_STACK_SYMBOLS_DEFAULT_CHILD";

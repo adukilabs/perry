@@ -19,12 +19,6 @@ use super::*;
 // `/OPT:REF`, and `bounds()` references it, so whatever needs the bounds
 // brings the section (ld64 cannot synthesize `section$start` for a section
 // it dropped).
-#[cfg(any(target_vendor = "apple", target_os = "windows", target_family = "wasm"))]
-#[used(linker)]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_realm")]
-#[cfg_attr(target_os = "windows", link_section = ".perryrealm$m")]
-#[cfg_attr(target_family = "wasm", link_section = "perry_realm")]
-static mut REALM_SECTION_SENTINEL: [u64; 1] = [0];
 
 // ELF: every `perry_realm` input section is SHF_LINK_ORDER. The compiler ties
 // each cell it emits to the global that names it, and GNU ld before 2.36 (the
@@ -36,7 +30,6 @@ static mut REALM_SECTION_SENTINEL: [u64; 1] = [0];
 // put a link-order flag on a static, so both are assembly; the owner comes
 // first because the assembler resolves the linked-to symbol where the
 // section directive stands.
-#[cfg(not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")))]
 std::arch::global_asm!(
     ".pushsection .rodata.perry_realm_section_owner,\"aR\",%progbits",
     ".globl perry_realm_section_owner",
@@ -50,53 +43,18 @@ std::arch::global_asm!(
     ".popsection",
 );
 
-#[cfg(not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")))]
 unsafe extern "C" {
     /// The sentinel's owner (the assembly above).
     static perry_realm_section_owner: u8;
 }
 
-#[cfg(target_os = "windows")]
-#[used(linker)]
-#[link_section = ".perryrealm$a"]
-static mut REALM_START: [u64; 1] = [0];
-#[cfg(target_os = "windows")]
-#[used(linker)]
-#[link_section = ".perryrealm$z"]
-static mut REALM_END: [u64; 1] = [0];
 
 /// `[start, end)` of the realm section: every image cell's header lies in it.
 #[inline]
 pub(crate) fn bounds() -> (usize, usize) {
     // A real reference: whatever links this function links the sentinel too.
-    #[cfg(any(target_vendor = "apple", target_os = "windows", target_family = "wasm"))]
-    std::hint::black_box(std::ptr::addr_of!(REALM_SECTION_SENTINEL));
-    #[cfg(not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")))]
     std::hint::black_box(std::ptr::addr_of!(perry_realm_section_owner));
-    #[cfg(target_vendor = "apple")]
-    {
-        // ld64 synthesizes `section$start$SEG$SECT` only under that exact
-        // name; the leading \x01 keeps LLVM from adding Mach-O's `_`.
-        unsafe extern "C" {
-            #[link_name = "\u{1}section$start$__DATA$__perry_realm"]
-            static START: u8;
-            #[link_name = "\u{1}section$end$__DATA$__perry_realm"]
-            static END: u8;
-        }
-        (
-            std::ptr::addr_of!(START) as usize,
-            std::ptr::addr_of!(END) as usize,
-        )
-    }
-    #[cfg(target_os = "windows")]
-    {
-        (
-            std::ptr::addr_of!(REALM_START) as usize + 8,
-            std::ptr::addr_of!(REALM_END) as usize,
-        )
-    }
     // ELF and wasm-ld both synthesize these for the C-identifier section name.
-    #[cfg(not(any(target_vendor = "apple", target_os = "windows")))]
     {
         unsafe extern "C" {
             static __start_perry_realm: u8;

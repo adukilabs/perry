@@ -17,7 +17,6 @@
 //! the interleaving itself is `reader_lifecycle_tests` in
 //! `perry-runtime/src/os_process_streams.rs`.
 
-#![cfg(unix)]
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};

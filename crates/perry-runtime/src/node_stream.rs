@@ -1943,7 +1943,6 @@ pub(super) fn bound_method(stream: f64, name: &'static [u8]) -> f64 {
 
 /// The bytes of a stream chunk (Buffer, typed array or string), for runtime
 /// consumers outside node:stream (child_process exec output).
-#[cfg(unix)]
 pub(crate) fn chunk_bytes(value: f64, out: &mut Vec<u8>) {
     append_chunk_bytes(value, out, 0);
 }

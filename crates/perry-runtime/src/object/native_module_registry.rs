@@ -324,7 +324,6 @@ pub extern "C" fn js_nm_install_module() {
 }
 #[no_mangle]
 pub extern "C" fn js_nm_install_net() {
-    #[cfg(not(target_arch = "wasm32"))]
     crate::turnloop_net::install();
     js_nm_install_stream();
     nm_register_attach(

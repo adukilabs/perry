@@ -146,19 +146,6 @@ mod capture {
         pub fn perry_eh_install_context(ctx: *const RawCtx, pad: u64, exc: u64) -> !;
     }
 
-    /// Mach-O prefixes every C symbol with an underscore; ELF does not. The
-    /// asm below defines these two symbols by hand, so it has to spell the
-    /// prefix itself — hardcoding Mach-O's built a runtime that cannot LINK on
-    /// aarch64 Linux (`undefined reference to perry_eh_capture_context`, the
-    /// declaration resolving to the unprefixed name while the definition
-    /// carried the prefix).
-    #[cfg(target_vendor = "apple")]
-    macro_rules! eh_sym {
-        ($name:literal) => {
-            concat!("_", $name)
-        };
-    }
-    #[cfg(not(target_vendor = "apple"))]
     macro_rules! eh_sym {
         ($name:literal) => {
             $name
@@ -539,85 +526,11 @@ mod unwind_info_tests {
     }
 }
 
-/// Mach-O (arm64 macOS). The compact-unwind decoding below is arm64's
-/// encoding, so Intel macOS reports no images (system unwinder).
-#[cfg(target_os = "macos")]
-fn find_eh_frame_images() -> Vec<EhFrameImage> {
-    if cfg!(not(target_arch = "aarch64")) {
-        return Vec::new();
-    }
-    use core::ffi::{c_char, c_ulong};
-    unsafe extern "C" {
-        fn _dyld_image_count() -> u32;
-        fn _dyld_get_image_header(idx: u32) -> *const libc::c_void;
-        fn getsectiondata(
-            mhp: *const libc::c_void,
-            segname: *const c_char,
-            sectname: *const c_char,
-            size: *mut c_ulong,
-        ) -> *mut u8;
-    }
-    // Generated code, the runtime, and stdlib can be separate eagerly-loaded
-    // images. Index every currently loaded image so a walk can cross those
-    // boundaries and still select the CFI/LSDA belonging to each PC.
-    let mut images = Vec::new();
-    let n = unsafe { _dyld_image_count() };
-    for i in 0..n {
-        let hdr = unsafe { _dyld_get_image_header(i) };
-        if hdr.is_null() {
-            continue;
-        }
-        let mut size: core::ffi::c_ulong = 0;
-        let eh =
-            unsafe { getsectiondata(hdr, c"__TEXT".as_ptr(), c"__eh_frame".as_ptr(), &mut size) };
-        if eh.is_null() || size == 0 {
-            continue;
-        }
-        let mut tsize: core::ffi::c_ulong = 0;
-        let text =
-            unsafe { getsectiondata(hdr, c"__TEXT".as_ptr(), c"__text".as_ptr(), &mut tsize) };
-        if text.is_null() || tsize == 0 {
-            continue;
-        }
-        let mut usize_: core::ffi::c_ulong = 0;
-        let ui = unsafe {
-            getsectiondata(
-                hdr,
-                c"__TEXT".as_ptr(),
-                c"__unwind_info".as_ptr(),
-                &mut usize_,
-            )
-        };
-        let bytes = unsafe { core::slice::from_raw_parts(eh as *const u8, size as usize) };
-        let (compact_index, lsda_index, personality_slots) = if ui.is_null() || usize_ == 0 {
-            (Vec::new(), Vec::new(), Vec::new())
-        } else {
-            let ui_bytes = unsafe { core::slice::from_raw_parts(ui as *const u8, usize_ as usize) };
-            parse_unwind_info(ui_bytes, hdr as u64)
-        };
-        images.push(EhFrameImage {
-            eh_frame_addr: eh as u64,
-            bytes,
-            text_addr: text as u64,
-            text_end: (text as u64).saturating_add(tsize as u64),
-            fde_index: Vec::new(),
-            image_base: hdr as u64,
-            compact_index,
-            lsda_index,
-            personality_slots,
-            hdr: None,
-            hdr_addr: 0,
-            hdr_bytes: &[],
-        });
-    }
-    images
-}
 
 /// ELF (Linux): every loaded object with a PT_GNU_EH_FRAME segment. The
 /// `.eh_frame_hdr` names `.eh_frame`; its length is bounded by the end of
 /// the PT_LOAD segment holding it (the section ends in a zero terminator,
 /// and FDEs are only ever read at offsets the header table names).
-#[cfg(target_os = "linux")]
 fn find_eh_frame_images() -> Vec<EhFrameImage> {
     unsafe extern "C" fn each(
         info: *mut libc::dl_phdr_info,
@@ -697,12 +610,6 @@ fn find_eh_frame_images() -> Vec<EhFrameImage> {
     images
 }
 
-/// No supported image format: the walker reports unavailable and the system
-/// unwinder carries every throw.
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
-fn find_eh_frame_images() -> Vec<EhFrameImage> {
-    Vec::new()
-}
 
 // ---------------------------------------------------------------------------
 // Row cache + stepping.

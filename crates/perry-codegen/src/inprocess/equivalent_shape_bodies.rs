@@ -292,7 +292,6 @@ define {prefix}double @perry_method_C_value$pshape({params}) {suffix} {{ ret dou
         }
     }
 
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
     #[test]
     fn emitted_alias_links_from_an_independent_native_unit_without_a_thunk() {
         use std::fs;

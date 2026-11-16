@@ -23,7 +23,6 @@ use crate::value::{JSValue, TAG_FALSE, TAG_TRUE, TAG_UNDEFINED};
 
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
-#[cfg(unix)]
 use std::sync::Mutex;
 
 // ---------------------------------------------------------------------------
@@ -49,7 +48,6 @@ const TAG_TRUE_F64: f64 = f64::from_bits(TAG_TRUE);
 const TAG_FALSE_F64: f64 = f64::from_bits(TAG_FALSE);
 const TAG_UNDEFINED_F64: f64 = f64::from_bits(TAG_UNDEFINED);
 
-#[cfg(unix)]
 static RAW_MODE_SAVED: Mutex<Option<libc::termios>> = Mutex::new(None);
 
 thread_local! {
@@ -78,7 +76,6 @@ pub(crate) fn scan_tty_resize_callback_root_mut(visitor: &mut crate::gc::Runtime
 // Per-platform isatty + winsize
 // ---------------------------------------------------------------------------
 
-#[cfg(unix)]
 fn isatty_impl(fd: i32) -> bool {
     #[cfg(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64"))]
     {
@@ -97,7 +94,6 @@ fn isatty_impl(fd: i32) -> bool {
     }
 }
 
-#[cfg(unix)]
 fn winsize_impl(fd: i32) -> Option<(i32, i32)> {
     #[cfg(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64"))]
     {
@@ -132,81 +128,9 @@ fn winsize_impl(fd: i32) -> Option<(i32, i32)> {
     }
 }
 
-#[cfg(windows)]
-fn isatty_impl(fd: i32) -> bool {
-    #[cfg(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64"))]
-    {
-        return crate::snap_census::input_call("tty.isatty", &format!("{:?}", (fd,)), || {
-            crate::effect!(host_read, tty);
-            // A std handle counts as a TTY when `GetConsoleMode` succeeds on it —
-            // the same probe `std::io::IsTerminal` uses (see `builtins/console.rs`)
-            // and the same criterion libuv uses to classify a handle as `UV_TTY`.
-            // Piped/redirected handles fail the probe → false, matching Node.
-            crate::win_console::is_console_fd(fd)
-        });
-    }
-    #[cfg(not(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64")))]
-    {
-        crate::effect!(host_read, tty);
-        // A std handle counts as a TTY when `GetConsoleMode` succeeds on it —
-        // the same probe `std::io::IsTerminal` uses (see `builtins/console.rs`)
-        // and the same criterion libuv uses to classify a handle as `UV_TTY`.
-        // Piped/redirected handles fail the probe → false, matching Node.
-        crate::win_console::is_console_fd(fd)
-    }
-}
 
-#[cfg(windows)]
-fn winsize_impl(fd: i32) -> Option<(i32, i32)> {
-    #[cfg(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64"))]
-    {
-        return crate::snap_census::input_call("tty.winsize", &format!("{:?}", (fd,)), || {
-            crate::effect!(host_read, tty);
-            // GetConsoleScreenBufferInfo srWindow extents (right-left+1,
-            // bottom-top+1) for the stdout/stderr console handle.
-            crate::win_console::window_size(fd)
-        });
-    }
-    #[cfg(not(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64")))]
-    {
-        crate::effect!(host_read, tty);
-        // GetConsoleScreenBufferInfo srWindow extents (right-left+1,
-        // bottom-top+1) for the stdout/stderr console handle.
-        crate::win_console::window_size(fd)
-    }
-}
 
-#[cfg(not(any(unix, windows)))]
-fn isatty_impl(_fd: i32) -> bool {
-    #[cfg(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64"))]
-    {
-        return crate::snap_census::input_call("tty.isatty", &format!("{:?}", (fd,)), || {
-            crate::effect!(host_read, tty);
-            false
-        });
-    }
-    #[cfg(not(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64")))]
-    {
-        crate::effect!(host_read, tty);
-        false
-    }
-}
 
-#[cfg(not(any(unix, windows)))]
-fn winsize_impl(_fd: i32) -> Option<(i32, i32)> {
-    #[cfg(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64"))]
-    {
-        return crate::snap_census::input_call("tty.winsize", &format!("{:?}", (fd,)), || {
-            crate::effect!(host_read, tty);
-            None
-        });
-    }
-    #[cfg(not(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64")))]
-    {
-        crate::effect!(host_read, tty);
-        None
-    }
-}
 
 pub(crate) fn is_tty_fd(fd: i32) -> bool {
     isatty_impl(fd)
@@ -232,7 +156,6 @@ fn tty_isatty_fd_arg(value: f64) -> Option<i32> {
     Some(fd as i32)
 }
 
-#[cfg(unix)]
 fn write_stream_fd_type_supported(fd: i32) -> bool {
     unsafe {
         let mut stat: libc::stat = std::mem::zeroed();
@@ -244,10 +167,6 @@ fn write_stream_fd_type_supported(fd: i32) -> bool {
     }
 }
 
-#[cfg(not(unix))]
-fn write_stream_fd_type_supported(_fd: i32) -> bool {
-    false
-}
 
 fn can_init_write_stream_fd(fd: i32) -> bool {
     is_tty_fd(fd) || write_stream_fd_type_supported(fd)
@@ -355,12 +274,10 @@ fn callback_ptr_from_value(value: f64) -> i64 {
 /// Async-signal-safe: ONLY set the atomic flag. Don't do ioctl here, don't
 /// touch JS state, don't allocate. The drain reads the flag and does the real
 /// work on the next event-loop tick.
-#[cfg(unix)]
 pub(crate) fn note_window_change() {
     RESIZE_PENDING.store(true, Ordering::Release);
 }
 
-#[cfg(unix)]
 fn install_sigwinch() {
     if SIGWINCH_INSTALLED
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
@@ -381,10 +298,7 @@ fn install_sigwinch() {
     }
 }
 
-#[cfg(not(unix))]
-fn install_sigwinch() {}
 
-#[cfg(unix)]
 fn set_fd_raw_mode(fd: i32, enabled: bool) -> bool {
     unsafe {
         if enabled {
@@ -426,25 +340,7 @@ fn set_fd_raw_mode(fd: i32, enabled: bool) -> bool {
     }
 }
 
-#[cfg(windows)]
-fn set_fd_raw_mode(fd: i32, enabled: bool) -> bool {
-    // Only the console *input* handle can be flipped raw on Windows, and
-    // fd 0 is the only fd that maps to it via GetStdHandle. The shared
-    // helper mirrors the readline.rs / tui/input.rs flag handling (#406):
-    // clear ENABLE_{LINE,ECHO,PROCESSED}_INPUT, set
-    // ENABLE_VIRTUAL_TERMINAL_INPUT so arrow keys arrive as ANSI
-    // `\x1b[A..D`, save the cooked mode on first enable, restore on
-    // disable. Fails (returns false) when stdin is piped/redirected.
-    if fd != 0 {
-        return false;
-    }
-    crate::win_console::set_stdin_raw(enabled)
-}
 
-#[cfg(not(any(unix, windows)))]
-fn set_fd_raw_mode(_fd: i32, _enabled: bool) -> bool {
-    false
-}
 
 // ---------------------------------------------------------------------------
 // Public FFI
@@ -1049,7 +945,6 @@ fn write_all_fd(fd: i32, bytes: &[u8]) -> bool {
     if bytes.is_empty() {
         return true;
     }
-    #[cfg(unix)]
     unsafe {
         let mut written = 0usize;
         while written < bytes.len() {
@@ -1064,16 +959,6 @@ fn write_all_fd(fd: i32, bytes: &[u8]) -> bool {
             written += n as usize;
         }
         true
-    }
-    #[cfg(not(unix))]
-    {
-        use std::io::Write;
-        let ok = if fd == 2 {
-            std::io::stderr().lock().write_all(bytes).is_ok()
-        } else {
-            std::io::stdout().lock().write_all(bytes).is_ok()
-        };
-        ok
     }
 }
 
@@ -1400,10 +1285,8 @@ mod raw_mode_tests;
 mod tests {
     use super::*;
 
-    #[cfg(unix)]
     struct FdGuard(i32);
 
-    #[cfg(unix)]
     impl Drop for FdGuard {
         fn drop(&mut self) {
             unsafe {
@@ -1509,62 +1392,7 @@ mod tests {
         );
     }
 
-    /// Windows: isatty/columns/rows/setRawMode against std handles that are
-    /// guaranteed pipes. `cargo test` doesn't guarantee the harness's own
-    /// std handles are redirected (a direct terminal run inherits the
-    /// console), so the test re-invokes itself with all three std streams
-    /// piped and does the assertions in the child — deterministic whether
-    /// or not the environment has a console.
-    #[cfg(windows)]
-    #[test]
-    fn isatty_and_winsize_report_false_for_piped_std_handles() {
-        if std::env::var_os("PERRY_TTY_TEST_PIPED_CHILD").is_some() {
-            // All three std handles are pipes here.
-            assert_eq!(js_tty_isatty(0.0).to_bits(), TAG_FALSE_F64.to_bits());
-            assert_eq!(js_tty_isatty(1.0).to_bits(), TAG_FALSE_F64.to_bits());
-            assert_eq!(js_tty_isatty(2.0).to_bits(), TAG_FALSE_F64.to_bits());
-            assert!(!is_tty_fd(0));
-            // Node: `.isTTY` is undefined (not false) on non-TTY streams.
-            assert_eq!(
-                js_process_stdout_isatty().to_bits(),
-                TAG_UNDEFINED_F64.to_bits()
-            );
-            // No console screen buffer → columns/rows undefined.
-            assert_eq!(
-                js_process_stdout_columns().to_bits(),
-                TAG_UNDEFINED_F64.to_bits()
-            );
-            assert_eq!(
-                js_process_stdout_rows().to_bits(),
-                TAG_UNDEFINED_F64.to_bits()
-            );
-            // setRawMode(true) must fail on a piped stdin — and must not
-            // have saved anything to restore.
-            assert!(!set_fd_raw_mode(0, true));
-            return;
-        }
-        let exe = std::env::current_exe().expect("current_exe");
-        let output = std::process::Command::new(exe)
-            .args([
-                "tty::tests::isatty_and_winsize_report_false_for_piped_std_handles",
-                "--exact",
-                "--nocapture",
-            ])
-            .env("PERRY_TTY_TEST_PIPED_CHILD", "1")
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .output()
-            .expect("spawn self with piped std handles");
-        assert!(
-            output.status.success(),
-            "piped-child assertions failed:\nstdout: {}\nstderr: {}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
 
-    #[cfg(unix)]
     #[test]
     fn write_stream_init_accepts_pipe_fd() {
         let mut fds = [0; 2];
@@ -1577,7 +1405,6 @@ mod tests {
         assert!(can_init_write_stream_fd(write_guard.0));
     }
 
-    #[cfg(unix)]
     #[test]
     fn write_stream_init_rejects_regular_file_fd() {
         use std::os::unix::io::AsRawFd;

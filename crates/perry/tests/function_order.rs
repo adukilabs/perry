@@ -134,7 +134,6 @@ fn record(dir: &Path) -> (Vec<String>, String) {
     (names, stdout)
 }
 
-#[cfg_attr(not(target_os = "linux"), ignore = "checks ELF symbol order with nm")]
 #[test]
 fn a_recorded_order_is_the_layout_and_a_stale_list_is_harmless() {
     let dir = tempfile::tempdir().expect("tempdir");
@@ -389,7 +388,6 @@ fn backing_bounds_cover_complete_selected_pages_without_text_padding() {
 }
 
 /// Defined symbols by name, with their address.
-#[cfg(target_os = "linux")]
 fn symbol_addresses(binary: &Path) -> Vec<(u64, String, String)> {
     let nm = Command::new("nm")
         .arg("-n")
@@ -417,7 +415,6 @@ fn symbol_addresses(binary: &Path) -> Vec<(u64, String, String)> {
 /// `.text`, the list still names the runtime that is built here, and
 /// `PERRY_HOT_TEXT_ORDER=off` restores the unordered layout with the same
 /// code.
-#[cfg(target_os = "linux")]
 #[test]
 fn the_default_runtime_order_packs_the_listed_functions_and_the_list_is_current() {
     let dir = tempfile::tempdir().expect("tempdir");
@@ -526,7 +523,6 @@ fn the_default_runtime_order_packs_the_listed_functions_and_the_list_is_current(
 /// the native link the same driver flag) takes the lld flavor of the default
 /// hot-text script: lld rejects the GNU one ("unable to insert .text before
 /// .text"). The run is in place and the program's output is GNU ld's.
-#[cfg(target_os = "linux")]
 #[test]
 fn a_link_line_that_picks_lld_takes_the_lld_hot_text_script() {
     let lld_on_path = std::env::var_os("PATH")

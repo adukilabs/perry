@@ -2,7 +2,6 @@
 use super::*;
 
 #[test]
-#[cfg(unix)]
 fn pruned_payload_preserves_libraries_data_and_explicit_inputs_after_relocation() {
     if !require_tool("clang") {
         return;
@@ -53,16 +52,6 @@ fn pruned_payload_preserves_libraries_data_and_explicit_inputs_after_relocation(
     let foreign_source = source.join("foreign.c");
     std::fs::write(&foreign_source, "int ignored_foreign_binary;\n").unwrap();
     let mut clang = Command::new("clang");
-    #[cfg(target_os = "macos")]
-    clang.args([
-        "-arch",
-        if cfg!(target_arch = "aarch64") {
-            "x86_64"
-        } else {
-            "arm64"
-        },
-    ]);
-    #[cfg(not(target_os = "macos"))]
     clang.arg(if cfg!(target_arch = "aarch64") {
         "--target=x86_64-unknown-linux-gnu"
     } else {
@@ -114,9 +103,6 @@ int fixture_answer(void) {
         .arg(&helper)
         .arg("-o")
         .arg(&library);
-    #[cfg(target_os = "macos")]
-    clang.arg(format!("-Wl,-install_name,@loader_path/{library_name}"));
-    #[cfg(not(target_os = "macos"))]
     clang.arg(format!("-Wl,-soname,{library_name}")).arg("-ldl");
     run(clang, "runtime data dependency build");
     let addon_source = source.join("addon.c");
@@ -136,9 +122,6 @@ int fixture_answer(void) {
         .arg(&library)
         .arg("-o")
         .arg(platform.join("addon.node"));
-    #[cfg(target_os = "macos")]
-    clang.args(["-undefined", "dynamic_lookup"]);
-    #[cfg(not(target_os = "macos"))]
     clang.arg("-Wl,-rpath,$ORIGIN");
     run(clang, "dependent Node-API addon build");
     let entry = source.join("main.js");

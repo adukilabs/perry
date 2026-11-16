@@ -94,7 +94,6 @@ pub extern "C" fn perry_cluster_is_worker() -> i32 {
 /// workers can share one port (#4914). Callers gate on
 /// [`is_cluster_worker`]; non-worker binds stay on the plain
 /// `TcpListener::bind` path.
-#[cfg(unix)]
 pub fn worker_reuseport_bind(addr: &str) -> std::io::Result<std::net::TcpListener> {
     use std::net::ToSocketAddrs;
     let sock_addr = addr.to_socket_addrs()?.next().ok_or_else(|| {
@@ -121,7 +120,6 @@ pub fn worker_reuseport_bind(addr: &str) -> std::io::Result<std::net::TcpListene
 /// port), then binds it with SO_REUSEPORT. Falls back to a plain reuseport bind
 /// on the requested port if the primary doesn't answer. SCHED_NONE-style: each
 /// worker still owns its socket; only the port is coordinated.
-#[cfg(unix)]
 pub fn worker_shared_reuseport_bind(
     host: &str,
     port: i32,
@@ -1237,7 +1235,6 @@ pub(crate) fn consume_internal_message(worker: f64, message: f64) -> bool {
 /// Primary side of the `listen()` round-trip (#4962): bind/reserve the address
 /// once per key, register the worker in its round-robin set, and reply with the
 /// resolved port over the worker's IPC channel.
-#[cfg(unix)]
 fn primary_handle_query_server(worker: f64, message: f64) {
     let Some(handle) = worker_reactor_handle(worker) else {
         return;
@@ -1259,8 +1256,6 @@ fn primary_handle_query_server(worker: f64, message: f64) {
     crate::child_process::reactor::cp_ipc_send_raw_json(handle, &json);
 }
 
-#[cfg(not(unix))]
-fn primary_handle_query_server(_worker: f64, _message: f64) {}
 
 /// The reactor registry handle (`__cpHandle`) backing a decorated worker — the
 /// key used to send IPC frames/fds to that specific child.
@@ -1434,7 +1429,6 @@ extern "C" fn cluster_internal_exit(
     set_field(worker, b"state", box_string("dead"));
     mark_worker_disconnected(worker);
     // #4962 — drop the dead worker from any SCHED_RR rotation it joined.
-    #[cfg(unix)]
     if let Some(handle) = worker_reactor_handle(worker) {
         crate::cluster_sched::primary_remove_worker(handle);
     }

@@ -75,7 +75,6 @@ fn ipv6_netmask_from_prefix(prefix: u8) -> Ipv6Addr {
     Ipv6Addr::from(octets)
 }
 
-#[cfg(any(target_os = "linux", target_os = "android"))]
 fn interface_mac_address(name: &str) -> String {
     let path = format!("/sys/class/net/{name}/address");
     std::fs::read_to_string(path)
@@ -85,63 +84,18 @@ fn interface_mac_address(name: &str) -> String {
         .unwrap_or_else(fallback_mac_address)
 }
 
-#[cfg(all(unix, not(any(target_os = "linux", target_os = "android"))))]
-fn interface_mac_address(_name: &str) -> String {
-    fallback_mac_address()
-}
 
-/// #3006 — on macOS/BSD the per-interface hardware address is exposed through
-/// `getifaddrs` as an `AF_LINK` entry (`sockaddr_dl`), not via `/sys`. Walk the
-/// list once and map interface name → formatted MAC string. Interfaces with no
-/// link-layer address (or a zero-length one, e.g. tunnels) are left out and
-/// fall back to the all-zero MAC, matching Node.
-#[cfg(all(unix, not(any(target_os = "linux", target_os = "android"))))]
-fn collect_link_macs() -> HashMap<String, String> {
-    let mut macs: HashMap<String, String> = HashMap::new();
-    let mut first: *mut libc::ifaddrs = std::ptr::null_mut();
-    if unsafe { libc::getifaddrs(&mut first) } != 0 {
-        return macs;
-    }
-    let mut current = first;
-    while !current.is_null() {
-        let ifa = unsafe { &*current };
-        if !ifa.ifa_addr.is_null() && !ifa.ifa_name.is_null() {
-            let family = unsafe { (*ifa.ifa_addr).sa_family as i32 };
-            if family == libc::AF_LINK {
-                let sdl = unsafe { &*(ifa.ifa_addr as *const libc::sockaddr_dl) };
-                let alen = sdl.sdl_alen as usize;
-                if alen == 6 {
-                    let nlen = sdl.sdl_nlen as usize;
-                    // MAC bytes follow the interface name inside `sdl_data`.
-                    let data = unsafe { (sdl.sdl_data.as_ptr() as *const u8).add(nlen) };
-                    let bytes = unsafe { std::slice::from_raw_parts(data, alen) };
-                    let mac = format_mac_address(bytes);
-                    let name = unsafe { std::ffi::CStr::from_ptr(ifa.ifa_name) }
-                        .to_string_lossy()
-                        .into_owned();
-                    macs.insert(name, mac);
-                }
-            }
-        }
-        current = ifa.ifa_next;
-    }
-    unsafe { libc::freeifaddrs(first) };
-    macs
-}
 
-#[cfg(unix)]
 unsafe fn ipv4_from_sockaddr(addr: *const libc::sockaddr) -> Ipv4Addr {
     let sin = &*(addr as *const libc::sockaddr_in);
     Ipv4Addr::from(u32::from_be(sin.sin_addr.s_addr))
 }
 
-#[cfg(unix)]
 unsafe fn ipv6_from_sockaddr(addr: *const libc::sockaddr) -> Ipv6Addr {
     let sin6 = &*(addr as *const libc::sockaddr_in6);
     Ipv6Addr::from(sin6.sin6_addr.s6_addr)
 }
 
-#[cfg(unix)]
 fn collect_network_interfaces() -> HashMap<String, Vec<OsNetworkAddress>> {
     let mut first: *mut libc::ifaddrs = std::ptr::null_mut();
     if unsafe { libc::getifaddrs(&mut first) } != 0 {
@@ -151,9 +105,6 @@ fn collect_network_interfaces() -> HashMap<String, Vec<OsNetworkAddress>> {
     let mut interfaces: HashMap<String, Vec<OsNetworkAddress>> = HashMap::new();
     // #3006 — on macOS/BSD seed the per-interface MACs from the AF_LINK
     // entries up front; Linux/Android read them lazily from `/sys`.
-    #[cfg(not(any(target_os = "linux", target_os = "android")))]
-    let mut macs: HashMap<String, String> = collect_link_macs();
-    #[cfg(any(target_os = "linux", target_os = "android"))]
     let mut macs: HashMap<String, String> = HashMap::new();
     let mut current = first;
     while !current.is_null() {
@@ -217,152 +168,9 @@ fn collect_network_interfaces() -> HashMap<String, Vec<OsNetworkAddress>> {
     interfaces
 }
 
-#[cfg(windows)]
-unsafe fn windows_wide_string(ptr: *const u16) -> String {
-    if ptr.is_null() {
-        return String::new();
-    }
 
-    let mut len = 0;
-    while unsafe { *ptr.add(len) } != 0 {
-        len += 1;
-    }
-    String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(ptr, len) })
-}
 
-#[cfg(windows)]
-unsafe fn collect_windows_adapters(
-    mut adapter: *mut windows_sys::Win32::NetworkManagement::IpHelper::IP_ADAPTER_ADDRESSES_LH,
-) -> HashMap<String, Vec<OsNetworkAddress>> {
-    use windows_sys::Win32::NetworkManagement::IpHelper::IF_TYPE_SOFTWARE_LOOPBACK;
-    use windows_sys::Win32::NetworkManagement::Ndis::IfOperStatusUp;
-    use windows_sys::Win32::Networking::WinSock::{
-        AF_INET, AF_INET6, SOCKADDR, SOCKADDR_IN, SOCKADDR_IN6,
-    };
 
-    let mut interfaces: HashMap<String, Vec<OsNetworkAddress>> = HashMap::new();
-    while !adapter.is_null() {
-        let current = unsafe { &*adapter };
-        adapter = current.Next;
-        if current.OperStatus != IfOperStatusUp || current.FirstUnicastAddress.is_null() {
-            continue;
-        }
-
-        let name = unsafe { windows_wide_string(current.FriendlyName) };
-        if name.is_empty() {
-            continue;
-        }
-        let mac = if current.PhysicalAddressLength == 6 {
-            format_mac_address(&current.PhysicalAddress[..6])
-        } else {
-            fallback_mac_address()
-        };
-        let internal = current.IfType == IF_TYPE_SOFTWARE_LOOPBACK;
-
-        let mut unicast = current.FirstUnicastAddress;
-        while !unicast.is_null() {
-            let address_entry = unsafe { &*unicast };
-            unicast = address_entry.Next;
-            let socket_address = address_entry.Address;
-            if socket_address.lpSockaddr.is_null()
-                || socket_address.iSockaddrLength < size_of::<SOCKADDR>() as i32
-            {
-                continue;
-            }
-
-            let family = unsafe { (*socket_address.lpSockaddr).sa_family };
-            match family {
-                AF_INET if socket_address.iSockaddrLength >= size_of::<SOCKADDR_IN>() as i32 => {
-                    let socket = unsafe { &*socket_address.lpSockaddr.cast::<SOCKADDR_IN>() };
-                    let bytes = unsafe { socket.sin_addr.S_un.S_un_b };
-                    let address = Ipv4Addr::new(bytes.s_b1, bytes.s_b2, bytes.s_b3, bytes.s_b4);
-                    let prefix = address_entry.OnLinkPrefixLength.min(32);
-                    let netmask = ipv4_netmask_from_prefix(prefix);
-                    interfaces
-                        .entry(name.clone())
-                        .or_default()
-                        .push(OsNetworkAddress {
-                            address: address.to_string(),
-                            netmask: netmask.to_string(),
-                            family: "IPv4",
-                            mac: mac.clone(),
-                            internal,
-                            cidr: format!("{address}/{prefix}"),
-                            scopeid: None,
-                        });
-                }
-                AF_INET6 if socket_address.iSockaddrLength >= size_of::<SOCKADDR_IN6>() as i32 => {
-                    let socket = unsafe { &*socket_address.lpSockaddr.cast::<SOCKADDR_IN6>() };
-                    let address = Ipv6Addr::from(unsafe { socket.sin6_addr.u.Byte });
-                    let prefix = address_entry.OnLinkPrefixLength.min(128);
-                    let netmask = ipv6_netmask_from_prefix(prefix);
-                    interfaces
-                        .entry(name.clone())
-                        .or_default()
-                        .push(OsNetworkAddress {
-                            address: address.to_string(),
-                            netmask: netmask.to_string(),
-                            family: "IPv6",
-                            mac: mac.clone(),
-                            internal,
-                            cidr: format!("{address}/{prefix}"),
-                            scopeid: Some(unsafe { socket.Anonymous.sin6_scope_id }),
-                        });
-                }
-                _ => {}
-            }
-        }
-    }
-    interfaces
-}
-
-#[cfg(windows)]
-fn collect_network_interfaces() -> HashMap<String, Vec<OsNetworkAddress>> {
-    use windows_sys::Win32::Foundation::{ERROR_BUFFER_OVERFLOW, ERROR_SUCCESS};
-    use windows_sys::Win32::NetworkManagement::IpHelper::{
-        GetAdaptersAddresses, GAA_FLAG_SKIP_ANYCAST, GAA_FLAG_SKIP_DNS_SERVER,
-        GAA_FLAG_SKIP_MULTICAST, IP_ADAPTER_ADDRESSES_LH,
-    };
-    use windows_sys::Win32::Networking::WinSock::AF_UNSPEC;
-
-    const INITIAL_BUFFER_BYTES: u32 = 16 * 1024;
-    const MAX_ATTEMPTS: usize = 4;
-
-    let flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER;
-    let mut buffer_bytes = INITIAL_BUFFER_BYTES;
-
-    for _ in 0..MAX_ATTEMPTS {
-        // A byte Vec is not guaranteed to satisfy the adapter structure's
-        // alignment. u64 storage supplies the required eight-byte alignment on
-        // every Windows target while still giving the API a byte-sized buffer.
-        let word_count = (buffer_bytes as usize).saturating_add(7) / 8;
-        let mut buffer = vec![0u64; word_count];
-        let result = unsafe {
-            GetAdaptersAddresses(
-                u32::from(AF_UNSPEC),
-                flags,
-                std::ptr::null(),
-                buffer.as_mut_ptr().cast::<IP_ADAPTER_ADDRESSES_LH>(),
-                &mut buffer_bytes,
-            )
-        };
-
-        if result == ERROR_SUCCESS {
-            return unsafe {
-                collect_windows_adapters(buffer.as_mut_ptr().cast::<IP_ADAPTER_ADDRESSES_LH>())
-            };
-        }
-        if result != ERROR_BUFFER_OVERFLOW || buffer_bytes == 0 {
-            break;
-        }
-    }
-    HashMap::new()
-}
-
-#[cfg(not(any(unix, windows)))]
-fn collect_network_interfaces() -> HashMap<String, Vec<OsNetworkAddress>> {
-    HashMap::new()
-}
 
 fn js_string_value(value: &str) -> crate::value::JSValue {
     let ptr = js_string_from_bytes(value.as_ptr(), value.len() as u32);
@@ -529,28 +337,4 @@ mod tests {
         );
     }
 
-    #[cfg(windows)]
-    #[test]
-    fn windows_reports_live_network_interfaces() {
-        let interfaces = collect_network_interfaces();
-        assert!(
-            !interfaces.is_empty(),
-            "GetAdaptersAddresses should report at least the loopback adapter"
-        );
-
-        for (name, addresses) in interfaces {
-            assert!(!name.is_empty());
-            assert!(!addresses.is_empty());
-            for entry in addresses {
-                let prefix = match entry.family {
-                    "IPv4" => prefix_len_ipv4(entry.netmask.parse().unwrap()),
-                    "IPv6" => prefix_len_ipv6(entry.netmask.parse().unwrap()),
-                    family => panic!("unexpected address family {family}"),
-                };
-                assert_eq!(entry.cidr, format!("{}/{prefix}", entry.address));
-                assert_eq!(entry.scopeid.is_some(), entry.family == "IPv6");
-                assert_eq!(entry.mac.len(), 17);
-            }
-        }
-    }
 }

@@ -197,7 +197,6 @@ pub(super) fn function_address(origin: usize, entry: usize, field: u32) -> Optio
 }
 
 /// Used by the ELF section headers (linux only; see `stack_maps_sections.rs`).
-#[cfg(target_os = "linux")]
 pub(super) fn read_u16(bytes: &[u8], offset: usize) -> Option<u16> {
     Some(u16::from_le_bytes(
         bytes.get(offset..offset + 2)?.try_into().ok()?,
@@ -212,7 +211,6 @@ pub(super) fn read_u32(bytes: &[u8], offset: usize) -> Option<u32> {
 
 /// Only the ELF section lookup reads 64-bit fields since v6 dropped absolute
 /// function addresses.
-#[cfg(target_os = "linux")]
 pub(super) fn read_u64(bytes: &[u8], offset: usize) -> Option<u64> {
     Some(u64::from_le_bytes(
         bytes.get(offset..offset + 8)?.try_into().ok()?,

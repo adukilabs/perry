@@ -261,8 +261,6 @@ pub(super) fn collect_node_addon_request(
                 ship_package_payload: false,
                 reach,
                 node_api_imports,
-                #[cfg(feature = "target-wasi")]
-                wasm_archives: Vec::new(),
             });
         return Ok(Some(logical_id));
     }
@@ -313,8 +311,6 @@ pub(super) fn collect_node_addon_request(
             ship_package_payload: true,
             reach,
             node_api_imports,
-            #[cfg(feature = "target-wasi")]
-            wasm_archives: Vec::new(),
         });
     Ok(Some(logical_id))
 }
@@ -353,8 +349,6 @@ pub(super) fn collect_linked_wasm_addon(
             // The wasm32 archives' imports are not read: open.
             reach: [perry_runtime_manifest::NodeApiReach::World].into(),
             node_api_imports: Default::default(),
-            #[cfg(feature = "target-wasi")]
-            wasm_archives: _archives,
         });
     Ok(())
 }

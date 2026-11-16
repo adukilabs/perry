@@ -1,6 +1,5 @@
 //! Contract emission must participate in the same per-module cache identity
 //! as the ordinary lowering options, in both directions.
-#![cfg(target_os = "linux")]
 
 use serde_json::Value;
 use std::collections::BTreeSet;

@@ -1,9 +1,7 @@
 use super::*;
 
 use std::fs;
-#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-#[cfg(unix)]
 use std::os::unix::io::AsRawFd;
 
 /// Core path-based `truncate` op. Node surfaces the `open` syscall error
@@ -144,7 +142,6 @@ pub extern "C" fn js_fs_fchmod_sync(fd_value: f64, mode: f64) -> i32 {
         let Some(file) = reg.get(&fd) else {
             return 0;
         };
-        #[cfg(unix)]
         {
             let perms = fs::Permissions::from_mode(mode as u32);
             if file.set_permissions(perms).is_ok() {
@@ -152,11 +149,6 @@ pub extern "C" fn js_fs_fchmod_sync(fd_value: f64, mode: f64) -> i32 {
             } else {
                 0
             }
-        }
-        #[cfg(not(unix))]
-        {
-            let _ = (file, mode);
-            1
         }
     })
 }
@@ -187,12 +179,6 @@ pub(crate) fn js_fs_fchown_result(
     // libuv treats fchown as a successful no-op on Windows because ownership
     // changes are unsupported there. Match Node by returning success before
     // checking whether the otherwise-valid descriptor is open.
-    #[cfg(windows)]
-    {
-        let _ = fd_value;
-        Ok(())
-    }
-    #[cfg(not(windows))]
     {
         if !crate::fs::fd_is_registered(fd_value as i32) {
             return Err(crate::fs::validate::ebadf_error("fchown"));
@@ -201,13 +187,6 @@ pub(crate) fn js_fs_fchown_result(
     }
 }
 
-#[cfg(all(test, windows))]
-mod windows_tests {
-    #[test]
-    fn fchown_on_unopened_fd_is_a_successful_noop() {
-        assert!(super::js_fs_fchown_result(987_654_321.0, 0.0, 0.0).is_ok());
-    }
-}
 
 /// Core fd-based `fchown` op. Surfaces the syscall failure (e.g. `EPERM` for a
 /// non-root chown) as a NaN-boxed Node-shaped fs error with `code`/`syscall:
@@ -218,7 +197,6 @@ pub(crate) unsafe fn fchown_sync_inner_result(
     uid_value: f64,
     gid_value: f64,
 ) -> Result<(), crate::error::CoreError> {
-    #[cfg(unix)]
     {
         FD_REGISTRY.with(|r| {
             let reg = r.borrow();
@@ -236,11 +214,6 @@ pub(crate) unsafe fn fchown_sync_inner_result(
                 Err(fs_error_no_path(&std::io::Error::last_os_error(), "fchown"))
             }
         })
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = (fd, uid_value, gid_value);
-        Ok(())
     }
 }
 
@@ -279,14 +252,7 @@ pub(crate) fn fstat_stats_value(fd: i32, bigint: bool) -> Result<f64, crate::err
         match file.metadata() {
             Ok(meta) => {
                 let ft = meta.file_type();
-                #[cfg(unix)]
                 let mode = meta.permissions().mode();
-                #[cfg(not(unix))]
-                let mode = if meta.permissions().readonly() {
-                    0o444
-                } else {
-                    0o666
-                };
                 let (uid, gid) = metadata_owner_ids(&meta);
                 let nlink = metadata_nlink(&meta);
                 let (atime, mtime, ctime, birth) = metadata_times_ms(&meta);

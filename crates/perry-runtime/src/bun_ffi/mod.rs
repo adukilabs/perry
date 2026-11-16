@@ -107,15 +107,6 @@ pub(crate) fn float_value(n: f64) -> f64 {
 /// Platform shared-library suffix, matching Bun's `suffix` export
 /// (WITHOUT the leading dot, e.g. `"dylib"`).
 pub(crate) fn suffix_str() -> &'static str {
-    #[cfg(target_os = "macos")]
-    {
-        "dylib"
-    }
-    #[cfg(target_os = "windows")]
-    {
-        "dll"
-    }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         "so"
     }

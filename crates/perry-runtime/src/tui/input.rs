@@ -51,7 +51,6 @@ pub static EXIT_FLAG: AtomicBool = AtomicBool::new(false);
 // Termios (Unix only)
 // ---------------------------------------------------------------------------
 
-#[cfg(unix)]
 mod termios_impl {
     use std::sync::Mutex;
 
@@ -100,37 +99,7 @@ mod termios_impl {
     }
 }
 
-#[cfg(windows)]
-mod termios_impl {
-    /// Flip stdin into byte-mode + virtual-terminal-input mode via the
-    /// shared `win_console` helpers (#406; consolidated by the Windows
-    /// TTY fix — the flag math and save/restore now live in one place,
-    /// shared with `tty.rs`'s `setRawMode`). Output-side VT processing
-    /// is enabled process-wide at startup (`js_gc_init` →
-    /// `win_console::enable_vt_output`); `enable()` re-asserts it in
-    /// case something reset the console mode in between.
-    pub fn enable() -> bool {
-        if !crate::win_console::set_stdin_raw(true) {
-            return false;
-        }
-        crate::win_console::enable_vt_output();
-        true
-    }
 
-    pub fn disable() -> bool {
-        crate::win_console::set_stdin_raw(false)
-    }
-}
-
-#[cfg(not(any(unix, windows)))]
-mod termios_impl {
-    pub fn enable() -> bool {
-        false
-    }
-    pub fn disable() -> bool {
-        false
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Public entry points

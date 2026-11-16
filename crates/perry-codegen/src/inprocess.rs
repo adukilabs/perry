@@ -126,8 +126,6 @@ fn global_init(mllvm: &[String]) {
         mllvm.extend(loop_interrupt::PLACE_SAFEPOINTS_OPTIONS.map(String::from));
         // These options affect only the WebAssembly backend. Initialize
         // them even if a native unit happens to be compiled first.
-        #[cfg(feature = "target-wasi")]
-        mllvm.extend(["-wasm-enable-eh".into(), "-wasm-use-legacy-eh=false".into()]);
         // Only the backends Perry can actually emit for. `initialize_all()`
         // references every LLVM target's init symbol, which makes the static
         // link pull in all ~20 backends — measured at **+86.9 MB** on the
@@ -152,8 +150,6 @@ fn global_init(mllvm: &[String]) {
         Target::initialize_x86(&cfg);
         // Standalone WASI (#11375): only with the off-by-default `target-wasi`
         // feature, so the shipped compiler does not carry the backend.
-        #[cfg(feature = "target-wasi")]
-        Target::initialize_webassembly(&cfg);
         if !mllvm.is_empty() {
             let mut argv: Vec<CString> = vec![CString::new("perry-llvm-inprocess").unwrap()];
             for flag in &mllvm {

@@ -377,8 +377,6 @@ pub(crate) use node_prototype_atoms::*;
 
 /// `Symbol.asyncIterator` as a layout key (a well-known symbol atom).
 #[used(linker)]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -400,8 +398,6 @@ const _: () = assert!(
 
 /// `Symbol.asyncDispose` as a layout key (a well-known symbol atom).
 #[used(linker)]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"

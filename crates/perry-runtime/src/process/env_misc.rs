@@ -11,8 +11,6 @@ use crate::closure::{
 };
 use crate::string::{js_string_from_bytes, StringHeader};
 use crate::value::JSValue;
-#[cfg(windows)]
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 static PROCESS_UNCAUGHT_CAPTURE_CALLBACK_SET: AtomicBool = AtomicBool::new(false);
@@ -167,27 +165,14 @@ static KEEP_PROCESS_RUN_EXIT_SEQUENCE: extern "C" fn() = js_process_run_exit_seq
 /// Terminate without running process-wide cleanup after thread-local GC state
 /// has been torn down.
 fn terminate_without_atexit(exit_code: i32) -> ! {
-    #[cfg(any(unix, windows))]
     crate::source_read_count::report_before_immediate_exit();
     // Use _exit() instead of std::process::exit() to avoid SIGILL during cleanup.
     // std::process::exit() runs atexit handlers and C++ destructors which can trigger
     // illegal instructions when exception handler state (jmp_buf), GC roots, or
     // V8 isolate state is invalid.
-    #[cfg(unix)]
     unsafe {
         libc::_exit(exit_code);
     }
-    #[cfg(windows)]
-    {
-        extern "system" {
-            fn ExitProcess(uExitCode: u32) -> !;
-        }
-        unsafe {
-            ExitProcess(exit_code as u32);
-        }
-    }
-    #[cfg(not(any(unix, windows)))]
-    std::process::exit(exit_code);
 }
 
 /// Terminate after releasing current-thread collection storage.
@@ -318,12 +303,9 @@ fn throw_exit_code_range_error(n: f64) -> ! {
 #[no_mangle]
 pub extern "C" fn js_process_abort() {
     crate::process::worker_restrictions::ensure_worker_operation_allowed("abort");
-    #[cfg(unix)]
     unsafe {
         libc::abort();
     }
-    #[cfg(not(unix))]
-    std::process::abort();
 }
 
 /// process.getActiveResourcesInfo() -> string[]. Node returns names of
@@ -809,7 +791,6 @@ pub extern "C" fn js_process_available_memory() -> f64 {
 /// return 0.
 #[no_mangle]
 pub extern "C" fn js_process_constrained_memory() -> f64 {
-    #[cfg(target_os = "linux")]
     {
         // cgroups v2 reports the memory limit as a decimal number in
         // bytes, or the literal string "max" for "no limit". Older
@@ -834,10 +815,6 @@ pub extern "C" fn js_process_constrained_memory() -> f64 {
                 }
             }
         }
-        0.0
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
         0.0
     }
 }
@@ -1230,12 +1207,6 @@ pub(crate) fn scan_process_env_cache_roots_mut(visitor: &mut crate::gc::RuntimeR
     });
 }
 
-#[cfg(windows)]
-thread_local! {
-    /// Folded Windows name -> first spelling exposed through Object.keys().
-    static ENV_KEY_CASING: std::cell::RefCell<HashMap<String, String>> =
-        std::cell::RefCell::new(HashMap::new());
-}
 
 unsafe fn env_name_from_header(name_ptr: *const StringHeader) -> Option<String> {
     if name_ptr.is_null() || (name_ptr as usize) < 0x1000 {
@@ -1278,60 +1249,13 @@ fn windows_env_key_identity(name: &str) -> String {
     name.to_uppercase()
 }
 
-#[cfg(windows)]
-fn existing_windows_env_name(name: &str) -> Option<String> {
-    let identity = windows_env_key_identity(name);
-    super::environment::current()
-        .entries()
-        .into_iter()
-        .find(|(candidate, _)| windows_env_key_identity(candidate) == identity)
-        .map(|(candidate, _)| candidate)
-}
 
-#[cfg(windows)]
-fn env_cache_name_for_set(name: &str) -> String {
-    if !matches!(
-        super::environment::current(),
-        super::environment::Environment::Os
-    ) {
-        return name.to_string();
-    }
-    let identity = windows_env_key_identity(name);
-    ENV_KEY_CASING.with(|casing| {
-        let mut casing = casing.borrow_mut();
-        if let Some(existing) = casing.get(&identity) {
-            return existing.clone();
-        }
-        let display = existing_windows_env_name(name).unwrap_or_else(|| name.to_string());
-        casing.insert(identity, display.clone());
-        display
-    })
-}
 
-#[cfg(not(windows))]
 fn env_cache_name_for_set(name: &str) -> String {
     name.to_string()
 }
 
-#[cfg(windows)]
-fn env_cache_name_for_remove(name: &str) -> String {
-    if !matches!(
-        super::environment::current(),
-        super::environment::Environment::Os
-    ) {
-        return name.to_string();
-    }
-    let identity = windows_env_key_identity(name);
-    ENV_KEY_CASING.with(|casing| {
-        casing
-            .borrow_mut()
-            .remove(&identity)
-            .or_else(|| existing_windows_env_name(name))
-            .unwrap_or_else(|| name.to_string())
-    })
-}
 
-#[cfg(not(windows))]
 fn env_cache_name_for_remove(name: &str) -> String {
     name.to_string()
 }

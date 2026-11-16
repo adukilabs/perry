@@ -9,13 +9,11 @@ use super::*;
 
 /// The socket (or `null`) of every stdio slot, and the readable ones whose
 /// `'close'` the ChildProcess waits for.
-#[cfg(unix)]
 pub(in crate::child_process) struct CpPipeSockets {
     pub stdio: Vec<f64>,
     pub readable: Vec<(usize, f64)>,
 }
 
-#[cfg(unix)]
 impl CpPipeSockets {
     pub fn slot(&self, fd: usize) -> f64 {
         self.stdio.get(fd).copied().unwrap_or(TAG_NULL_F64)
@@ -25,7 +23,6 @@ impl CpPipeSockets {
 /// Wrap each pipe slot's parent end in a socket that owns it, and publish
 /// `stdin`/`stdout`/`stderr`/`stdio` on the ChildProcess. Slots that are not
 /// pipes read `null`.
-#[cfg(unix)]
 pub(in crate::child_process) fn cp_attach_pipe_sockets(
     cp: f64,
     kinds: &[CpStdio],
@@ -66,7 +63,6 @@ pub(in crate::child_process) fn cp_attach_pipe_sockets(
 }
 
 /// Count each readable pipe socket's `'close'` toward the ChildProcess's.
-#[cfg(unix)]
 pub(in crate::child_process) fn cp_watch_pipe_closes(handle: u64, sockets: &CpPipeSockets) {
     for &(_, socket) in &sockets.readable {
         let listener = js_closure_alloc(
@@ -80,7 +76,6 @@ pub(in crate::child_process) fn cp_watch_pipe_closes(handle: u64, sockets: &CpPi
 
 /// exec/execFile: buffer what the stdout/stderr sockets read into the pending
 /// callback's output (`maxBuffer` still kills the child).
-#[cfg(unix)]
 pub(in crate::child_process) fn cp_watch_exec_output(handle: u64, sockets: &CpPipeSockets) {
     for &(fd, socket) in &sockets.readable {
         let listener =
@@ -91,7 +86,6 @@ pub(in crate::child_process) fn cp_watch_exec_output(handle: u64, sockets: &CpPi
     }
 }
 
-#[cfg(unix)]
 fn cp_listen(socket: f64, event: &str, listener: f64) {
     let args = [cp_box_string(event), listener];
     // SAFETY: `socket` is a live net.Socket; `on` is its EventEmitter method.
@@ -106,7 +100,6 @@ fn cp_listen(socket: f64, event: &str, listener: f64) {
     }
 }
 
-#[cfg(unix)]
 extern "C" fn cp_pipe_socket_closed(
     closure: *const ClosureHeader,
     _this: crate::closure::JsThis,
@@ -116,7 +109,6 @@ extern "C" fn cp_pipe_socket_closed(
     cp_undefined()
 }
 
-#[cfg(unix)]
 extern "C" fn cp_exec_socket_data(
     closure: *const ClosureHeader,
     _this: crate::closure::JsThis,
@@ -144,14 +136,12 @@ extern "C" fn cp_exec_socket_data(
 /// program's own listeners on it) or right after `'exit'`. Otherwise the pump
 /// emits `'close'`.
 pub(in crate::child_process) fn cp_count_close(handle: u64) {
-    #[cfg_attr(not(unix), allow(unused_mut))]
     let mut finish: Option<CpCloseItem> = None;
     let counted = cp_live_lock()
         .as_mut()
         .and_then(|map| map.get_mut(&handle))
         .map(|lc| {
             lc.closes_got += 1;
-            #[cfg(unix)]
             if lc.exit_emitted
                 && !lc.closed
                 && lc.closes_got >= lc.closes_needed
@@ -191,7 +181,6 @@ pub(in crate::child_process) fn cp_count_close(handle: u64) {
 /// so each readable socket reads EOF and closes. A failed `fork` also waits
 /// for its IPC channel, which closes in the check phase after the error.
 /// There is no live child: the closes are counted on the ChildProcess.
-#[cfg(unix)]
 pub(in crate::child_process) fn cp_attach_failed_pipe_sockets(
     cp: f64,
     kinds: &[CpStdio],
@@ -235,7 +224,6 @@ pub(in crate::child_process) fn cp_attach_failed_pipe_sockets(
     }
 }
 
-#[cfg(unix)]
 extern "C" fn cp_failed_socket_closed(
     closure: *const ClosureHeader,
     _this: crate::closure::JsThis,
@@ -247,7 +235,6 @@ extern "C" fn cp_failed_socket_closed(
 
 /// One close of a failed spawn (its exit, a readable pipe socket, the IPC
 /// channel): Node's `maybeClose`, so `'close'` follows the last one at once.
-#[cfg(unix)]
 pub(in crate::child_process) fn cp_failed_count_close(cp: f64) {
     let scope = crate::gc::RuntimeHandleScope::new();
     let cp = scope.root_nanbox_f64(cp);

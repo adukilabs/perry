@@ -413,7 +413,6 @@ pub(crate) use dispatch_d_i::{
     nm_dispatch_dgram, nm_dispatch_dns, nm_dispatch_domain, nm_dispatch_events, nm_dispatch_fs,
     nm_dispatch_http, nm_dispatch_inspector,
 };
-#[cfg(unix)]
 pub(crate) use dispatch_m_p::net_provider_call;
 pub(crate) use dispatch_m_p::{
     js_net_subclass_init, nm_ctor_net, nm_dispatch_module, nm_dispatch_net, nm_dispatch_node_pty,

@@ -88,8 +88,6 @@ fn runtime_handle_stack() -> StackRef {
 // calling an outlined fallback on every resume. Darwin keeps the opaque
 // fallback so its expensive TLV lookup cannot escape caller guards.
 #[cfg_attr(target_os = "linux", inline(always))]
-#[cfg_attr(not(target_os = "linux"), inline(never))]
-#[cfg_attr(not(target_os = "linux"), cold)]
 #[cfg(not(any(target_os = "android", target_env = "ohos")))]
 fn runtime_handle_stack_cold() -> StackRef {
     RUNTIME_HANDLE_STACK.with(|stack| {

@@ -329,7 +329,6 @@ fn site_identity(metadata: &[u8]) -> u64 {
     h.finish()
 }
 
-#[cfg(unix)]
 fn symbol(addr: usize) -> String {
     unsafe {
         let mut info: libc::Dl_info = std::mem::zeroed();
@@ -342,11 +341,6 @@ fn symbol(addr: usize) -> String {
     "?".to_string()
 }
 
-/// `dladdr` is POSIX; elsewhere every address is the unknown symbol.
-#[cfg(not(unix))]
-fn symbol(_addr: usize) -> String {
-    "?".to_string()
-}
 
 fn write_stderr(mut rest: &[u8]) {
     while !rest.is_empty() {

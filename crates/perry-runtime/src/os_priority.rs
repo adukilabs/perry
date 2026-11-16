@@ -49,30 +49,12 @@ fn js_value_to_i32(value: f64, name: &str, default: Option<i32>) -> i32 {
     number as i32
 }
 
-#[cfg(target_os = "linux")]
 unsafe fn os_errno_location() -> *mut libc::c_int {
     libc::__errno_location()
 }
 
-#[cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd"))]
-unsafe fn os_errno_location() -> *mut libc::c_int {
-    libc::__error()
-}
 
-#[cfg(all(
-    unix,
-    not(any(
-        target_os = "linux",
-        target_os = "macos",
-        target_os = "ios",
-        target_os = "freebsd"
-    ))
-))]
-unsafe fn os_errno_location() -> *mut libc::c_int {
-    std::ptr::null_mut()
-}
 
-#[cfg(unix)]
 fn clear_os_errno() {
     unsafe {
         let errno = os_errno_location();
@@ -82,7 +64,6 @@ fn clear_os_errno() {
     }
 }
 
-#[cfg(unix)]
 fn current_os_errno() -> i32 {
     unsafe {
         let errno = os_errno_location();
@@ -94,7 +75,6 @@ fn current_os_errno() -> i32 {
     }
 }
 
-#[cfg(unix)]
 fn os_get_priority(pid: i32) -> Result<i32, i32> {
     clear_os_errno();
     let priority = unsafe { libc::getpriority(libc::PRIO_PROCESS, pid as libc::id_t) };
@@ -106,7 +86,6 @@ fn os_get_priority(pid: i32) -> Result<i32, i32> {
     }
 }
 
-#[cfg(unix)]
 fn os_set_priority(pid: i32, priority: i32) -> Result<(), i32> {
     let rc = unsafe {
         libc::setpriority(
@@ -122,23 +101,7 @@ fn os_set_priority(pid: i32, priority: i32) -> Result<(), i32> {
     }
 }
 
-#[cfg(not(unix))]
-fn os_get_priority(pid: i32) -> Result<i32, i32> {
-    if pid == 0 {
-        Ok(0)
-    } else {
-        Err(0)
-    }
-}
 
-#[cfg(not(unix))]
-fn os_set_priority(pid: i32, _priority: i32) -> Result<(), i32> {
-    if pid == 0 {
-        Ok(())
-    } else {
-        Err(0)
-    }
-}
 
 /// Get the scheduling priority for a process. `undefined` defaults to the
 /// current process, matching Node/Deno's `pid = 0` behavior.

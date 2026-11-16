@@ -7,8 +7,6 @@
 //!
 //! Nothing here may be depended on by a runtime, stdlib or binding crate: a
 //! runtime that links `p256` would pay for the CLI's signing path.
-#[cfg(feature = "apple-api")]
-pub mod apple_jwt;
 pub mod dotenv;
 pub mod logger;
 pub mod terminal_progress;

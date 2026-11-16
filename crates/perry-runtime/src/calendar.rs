@@ -3,7 +3,6 @@
 /// Returns (year, month [1-12], day, hour, minute, second, tz_offset_seconds).
 /// tz_offset_seconds is the number of seconds that need to be added to the
 /// UTC timestamp to get the local-time representation (i.e. local - UTC).
-#[cfg(unix)]
 pub(crate) fn timestamp_to_local_components(secs: i64) -> (i32, u32, u32, u32, u32, u32, i64) {
     crate::effect!(host_read, tz);
     unsafe {
@@ -25,50 +24,7 @@ pub(crate) fn timestamp_to_local_components(secs: i64) -> (i32, u32, u32, u32, u
     }
 }
 
-/// WASI (#11377) has no time-zone database (wasi-libc's `localtime` is UTC),
-/// so local time is UTC with a zero offset.
-#[cfg(target_os = "wasi")]
-pub(crate) fn timestamp_to_local_components(secs: i64) -> (i32, u32, u32, u32, u32, u32, i64) {
-    crate::effect!(host_read, tz);
-    let (y, m, d, h, mi, s) = timestamp_to_components(secs);
-    (y, m, d, h, mi, s, 0)
-}
 
-#[cfg(windows)]
-pub(crate) fn timestamp_to_local_components(secs: i64) -> (i32, u32, u32, u32, u32, u32, i64) {
-    crate::effect!(host_read, tz);
-    unsafe {
-        let t: libc::time_t = secs as libc::time_t;
-        let mut tm: libc::tm = std::mem::zeroed();
-        let err = libc::localtime_s(&mut tm, &t);
-        if err != 0 {
-            let (y, m, d, h, mi, s) = timestamp_to_components(secs);
-            return (y, m, d, h, mi, s, 0);
-        }
-        let year = tm.tm_year + 1900;
-        let month = (tm.tm_mon + 1) as u32;
-        let day = tm.tm_mday as u32;
-        let hour = tm.tm_hour as u32;
-        let minute = tm.tm_min as u32;
-        let second = tm.tm_sec as u32;
-        let mut utm: libc::tm = std::mem::zeroed();
-        let tz_offset = if libc::gmtime_s(&mut utm, &t) == 0 {
-            let local_secs = components_to_timestamp(year, month, day, hour, minute, second);
-            let utc_secs = components_to_timestamp(
-                utm.tm_year + 1900,
-                (utm.tm_mon + 1) as u32,
-                utm.tm_mday as u32,
-                utm.tm_hour as u32,
-                utm.tm_min as u32,
-                utm.tm_sec as u32,
-            );
-            local_secs - utc_secs
-        } else {
-            0
-        };
-        (year, month, day, hour, minute, second, tz_offset)
-    }
-}
 
 /// The host IANA time-zone identifier (e.g. `"Europe/Berlin"`), matching what
 /// Node returns from `Intl.DateTimeFormat().resolvedOptions().timeZone`. Honors
@@ -96,7 +52,6 @@ pub fn host_time_zone_name() -> &'static str {
                         return s.to_string();
                     }
                 }
-                #[cfg(unix)]
                 {
                     if let Ok(target) = std::fs::read_link("/etc/localtime") {
                         if let Some(name) = iana_id_from_zoneinfo_path(&target.to_string_lossy()) {
@@ -130,7 +85,6 @@ pub fn host_time_zone_name() -> &'static str {
                         return s.to_string();
                     }
                 }
-                #[cfg(unix)]
                 {
                     if let Ok(target) = std::fs::read_link("/etc/localtime") {
                         if let Some(name) = iana_id_from_zoneinfo_path(&target.to_string_lossy()) {

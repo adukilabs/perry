@@ -22,7 +22,6 @@ use std::sync::Mutex;
 // purpose: `call::platform_supported()` gates every entry point, and stage 1
 // supports unix x86_64/aarch64 only.
 
-#[cfg(unix)]
 unsafe fn open_library(path: Option<&str>) -> Result<usize, String> {
     // #10293 follow-up: an embedded asset library has no filesystem identity.
     // Translate here rather than at the call sites — `dlopen_value` and
@@ -56,7 +55,6 @@ unsafe fn open_library(path: Option<&str>) -> Result<usize, String> {
     }
 }
 
-#[cfg(unix)]
 unsafe fn find_symbol(handle: usize, name: &str) -> Option<usize> {
     let c_name = std::ffi::CString::new(name).ok()?;
     let sym = libc::dlsym(handle as *mut libc::c_void, c_name.as_ptr());
@@ -67,21 +65,10 @@ unsafe fn find_symbol(handle: usize, name: &str) -> Option<usize> {
     }
 }
 
-#[cfg(unix)]
 unsafe fn close_library(handle: usize) {
     libc::dlclose(handle as *mut libc::c_void);
 }
 
-#[cfg(not(unix))]
-unsafe fn open_library(_path: Option<&str>) -> Result<usize, String> {
-    Err("bun:ffi is not supported on this platform".to_string())
-}
-#[cfg(not(unix))]
-unsafe fn find_symbol(_handle: usize, _name: &str) -> Option<usize> {
-    None
-}
-#[cfg(not(unix))]
-unsafe fn close_library(_handle: usize) {}
 
 // ── registries ──────────────────────────────────────────────────────────────
 
@@ -635,7 +622,6 @@ fn materialize_virtual_library(path: &str) -> Result<String, String> {
     {
         let mut options = std::fs::OpenOptions::new();
         options.write(true).create_new(true);
-        #[cfg(unix)]
         {
             use std::os::unix::fs::OpenOptionsExt;
             // `create_new` is O_CREAT|O_EXCL, so an existing file or symlink at
@@ -677,7 +663,6 @@ fn materialized_library_dir() -> Result<&'static std::path::Path, String> {
             unpredictable_suffix()
         ));
         let mut builder = std::fs::DirBuilder::new();
-        #[cfg(unix)]
         {
             use std::os::unix::fs::DirBuilderExt;
             builder.mode(0o700);
@@ -696,7 +681,6 @@ fn materialized_library_dir() -> Result<&'static std::path::Path, String> {
 /// `/dev/urandom` when it is readable; otherwise clock + pid + an
 /// ASLR-dependent address, which is weaker but still not a bare pid.
 fn unpredictable_suffix() -> u64 {
-    #[cfg(unix)]
     {
         use std::io::Read;
         if let Ok(mut source) = std::fs::File::open("/dev/urandom") {

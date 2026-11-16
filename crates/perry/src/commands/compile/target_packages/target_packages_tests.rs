@@ -132,7 +132,6 @@ fn project_install_hoisted_and_nested() {
     assert_eq!(npm_install(&nested), Some(NpmInstall::Project(project)));
 }
 
-#[cfg(unix)]
 #[test]
 fn pnpm_resolves_from_the_real_binary_path() {
     let (_t, root) = tree();

@@ -6,20 +6,7 @@
 // needs the windows-rs `Console` API which isn't a stdlib dep yet).
 // ---------------------------------------------------------------------------
 
-#[cfg(unix)]
 #[path = "termios_unix.rs"]
 pub(super) mod termios_impl;
 
 
-#[cfg(not(any(unix, windows)))]
-pub(super) mod termios_impl {
-    pub fn enable() -> bool {
-        // Raw mode unsupported on this platform (e.g. wasm32). The
-        // flag still flips so the reader switches to byte-chunk
-        // dispatch, but stdin remains line-cooked.
-        false
-    }
-    pub fn disable() -> bool {
-        false
-    }
-}

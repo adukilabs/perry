@@ -651,7 +651,6 @@ fn install_failure_reporter() {
 /// primary hook is [`report_exit_summary`] on the teardown funnel and this is
 /// only the belt to its braces. [`SUMMARY_EMITTED`] keeps them from
 /// double-printing.
-#[cfg(unix)]
 fn install_exit_summary() {
     extern "C" fn summary() {
         report_exit_summary();
@@ -663,8 +662,6 @@ fn install_exit_summary() {
     }
 }
 
-#[cfg(not(unix))]
-fn install_exit_summary() {}
 
 static SUMMARY_EMITTED: AtomicBool = AtomicBool::new(false);
 
@@ -737,8 +734,6 @@ fn report_to_stderr(cause: &str) {
     );
 }
 
-#[cfg(not(unix))]
-fn install_signal_reporter() {}
 
 /// Re-layer the schedule reporter on top of a handler installed after it.
 ///
@@ -754,7 +749,6 @@ fn install_signal_reporter() {}
 /// `ProtectPages` mode has already degraded to poison-only because `mprotect` /
 /// `sigaction` are not exposed there, so there is no reporter to install and
 /// nothing to re-layer.
-#[cfg(unix)]
 pub(crate) fn reinstall_signal_reporter() {
     if !REPORTER_INSTALLED.load(Ordering::SeqCst) {
         return;
@@ -762,7 +756,6 @@ pub(crate) fn reinstall_signal_reporter() {
     install_signal_reporter_inner();
 }
 
-#[cfg(unix)]
 fn install_signal_reporter() {
     install_signal_reporter_inner();
 }
@@ -771,7 +764,6 @@ fn install_signal_reporter() {
 /// and the runtime's own `abort()` paths; `SIGSEGV`/`SIGBUS` are the stale-deref
 /// shapes this mode exists to provoke; `SIGILL`/`SIGTRAP` catch a corrupted code
 /// pointer landing somewhere undecodable.
-#[cfg(unix)]
 const FATAL_SIGNALS: [libc::c_int; 5] = [
     libc::SIGSEGV,
     libc::SIGBUS,
@@ -783,7 +775,6 @@ const FATAL_SIGNALS: [libc::c_int; 5] = [
 /// Previously installed `sa_sigaction` per entry of [`FATAL_SIGNALS`], so the
 /// handler can chain rather than clobber. `SIG_DFL` (0) and `SIG_IGN` (1) mean
 /// "nothing to chain to".
-#[cfg(unix)]
 static PREVIOUS_HANDLERS: [AtomicU64; 5] = [
     AtomicU64::new(0),
     AtomicU64::new(0),
@@ -792,7 +783,6 @@ static PREVIOUS_HANDLERS: [AtomicU64; 5] = [
     AtomicU64::new(0),
 ];
 
-#[cfg(unix)]
 fn install_signal_reporter_inner() {
     for (slot, signum) in FATAL_SIGNALS.iter().copied().enumerate() {
         // SAFETY: standard `sigaction` install with an `SA_SIGINFO` handler; the
@@ -831,13 +821,11 @@ fn install_signal_reporter_inner() {
 /// Minimal `write(2)` formatter. Deliberately avoids `format!` / `eprintln!` so
 /// the handler does not allocate — the same discipline as the quarantine
 /// reporter it chains to.
-#[cfg(unix)]
 struct SignalWriter {
     buf: [u8; 512],
     len: usize,
 }
 
-#[cfg(unix)]
 impl SignalWriter {
     fn new() -> Self {
         Self {
@@ -882,10 +870,8 @@ impl SignalWriter {
 
 /// The resolved seed, cached into a plain atomic so the signal handler never
 /// touches the `OnceLock`/env path. Written by `resolved()` on the first call.
-#[cfg(unix)]
 static REPORTED_SEED: AtomicU64 = AtomicU64::new(u64::MAX);
 
-#[cfg(unix)]
 extern "C" fn schedule_fault_handler(
     signum: libc::c_int,
     info: *mut libc::siginfo_t,
@@ -937,13 +923,10 @@ extern "C" fn schedule_fault_handler(
 }
 
 /// Publish the seed where the signal handler can read it without allocating.
-#[cfg(unix)]
 fn publish_seed(seed: u64) {
     REPORTED_SEED.store(seed, Ordering::SeqCst);
 }
 
-#[cfg(not(unix))]
-fn publish_seed(_seed: u64) {}
 
 #[cfg(test)]
 mod verdict_tests {

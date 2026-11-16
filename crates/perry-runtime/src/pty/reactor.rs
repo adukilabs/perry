@@ -20,10 +20,7 @@
 //! [`pty_reactor_has_live`] and are GC roots via [`pty_reactor_scan_roots_mut`].
 
 use std::collections::HashMap;
-#[cfg(unix)]
 use std::os::unix::io::RawFd;
-#[cfg(windows)]
-type RawFd = std::sync::Arc<native::PtySession>;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, PoisonError};
 
@@ -66,10 +63,8 @@ struct LivePty {
     owner: crate::agent::AgentId,
     /// NaN-boxed IPty object — a GC root (see `pty_reactor_scan_roots_mut`).
     ipty_bits: u64,
-    #[cfg(unix)]
     pid: i32,
     master: RawFd,
-    #[cfg(unix)]
     write_tx: std::sync::mpsc::Sender<Vec<u8>>,
     /// Bytes of an incomplete trailing UTF-8 sequence from the previous
     /// chunk, prepended to the next one so multi-byte characters split
@@ -137,7 +132,6 @@ fn pty_push_event(ev: PtyEvent) {
 /// registry entry (closed by the pump after EOF+exit), so the raw `read` here
 /// never races a close: the pump only closes once `Eof` has been consumed,
 /// i.e. after this thread has already returned.
-#[cfg(unix)]
 fn pty_spawn_reader(handle: u64, master: RawFd) {
     std::thread::spawn(move || {
         let mut buf = [0u8; 8192];
@@ -162,7 +156,6 @@ fn pty_spawn_reader(handle: u64, master: RawFd) {
 }
 
 /// Spawn the waiter thread that reaps `pid` and reports its exit status.
-#[cfg(unix)]
 fn pty_spawn_waiter(handle: u64, pid: i32) {
     std::thread::spawn(move || {
         let (code, signal) = native::wait_child(pid);
@@ -174,36 +167,7 @@ fn pty_spawn_waiter(handle: u64, pid: i32) {
     });
 }
 
-#[cfg(windows)]
-fn pty_spawn_reader(handle: u64, master: RawFd) {
-    std::thread::spawn(move || {
-        let mut buf = [0u8; 8192];
-        loop {
-            match native::read_pty(&master, &mut buf) {
-                Ok(0) => break,
-                Ok(n) => pty_push_event(PtyEvent::Data {
-                    handle,
-                    bytes: buf[..n].to_vec(),
-                }),
-                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
-                Err(_) => break,
-            }
-        }
-        pty_push_event(PtyEvent::Eof { handle });
-    });
-}
 
-#[cfg(windows)]
-fn pty_spawn_waiter(handle: u64, master: RawFd) {
-    std::thread::spawn(move || {
-        let (code, signal) = native::wait_child(master);
-        pty_push_event(PtyEvent::Exited {
-            handle,
-            code,
-            signal,
-        });
-    });
-}
 
 /// Register a freshly-spawned pty child: insert the registry entry, start the
 /// reader + waiter threads and wake the loop. Returns the registry handle.
@@ -218,10 +182,8 @@ pub(super) fn pty_register_live(ipty: f64, child: native::PtyChild) -> u64 {
             LivePty {
                 owner: crate::agent::current_agent(),
                 ipty_bits: ipty.to_bits(),
-                #[cfg(unix)]
                 pid: child.pid,
                 master: child.master.clone(),
-                #[cfg(unix)]
                 write_tx: pty_spawn_writer(child.master),
                 utf8_carry: Vec::new(),
                 eof: false,
@@ -237,10 +199,7 @@ pub(super) fn pty_register_live(ipty: f64, child: native::PtyChild) -> u64 {
     PTY_LIVE_COUNT.fetch_add(1, Ordering::SeqCst);
     PTY_REFED_COUNT.fetch_add(1, Ordering::SeqCst);
     pty_spawn_reader(handle, child.master.clone());
-    #[cfg(unix)]
     pty_spawn_waiter(handle, child.pid);
-    #[cfg(windows)]
-    pty_spawn_waiter(handle, child.master);
     crate::event_pump::js_notify_main_thread();
     handle
 }
@@ -254,17 +213,11 @@ pub(crate) fn pty_live_write(handle: u64, bytes: &[u8]) -> bool {
     if lp.closed || lp.exited.is_some() {
         return false;
     }
-    #[cfg(unix)]
     {
         lp.write_tx.send(bytes.to_vec()).is_ok()
     }
-    #[cfg(windows)]
-    {
-        native::write_pty(&lp.master, bytes)
-    }
 }
 
-#[cfg(unix)]
 fn pty_spawn_writer(master: RawFd) -> std::sync::mpsc::Sender<Vec<u8>> {
     use std::io::Write;
     use std::os::unix::io::FromRawFd;
@@ -296,7 +249,6 @@ pub(crate) fn pty_live_resize(handle: u64, cols: u16, rows: u16) -> bool {
 }
 
 /// Toggle raw mode on a live PTY.
-#[cfg(unix)]
 pub(crate) fn pty_live_set_raw_mode(handle: u64, enabled: bool) -> bool {
     let master = {
         let guard = pty_live_lock();
@@ -309,7 +261,6 @@ pub(crate) fn pty_live_set_raw_mode(handle: u64, enabled: bool) -> bool {
 }
 
 /// Signal a live pty child. Skipped once reaped (the pid may be recycled).
-#[cfg(unix)]
 pub(crate) fn pty_live_kill(handle: u64, signo: i32) -> bool {
     let pid = {
         let guard = pty_live_lock();
@@ -321,14 +272,6 @@ pub(crate) fn pty_live_kill(handle: u64, signo: i32) -> bool {
     native::signal_pid(pid, signo)
 }
 
-#[cfg(windows)]
-pub(crate) fn pty_live_kill(handle: u64, signo: i32) -> bool {
-    let guard = pty_live_lock();
-    match guard.as_ref().and_then(|m| m.get(&handle)) {
-        Some(lp) if lp.exited.is_none() => native::signal_pty(&lp.master, signo),
-        _ => false,
-    }
-}
 
 pub(super) fn pty_live_set_paused(handle: u64, paused: bool) {
     if let Some(lp) = pty_live_lock().as_mut().and_then(|m| m.get_mut(&handle)) {
@@ -338,7 +281,6 @@ pub(super) fn pty_live_set_paused(handle: u64, paused: bool) {
 }
 
 /// Toggle one PTY's event-loop keepalive bit. Calls are idempotent.
-#[cfg(unix)]
 pub(crate) fn pty_live_set_refed(handle: u64, refed: bool) -> bool {
     {
         let mut guard = pty_live_lock();
@@ -508,7 +450,6 @@ fn pty_reactor_pump_inner() {
     // EOF, so every `data` chunk has already been delivered. ---
     struct PtyCloseItem {
         handle: u64,
-        #[cfg(unix)]
         master: RawFd,
         tail: Vec<u8>,
         code: Option<i32>,
@@ -528,7 +469,6 @@ fn pty_reactor_pump_inner() {
                         lp.closed = true;
                         out.push(PtyCloseItem {
                             handle: *h,
-                            #[cfg(unix)]
                             master: lp.master.clone(),
                             tail: std::mem::take(&mut lp.utf8_carry),
                             code,
@@ -542,7 +482,6 @@ fn pty_reactor_pump_inner() {
         out
     };
     for item in to_close {
-        #[cfg(unix)]
         unsafe {
             libc::close(item.master);
         }
@@ -670,7 +609,6 @@ pub(crate) fn release_ptys_in_freed_ranges(freed: &crate::arena::thread_exit::Fr
 /// `pty_register_live` would, minus the child: no descriptor (`-1`), no
 /// reader/waiter threads, un-`ref`'d and never exiting, so no pump acts on it
 /// and no event loop is held open by it. Returns the registry handle.
-#[cfg(unix)]
 #[doc(hidden)]
 pub fn pty_register_idle_live_for_test(ipty: f64) -> u64 {
     let handle = PTY_NEXT_LIVE_ID.fetch_add(1, Ordering::SeqCst);

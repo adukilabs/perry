@@ -2,10 +2,7 @@
 //! atom sections. Looking only at the declarations cannot catch empty bounds.
 use super::*;
 
-#[cfg(not(target_family = "wasm"))]
 #[used(linker)]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows")),
     link_section = "perry_atoms"
@@ -19,7 +16,6 @@ static mut WRITABLE_ATOM: StaticAtom = StaticAtom {
 };
 
 #[test]
-#[cfg(not(target_family = "wasm"))]
 fn a_runtime_descriptor_is_never_in_the_scanned_section() {
     // A runtime layout is reached through its symbol, never through a
     // position (DESIGN 3.2 item 9): the startup walk must not see it.
@@ -35,7 +31,6 @@ fn a_runtime_descriptor_is_never_in_the_scanned_section() {
 }
 
 #[test]
-#[cfg(not(target_family = "wasm"))]
 fn linked_atom_sections_include_readonly_and_writable_records() {
     let descriptor = crate::object::runtime_layouts::OBJECT_PROTOTYPE::desc();
     unsafe extern "C" {

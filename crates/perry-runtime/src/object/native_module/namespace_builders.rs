@@ -949,17 +949,8 @@ pub(crate) unsafe fn create_fs_constants_object() -> f64 {
         "S_IXOTH",
     ];
     let o_nofollow: f64 = {
-        #[cfg(target_os = "macos")]
-        {
-            0x0100 as f64
-        }
-        #[cfg(target_os = "linux")]
         {
             0x20000 as f64
-        }
-        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-        {
-            0x0100 as f64
         }
     };
     let field_values: &[f64] = &[

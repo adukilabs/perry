@@ -261,17 +261,12 @@ fn payload_buffer_churn_keeps_bytes_and_rss_flat() {
 }
 
 fn rss_bytes() -> usize {
-    #[cfg(target_os = "linux")]
     {
         std::fs::read_to_string("/proc/self/statm")
             .ok()
             .and_then(|s| s.split_whitespace().nth(1)?.parse::<usize>().ok())
             .unwrap_or(0)
             * 4096
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        0
     }
 }
 

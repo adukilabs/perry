@@ -81,10 +81,7 @@ pub(crate) fn process_ipc_send_raw_json(json: &str) -> bool {
         .map_or_else(|| false, |run| run(json))
 }
 pub(super) fn install() {
-    #[cfg(unix)]
     INITIALIZE_CHANNEL.set(super::ipc::initialize_unix_ipc);
-    #[cfg(windows)]
-    INITIALIZE_CHANNEL.set(super::ipc::initialize_windows_ipc);
     PROCESS_IPC_PROPERTY.set(super::ipc::process_ipc_property_impl);
     PROCESS_IPC_NOTE_LISTENER.set(super::ipc::process_ipc_note_listener_impl);
     JS_PROCESS_IPC_DRAIN.set(super::ipc::js_process_ipc_drain_impl);

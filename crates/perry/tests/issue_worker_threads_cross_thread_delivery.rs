@@ -223,7 +223,6 @@ worker.onmessage = (ev: any) => {
 /// snapshot. Exercise that exact boundary plus the SIGUSR2 reload and SIGINT
 /// shutdown sequence rather than testing the two Worker API shapes only in
 /// isolation.
-#[cfg(unix)]
 #[test]
 fn global_worker_interops_with_parent_port_and_uint8array() {
     let dir = tempfile::tempdir().expect("tempdir");

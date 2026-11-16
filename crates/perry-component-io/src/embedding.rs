@@ -131,7 +131,6 @@ unsafe fn resource(p: abi::Opaque) -> turnloop::Result<Handle> {
     // SAFETY: the ABI caller holds the unconsumed resource from this table.
     Ok(unsafe { &*p.cast::<NativeResource>() }.0)
 }
-#[cfg(unix)]
 unsafe fn detached(raw: usize, listener: bool) -> turnloop::Result<turnloop::Detached> {
     use std::os::fd::{FromRawFd, OwnedFd};
     // SAFETY: adopt transfers ownership of this native descriptor.
@@ -142,32 +141,17 @@ unsafe fn detached(raw: usize, listener: bool) -> turnloop::Result<turnloop::Det
         turnloop::Detached::from_fd(fd)
     }
 }
-#[cfg(windows)]
-unsafe fn detached(raw: usize, _: bool) -> turnloop::Result<turnloop::Detached> {
-    use std::os::windows::io::{FromRawSocket, OwnedSocket};
-    // SAFETY: adopt transfers ownership of this native socket.
-    turnloop::Detached::from_socket(unsafe { OwnedSocket::from_raw_socket(raw as _) })
-}
 /// Query the actual native endpoint without mutating or taking its ownership.
 unsafe fn socket_is_unbound(raw: usize) -> turnloop::Result<bool> {
-    #[cfg(unix)]
     let stream = {
         use std::os::fd::FromRawFd;
         // SAFETY: adopt owns this live TCP descriptor; ManuallyDrop is a
         // temporary query view and never closes the owning Detached's socket.
         std::mem::ManuallyDrop::new(unsafe { std::net::TcpStream::from_raw_fd(raw as i32) })
     };
-    #[cfg(windows)]
-    let stream = {
-        use std::os::windows::io::FromRawSocket;
-        // SAFETY: same borrowed query view of the live, owned Winsock socket.
-        std::mem::ManuallyDrop::new(unsafe { std::net::TcpStream::from_raw_socket(raw as _) })
-    };
     match stream.local_addr() {
         Ok(local) => Ok(local.port() == 0),
         // WSAEINVAL: getsockname has no endpoint before the first bind.
-        #[cfg(windows)]
-        Err(error) if error.raw_os_error() == Some(10022) => Ok(true),
         Err(error) => Err(error.into()),
     }
 }
@@ -518,10 +502,7 @@ unsafe extern "C" fn raw_socket<E: Embedding>(p: abi::Opaque, raw: *mut usize) -
         (|| {
             let h = resource(p)?;
             *raw = E::with_driver(|d| match d.raw_transport(h)? {
-                #[cfg(unix)]
                 turnloop::RawTransport::Fd(fd) => Ok(fd as usize),
-                #[cfg(windows)]
-                turnloop::RawTransport::Socket(socket) => Ok(socket),
                 #[allow(unreachable_patterns)]
                 _ => Err(invalid()),
             })?;
@@ -536,15 +517,9 @@ unsafe extern "C" fn release_socket<E: Embedding>(p: abi::Opaque, raw: *mut usiz
         (|| {
             let h = resource(p)?;
             let socket = E::with_driver(|d| d.detach(h))?;
-            #[cfg(unix)]
             {
                 use std::os::fd::IntoRawFd;
                 *raw = socket.into_fd().into_raw_fd() as usize;
-            }
-            #[cfg(windows)]
-            {
-                use std::os::windows::io::IntoRawSocket;
-                *raw = socket.into_socket()?.into_raw_socket() as usize;
             }
             drop(Box::from_raw(p.cast::<NativeResource>()));
             Ok(())

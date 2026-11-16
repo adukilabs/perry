@@ -257,7 +257,6 @@ fn build_and_run_android_impl(
         }
     }
 
-    #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         if gradlew.exists() {

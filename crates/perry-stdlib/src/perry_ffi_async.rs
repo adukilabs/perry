@@ -238,7 +238,6 @@ pub extern "C" fn perry_ffi_spawn_blocking(ctx: *mut c_void, invoke: extern "C" 
         invoke(ctx_addr as *mut c_void);
         drop(inflight);
     };
-    #[cfg(not(target_arch = "wasm32"))]
     {
         // `submit_long` consumes `run` only when it accepts the job, so a
         // refusal hands it back through the slot for the thread fallback.
@@ -268,15 +267,12 @@ pub extern "C" fn perry_ffi_spawn_blocking(ctx: *mut c_void, invoke: extern "C" 
             spawn_blocking_thread(run);
         }
     }
-    #[cfg(target_arch = "wasm32")]
-    run();
 }
 
 /// The no-loop fallback of `perry_ffi_spawn_blocking`: one OS thread with the
 /// same stack reservation tokio's blocking pool used to give it (#10399).
 /// If even the thread cannot be created the closure runs inline — the one
 /// outcome that must not happen is an awaited promise never settling.
-#[cfg(not(target_arch = "wasm32"))]
 fn spawn_blocking_thread<F: FnOnce() + Send + 'static>(run: F) {
     let slot = std::sync::Arc::new(std::sync::Mutex::new(Some(run)));
     let thread_slot = slot.clone();
@@ -371,7 +367,6 @@ pub extern "C" fn perry_ffi_pool_submit(
     // Resolutions a delivery queues drain on the main thread through the
     // stdlib pump, exactly as for the v1 shims.
     async_bridge::ensure_pump_registered();
-    #[cfg(not(target_arch = "wasm32"))]
     {
         // Raw pointers are not `Send`; the address is, and only the pool-side
         // trampoline dereferences it there (see `perry-ffi::pool::Ctx`).
@@ -394,11 +389,6 @@ pub extern "C" fn perry_ffi_pool_submit(
             Err(_) => 0,
         }
     }
-    #[cfg(target_arch = "wasm32")]
-    {
-        let _ = (ctx, run_on_pool, deliver_on_owner);
-        0
-    }
 }
 
 /// `perry_ffi_pool_cancel(job)` — ask the runtime to cancel an accepted job.
@@ -407,15 +397,9 @@ pub extern "C" fn perry_ffi_pool_submit(
 /// job is already delivered or unknown.
 #[no_mangle]
 pub extern "C" fn perry_ffi_pool_cancel(job: u64) -> i32 {
-    #[cfg(not(target_arch = "wasm32"))]
     {
         let id = perry_runtime::turnloop_pool::JobId::from_raw(job);
         i32::from(perry_runtime::turnloop_pool::cancel(id))
-    }
-    #[cfg(target_arch = "wasm32")]
-    {
-        let _ = job;
-        0
     }
 }
 
@@ -428,10 +412,7 @@ pub extern "C" fn perry_ffi_pool_turn(budget_ms: u64) {
 
 #[inline]
 fn pool_turn(budget_ms: u64) {
-    #[cfg(not(target_arch = "wasm32"))]
     perry_runtime::turnloop_pool::turn(budget_ms);
-    #[cfg(target_arch = "wasm32")]
-    let _ = budget_ms;
 }
 
 /// `perry_ffi_spawn_blocking` has one arm since the final tokio lane, so these

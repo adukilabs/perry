@@ -159,7 +159,6 @@ pub(crate) fn run_check_phase() -> i32 {
     }
     // An EOF read behind data waits for the end of the next check phase to
     // begin, after the immediates its data handler queued (`defer_eof`).
-    #[cfg(not(target_arch = "wasm32"))]
     crate::turnloop_net::check_phase_begin();
     let horizon = store::with_current(|timers| timers.seq_horizon());
     let mut fired = 0;
@@ -174,7 +173,6 @@ pub(crate) fn run_check_phase() -> i32 {
     // safe event-loop point the callback phase always used. The reader thread
     // notifies on each keypress; this is a cheap empty-buffer check otherwise.
     crate::os_hook_slots::pump_process_stdin();
-    #[cfg(not(target_arch = "wasm32"))]
     crate::turnloop_net::check_phase_end();
     if fired != 0 && crate::promise::mt_profile_enabled() {
         use std::sync::atomic::Ordering;

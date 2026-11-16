@@ -49,7 +49,6 @@ fn bun_store_roots_remain_visible_with_bookkeeping_nearby() {
     assert_eq!(roots["transitive"], vec![pkg.canonicalize().unwrap()]);
 }
 
-#[cfg(unix)]
 #[test]
 fn ancestor_package_roots_deduplicate_physical_paths() {
     let fixture = tempfile::tempdir().unwrap();

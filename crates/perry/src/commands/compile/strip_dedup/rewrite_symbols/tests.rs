@@ -1,5 +1,4 @@
 //! Real object-tool acceptance tests; LLVM tools are optional outside the tool-equipped lane.
-#![cfg(unix)]
 
 use super::*;
 use std::collections::BTreeMap;

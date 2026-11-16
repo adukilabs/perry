@@ -58,9 +58,6 @@ fn utc_getters_ignore_process_timezone() {
     // UTC on Windows (#7356), which would fail the subject-is-live guard
     // above. Use the spelling each platform's localtime honors; both put
     // the child in US-Pacific time (June ⇒ UTC-7 under DST).
-    #[cfg(windows)]
-    let tz = "PST8PDT";
-    #[cfg(not(windows))]
     let tz = "America/Los_Angeles";
 
     let status = std::process::Command::new(std::env::current_exe().expect("current test exe"))

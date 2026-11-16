@@ -17,7 +17,6 @@
 //! operation supplies it, which is why [`NodeError`] carries it as a field
 //! rather than computing it.
 
-#[cfg(not(target_os = "wasi"))]
 use turnloop::{Error, ErrorKind};
 
 /// A Node-shaped socket error: the three fields `net` puts on the `Error`
@@ -55,7 +54,6 @@ impl NodeError {
 /// produce. An unlisted code falls through to the [`ErrorKind`] mapping and
 /// then to `UNKNOWN`, which is exactly what Node does for a code libuv has no
 /// name for.
-#[cfg(any(unix, target_os = "wasi"))]
 fn os_table() -> &'static [(i32, &'static str)] {
     &[
         (libc::EACCES, "EACCES"),
@@ -99,56 +97,9 @@ fn os_table() -> &'static [(i32, &'static str)] {
     ]
 }
 
-/// Winsock's `WSAE*` numbers. Node reports the `E*` spelling on Windows too,
-/// so the table maps the Winsock value onto the same portable name.
-#[cfg(windows)]
-fn os_table() -> &'static [(i32, &'static str)] {
-    &[
-        (10013, "EACCES"),          // WSAEACCES
-        (10048, "EADDRINUSE"),      // WSAEADDRINUSE
-        (10049, "EADDRNOTAVAIL"),   // WSAEADDRNOTAVAIL
-        (10047, "EAFNOSUPPORT"),    // WSAEAFNOSUPPORT
-        (10035, "EAGAIN"),          // WSAEWOULDBLOCK
-        (10037, "EALREADY"),        // WSAEALREADY
-        (10009, "EBADF"),           // WSAEBADF
-        (10053, "ECONNABORTED"),    // WSAECONNABORTED
-        (10061, "ECONNREFUSED"),    // WSAECONNREFUSED
-        (10054, "ECONNRESET"),      // WSAECONNRESET
-        (10039, "EDESTADDRREQ"),    // WSAEDESTADDRREQ
-        (10014, "EFAULT"),          // WSAEFAULT
-        (10065, "EHOSTUNREACH"),    // WSAEHOSTUNREACH
-        (10022, "EINVAL"),          // WSAEINVAL
-        (10056, "EISCONN"),         // WSAEISCONN
-        (10062, "ELOOP"),           // WSAELOOP
-        (10024, "EMFILE"),          // WSAEMFILE
-        (10040, "EMSGSIZE"),        // WSAEMSGSIZE
-        (10063, "ENAMETOOLONG"),    // WSAENAMETOOLONG
-        (10050, "ENETDOWN"),        // WSAENETDOWN
-        (10051, "ENETUNREACH"),     // WSAENETUNREACH
-        (10055, "ENOBUFS"),         // WSAENOBUFS
-        (10042, "ENOPROTOOPT"),     // WSAENOPROTOOPT
-        (10057, "ENOTCONN"),        // WSAENOTCONN
-        (10038, "ENOTSOCK"),        // WSAENOTSOCK
-        (10045, "ENOTSUP"),         // WSAEOPNOTSUPP
-        (10058, "EPIPE"),           // WSAESHUTDOWN
-        (10043, "EPROTONOSUPPORT"), // WSAEPROTONOSUPPORT
-        (10060, "ETIMEDOUT"),       // WSAETIMEDOUT
-        (2, "ENOENT"),              // ERROR_FILE_NOT_FOUND (named pipes)
-        (3, "ENOENT"),              // ERROR_PATH_NOT_FOUND
-        (5, "EACCES"),              // ERROR_ACCESS_DENIED
-        (231, "EBUSY"),             // ERROR_PIPE_BUSY
-        (232, "EPIPE"),             // ERROR_NO_DATA
-        (109, "EPIPE"),             // ERROR_BROKEN_PIPE
-    ]
-}
 
-#[cfg(not(any(unix, windows, target_os = "wasi")))]
-fn os_table() -> &'static [(i32, &'static str)] {
-    &[]
-}
 
 /// The portable fallback, used only when the backend reported no OS code.
-#[cfg(not(target_os = "wasi"))]
 fn kind_code(kind: ErrorKind) -> &'static str {
     match kind {
         ErrorKind::Cancelled => "ECANCELED",
@@ -179,7 +130,6 @@ fn kind_code(kind: ErrorKind) -> &'static str {
 /// `syscall` is the operation that failed; it is never inferred, because the
 /// same OS code means different things per operation (`ECONNRESET` on a read
 /// versus on a write) and Node's own message text starts with it.
-#[cfg(not(target_os = "wasi"))]
 pub fn map_error(err: Error, syscall: &'static str) -> NodeError {
     let code = err
         .os
@@ -196,26 +146,9 @@ pub fn map_error(err: Error, syscall: &'static str) -> NodeError {
     }
 }
 
-/// What `perry_net.sock_error` reports for a connect whose name did not
-/// resolve (docs/WASI_P1_OUTPUT.md). It is no WASI errno, so it gets its own
-/// arm in [`from_os`]; a name that resolved but could not be reached keeps the
-/// real errno the host reported.
-#[cfg(all(target_os = "wasi", target_env = "p1"))]
-const PERRY_NET_ENOTFOUND: i32 = 2000;
 
 /// Map an errno without depending on a particular I/O driver.
 pub fn from_os(os: i32, syscall: &'static str) -> NodeError {
-    #[cfg(all(target_os = "wasi", target_env = "p1"))]
-    {
-        if os == PERRY_NET_ENOTFOUND {
-            // libuv's UV_EAI_NONAME, with the syscall Node reports for a lookup.
-            return NodeError {
-                code: "ENOTFOUND",
-                errno: -3008,
-                syscall: "getaddrinfo",
-            };
-        }
-    }
     let code = os_table()
         .iter()
         .find_map(|(value, name)| (*value == os).then_some(*name))
@@ -235,43 +168,7 @@ pub(crate) fn invalid_input(syscall: &'static str) -> NodeError {
     }
 }
 
-/// Only a target with no socket adoption reaches this.
-#[cfg(not(any(unix, windows)))]
-pub(crate) fn unsupported(syscall: &'static str) -> NodeError {
-    NodeError {
-        code: "ENOTSUP",
-        errno: 0,
-        syscall,
-    }
-}
 
-/// libuv's `errno` for a Node error, which is what `err.errno` must report.
-///
-/// On Linux and macOS libuv's errno IS the negated OS errno (`UV_EADDRINUSE`
-/// is -98 and -48 respectively), so negating the OS code is correct there by
-/// construction.
-///
-/// Windows is the platform where that identity does not hold. libuv has its
-/// own `-4xxx` space there, unrelated to the Winsock numbers: `UV_EADDRINUSE`
-/// is **-4091**, not -10048. Negating the OS code therefore produced a number
-/// no Node program would recognise — `err.errno === -4091` silently never
-/// matched. The committed fixtures cannot see this because they assert only
-/// that `errno` is negative (`test_gap_turnloop_listen_error.ts` prints
-/// `errno<0`), which both the right and the wrong value satisfy.
-///
-/// Values read from the pinned oracle itself —
-/// `node -e "require('util').getSystemErrorMap()"` on Node 26.5.1 — rather
-/// than transcribed from libuv's headers.
-#[cfg(windows)]
-pub fn libuv_errno(code: &str, os: Option<i32>) -> i32 {
-    // No OS code means no syscall ran, and Node reports no errno at all —
-    // never a value looked up from the name. Same contract as the unix arm,
-    // where `None` maps to 0 rather than to a negated code.
-    if os.is_none() {
-        return 0;
-    }
-    libuv_windows_errno(code)
-}
 
 /// libuv's Windows error number for a Node error name, or `UV_UNKNOWN`
 /// (-4094) for a name libuv has no Windows number for. Pure, so `cfg(test)`
@@ -337,7 +234,6 @@ fn libuv_windows_errno(code: &str) -> i32 {
 }
 
 /// On Linux and macOS the negated OS errno IS libuv's errno.
-#[cfg(not(windows))]
 pub fn libuv_errno(_code: &str, os: Option<i32>) -> i32 {
     os.map_or(0, |os| -os)
 }
@@ -360,10 +256,7 @@ mod tests {
     fn os_code_wins_over_the_portable_kind() {
         // `Other` would map to UNKNOWN, but the OS code is the authority: this
         // is the whole reason turnloop carries `os` alongside `kind`.
-        #[cfg(unix)]
         let refused = libc::ECONNREFUSED;
-        #[cfg(windows)]
-        let refused = 10061;
         let mapped = map_error(
             Error {
                 kind: ErrorKind::Other,
@@ -376,10 +269,7 @@ mod tests {
         // Windows it is libuv's own -4078, NOT -10061 (see `libuv_errno`).
         // This assertion used to read `-refused` on every platform, which
         // quietly encoded the Windows bug it was meant to describe.
-        #[cfg(unix)]
         assert_eq!(mapped.errno, -refused);
-        #[cfg(windows)]
-        assert_eq!(mapped.errno, -4078);
         assert_eq!(mapped.syscall, "connect");
         assert_eq!(mapped.message(), "connect ECONNREFUSED");
     }

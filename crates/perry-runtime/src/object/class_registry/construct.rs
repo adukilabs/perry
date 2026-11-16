@@ -1187,7 +1187,6 @@ mod callable_probe_tests {
             assert!(!is_arrow_function_value(value));
         }
 
-        #[cfg(unix)]
         {
             use std::ptr;
             let page = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };

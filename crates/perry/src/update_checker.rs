@@ -534,14 +534,6 @@ pub fn print_update_notice(current: &str, latest: &str, url: &str, use_color: bo
 }
 
 pub fn platform_artifact_name() -> Option<&'static str> {
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    {
-        return Some("perry-macos-aarch64.tar.gz");
-    }
-    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    {
-        return Some("perry-macos-x86_64.tar.gz");
-    }
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     {
         return Some("perry-linux-x86_64.tar.gz");
@@ -549,14 +541,6 @@ pub fn platform_artifact_name() -> Option<&'static str> {
     #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
     {
         return Some("perry-linux-aarch64.tar.gz");
-    }
-    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-    {
-        return Some("perry-windows-x86_64.zip");
-    }
-    #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
-    {
-        return Some("perry-windows-aarch64.zip");
     }
     #[allow(unreachable_code)]
     None
@@ -591,7 +575,6 @@ fn secure_staging_dir(install_dir: &std::path::Path) -> Result<tempfile::TempDir
         .prefix("perry-update-")
         .tempdir_in(install_dir)
         .context("failed to create exclusive update staging directory")?;
-    #[cfg(unix)]
     {
         use std::os::unix::fs::{MetadataExt, PermissionsExt};
         fs::set_permissions(staging.path(), fs::Permissions::from_mode(0o700))?;
@@ -604,13 +587,6 @@ fn secure_staging_dir(install_dir: &std::path::Path) -> Result<tempfile::TempDir
                 "refusing insecure update staging directory {}",
                 staging.path().display()
             );
-        }
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt;
-        if fs::symlink_metadata(staging.path())?.file_attributes() & 0x400 != 0 {
-            bail!("refusing update staging reparse point");
         }
     }
     Ok(staging)
@@ -969,9 +945,6 @@ pub fn perform_self_update(output: UpdateOutput) -> Result<()> {
     fs::create_dir(&extract_dir)?;
     extract_archive(&fs::read(&archive_path)?, artifact_name, &extract_dir)
         .context("Failed to safely extract authenticated archive")?;
-    #[cfg(target_os = "windows")]
-    let binary_name = "perry.exe";
-    #[cfg(not(target_os = "windows"))]
     let binary_name = "perry";
     let new_binary = find_binary_in_dir(&extract_dir, binary_name)
         .context("Perry binary not found in authenticated archive")?;
@@ -982,9 +955,6 @@ pub fn perform_self_update(output: UpdateOutput) -> Result<()> {
             preserved.display()
         ));
     }
-    #[cfg(windows)]
-    println!("Update staged; it will be installed after Perry exits.");
-    #[cfg(not(windows))]
     println!("Updated perry: v{} -> v{}", current, manifest.version);
     Ok(())
 }
@@ -1130,11 +1100,6 @@ pub fn recover_interrupted_self_update() -> Result<()> {
     let install_dir = current_exe
         .parent()
         .context("executable has no parent for update recovery")?;
-    #[cfg(windows)]
-    if recovery_journal_path(install_dir).exists() {
-        schedule_windows_recovery(&current_exe, install_dir)?;
-        bail!("interrupted update recovery has been scheduled");
-    }
     recover_interrupted_update_at(install_dir)
 }
 
@@ -1168,7 +1133,6 @@ fn recover_interrupted_update_at(install_dir: &std::path::Path) -> Result<()> {
     {
         let _ = fs::remove_dir_all(transaction);
     }
-    #[cfg(unix)]
     {
         fs::File::open(install_dir)?.sync_all()?;
     }
@@ -1182,7 +1146,6 @@ fn write_recovery_journal(install_dir: &std::path::Path, journal: &RecoveryJourn
         bail!("refusing to overwrite an existing update recovery journal");
     }
     let mut file = tempfile::NamedTempFile::new_in(install_dir)?;
-    #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         file.as_file()
@@ -1195,7 +1158,6 @@ fn write_recovery_journal(install_dir: &std::path::Path, journal: &RecoveryJourn
     file.persist_noclobber(&journal_path)
         .map_err(|error| error.error)
         .context("failed to arm update recovery journal")?;
-    #[cfg(unix)]
     {
         fs::File::open(install_dir)?.sync_all()?;
     }
@@ -1203,134 +1165,14 @@ fn write_recovery_journal(install_dir: &std::path::Path, journal: &RecoveryJourn
 }
 
 fn replace_path(source: &std::path::Path, target: &std::path::Path) -> std::io::Result<()> {
-    #[cfg(not(windows))]
     {
         fs::rename(source, target)
     }
-    #[cfg(windows)]
-    {
-        use std::os::windows::ffi::OsStrExt;
-        use windows_sys::Win32::Storage::FileSystem::{
-            MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
-        };
-        let mut source_wide: Vec<u16> = source.as_os_str().encode_wide().chain(Some(0)).collect();
-        let mut target_wide: Vec<u16> = target.as_os_str().encode_wide().chain(Some(0)).collect();
-        let ok = unsafe {
-            MoveFileExW(
-                source_wide.as_mut_ptr(),
-                target_wide.as_mut_ptr(),
-                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-            )
-        };
-        if ok == 0 {
-            return Err(std::io::Error::last_os_error());
-        }
-        Ok(())
-    }
 }
 
-#[cfg(windows)]
-pub fn maybe_run_windows_update_helper(args: &[String]) -> Option<Result<()>> {
-    if args.get(1).map(String::as_str) != Some("--perry-update-helper") {
-        return None;
-    }
-    let apply = match args.get(2).map(String::as_str) {
-        Some("apply") => Ok(true),
-        Some("rollback") => Ok(false),
-        _ => Err(anyhow::anyhow!("missing update-helper mode")),
-    };
-    let parent_pid = args
-        .get(3)
-        .and_then(|value| value.parse::<u32>().ok())
-        .ok_or_else(|| anyhow::anyhow!("missing update-helper parent pid"));
-    let journal = args
-        .get(4)
-        .map(PathBuf::from)
-        .ok_or_else(|| anyhow::anyhow!("missing update-helper journal path"));
-    Some(apply.and_then(|apply| {
-        parent_pid
-            .and_then(|pid| journal.and_then(|path| run_windows_update_helper(apply, pid, &path)))
-    }))
-}
 
-#[cfg(windows)]
-fn run_windows_update_helper(
-    apply: bool,
-    parent_pid: u32,
-    journal_path: &std::path::Path,
-) -> Result<()> {
-    use windows_sys::Win32::Foundation::CloseHandle;
-    use windows_sys::Win32::Storage::FileSystem::SYNCHRONIZE;
-    use windows_sys::Win32::System::Threading::{OpenProcess, WaitForSingleObject, INFINITE};
-    let process = unsafe { OpenProcess(SYNCHRONIZE, 0, parent_pid) };
-    if process.is_null() {
-        bail!(
-            "cannot wait for Perry update parent: {}",
-            std::io::Error::last_os_error()
-        );
-    }
-    unsafe {
-        WaitForSingleObject(process, INFINITE);
-        CloseHandle(process);
-    }
-    let raw = fs::read(journal_path)?;
-    let journal: RecoveryJournal = serde_json::from_slice(&raw)?;
-    for entry in &journal.entries {
-        let source = if apply { &entry.staged } else { &entry.backup };
-        replace_path(source, &entry.target)
-            .with_context(|| format!("failed to replace {}", entry.target.display()))?;
-    }
-    fs::remove_file(journal_path)?;
-    if let Some(staging) = journal
-        .entries
-        .first()
-        .and_then(|entry| entry.staged.parent())
-        .and_then(|path| path.parent())
-    {
-        let command = format!(
-            "ping 127.0.0.1 -n 2 >NUL & rmdir /S /Q \"{}\"",
-            staging.display()
-        );
-        let _ = std::process::Command::new("cmd")
-            .args(["/C", &command])
-            .spawn();
-    }
-    Ok(())
-}
 
-#[cfg(windows)]
-fn start_windows_update_helper(
-    mode: &str,
-    current_exe: &std::path::Path,
-    payload: &std::path::Path,
-    install_dir: &std::path::Path,
-) -> Result<()> {
-    let helper = payload.join("perry-update-helper.exe");
-    fs::copy(current_exe, &helper)?;
-    std::process::Command::new(&helper)
-        .arg("--perry-update-helper")
-        .arg(mode)
-        .arg(std::process::id().to_string())
-        .arg(recovery_journal_path(install_dir))
-        .spawn()
-        .context("failed to start Windows update helper")?;
-    Ok(())
-}
 
-#[cfg(windows)]
-fn schedule_windows_recovery(
-    current_exe: &std::path::Path,
-    install_dir: &std::path::Path,
-) -> Result<()> {
-    let journal: RecoveryJournal =
-        serde_json::from_slice(&fs::read(recovery_journal_path(install_dir))?)?;
-    let payload = journal
-        .entries
-        .first()
-        .and_then(|entry| entry.staged.parent())
-        .context("recovery journal has no payload")?;
-    start_windows_update_helper("rollback", current_exe, payload, install_dir)
-}
 
 fn transactional_install(
     current_exe: &std::path::Path,
@@ -1349,14 +1191,10 @@ fn transactional_install(
         .context("extract directory has no staging parent")?
         .join("transaction");
     fs::create_dir(&payload).context("failed to create update transaction journal")?;
-    #[cfg(unix)]
     {
         fs::File::open(extract_dir.parent().expect("checked staging parent"))?.sync_all()?;
     }
     let mut replacements = vec![(current_exe.to_path_buf(), new_binary.to_path_buf(), true)];
-    #[cfg(target_os = "windows")]
-    let libraries = ["perry_runtime.lib", "perry_stdlib.lib"];
-    #[cfg(not(target_os = "windows"))]
     let libraries = ["libperry_runtime.a", "libperry_stdlib.a"];
     for name in libraries {
         let target = install_dir.join(name);
@@ -1382,7 +1220,6 @@ fn transactional_install(
         fs::copy(source, &staged)
             .with_context(|| format!("failed to stage {}", target.display()))?;
         injected_install_failure(4).context("injected permission failure")?;
-        #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(
@@ -1409,23 +1246,16 @@ fn transactional_install(
             staged: prepared[index].1.clone(),
         });
     }
-    #[cfg(unix)]
     {
         fs::File::open(&payload)?.sync_all()?;
     }
     write_recovery_journal(install_dir, &journal)?;
-    #[cfg(windows)]
-    {
-        start_windows_update_helper("apply", current_exe, &payload, install_dir)?;
-        return Ok(());
-    }
     for (target, staged) in &prepared {
         if let Err(error) = injected_install_failure(2).and_then(|_| replace_path(staged, target)) {
             let rollback = rollback_install(&journal);
             return match rollback { Ok(()) => Err(error).with_context(|| format!("failed to install {}; restored previous version", target.display())), Err(rollback_error) => Err(anyhow::anyhow!("failed to install {}: {}; rollback also failed; recovery will run on next launch: {}", target.display(), error, rollback_error)), };
         }
     }
-    #[cfg(unix)]
     {
         fs::File::open(install_dir)?.sync_all()?;
     }
@@ -1883,7 +1713,6 @@ mod tests {
             zip.finish().unwrap();
         }
         assert!(extract_archive(&bytes, "perry-windows-x86_64.zip", dir.path()).is_err());
-        #[cfg(unix)]
         {
             use std::os::unix::fs::symlink;
             let link = dir.path().join("preexisting");

@@ -125,26 +125,14 @@ pub(crate) fn byte_cell_is_owned(addr: usize, obj_type: u8) -> bool {
     if byte_cell_proof_sabotaged() {
         return true;
     }
-    #[cfg(target_os = "linux")]
     {
         byte_cell_in_any_region(addr, obj_type)
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        (crate::gc::gc_type_is_known(obj_type)
-            && unsafe {
-                crate::value::addr_class::try_read_tracked_gc_header_of_type(addr, obj_type)
-            }
-            .is_some())
-            || byte_cell_in_any_region(addr, obj_type)
     }
 }
 
 /// The process-wide arm of [`byte_cell_is_owned`]: a cell of another thread's
 /// arena (its header and extent inside one live region, arena-flagged, of the
 /// type the caller read), or a process-global SharedArrayBuffer block.
-#[cfg_attr(not(target_os = "linux"), cold)]
-#[cfg_attr(not(target_os = "linux"), inline(never))]
 #[cfg_attr(target_os = "linux", inline)]
 fn byte_cell_in_any_region(addr: usize, obj_type: u8) -> bool {
     if obj_type == GC_TYPE_BUFFER_SHARED_ARRAY_BUFFER && crate::shared_sab::is_shared_sab(addr) {
@@ -160,16 +148,10 @@ fn byte_cell_in_any_region(addr: usize, obj_type: u8) -> bool {
     if !header_addr.is_multiple_of(std::mem::align_of::<GcHeader>()) {
         return false;
     }
-    #[cfg(target_os = "linux")]
     let Some(region) = crate::arena::region_classify(header_addr) else {
         return false;
     };
-    #[cfg(target_os = "linux")]
     if !(1..=3).contains(&region.kind) || header_addr + GC_HEADER_SIZE > region.end {
-        return false;
-    }
-    #[cfg(not(target_os = "linux"))]
-    if !crate::arena::region_contains(header_addr, GC_HEADER_SIZE) {
         return false;
     }
     // SAFETY: allocator provenance plus the caller's live-cell capability.
@@ -178,16 +160,11 @@ fn byte_cell_in_any_region(addr: usize, obj_type: u8) -> bool {
     let valid = header.obj_type == obj_type
         && header.gc_flags & crate::gc::GC_FLAG_ARENA != 0
         && header.size as usize >= GC_HEADER_SIZE;
-    #[cfg(target_os = "linux")]
     {
         valid
             && header_addr
                 .checked_add(header.size as usize)
                 .is_some_and(|end| end <= region.end)
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        valid && crate::arena::region_contains(header_addr, header.size as usize)
     }
 }
 

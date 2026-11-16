@@ -24,23 +24,16 @@
 //! Windows uses ConPTY with independent input/output workers. All three
 //! import names (`node-pty`, `@lydell/node-pty`, `bun-pty`) share this facade.
 
-#[cfg(unix)]
 mod native;
-#[cfg(any(unix, windows))]
 pub(crate) mod reactor;
 #[cfg(all(test, any(unix, windows)))]
 mod tests;
 
-#[cfg(any(unix, windows))]
 pub use platform_impl::js_pty_spawn;
-#[cfg(any(unix, windows))]
 pub(crate) use platform_impl::pty_emit;
-#[cfg(any(unix, all(test, windows)))]
 pub(crate) use platform_impl::pty_handle_of;
-#[cfg(unix)]
 pub(crate) use platform_impl::pty_register;
 
-#[cfg(any(unix, windows))]
 mod platform_impl {
     use super::{native, reactor};
     use crate::child_process::{
@@ -613,12 +606,3 @@ mod platform_impl {
     }
 }
 
-/// PTYs require Unix or Windows ConPTY.
-#[cfg(not(any(unix, windows)))]
-#[no_mangle]
-pub extern "C" fn js_pty_spawn(_file_bits: i64, _args_bits: i64, _opts_bits: i64) -> f64 {
-    crate::exception::throw_open(crate::child_process::cp_make_error(
-        "node-pty: this platform does not support native PTYs",
-        &[],
-    ));
-}

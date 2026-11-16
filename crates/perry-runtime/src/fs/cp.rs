@@ -96,7 +96,6 @@ unsafe fn build_cp_eexist_error(dst: &Path) -> f64 {
     crate::node_submodules::register_error_syscall(msg, "cp");
     crate::node_submodules::register_error_path(msg, path);
     let err = crate::error::js_error_new_with_message(msg);
-    #[cfg(unix)]
     crate::node_submodules::set_error_user_prop(err as usize, "errno", libc::EEXIST as f64);
     crate::value::js_nanbox_pointer(err as i64)
 }
@@ -181,10 +180,7 @@ pub(crate) fn copy_preserve_timestamps(src: &Path, dst: &Path, follow: bool) {
     let dst_string = dst.to_string_lossy();
     // `set_path_times` is unix-only (utimensat); on other targets timestamp
     // preservation is a no-op, matching the cfg-gated callers in fs/mod.rs.
-    #[cfg(unix)]
     let _ = set_path_times_result(&dst_string, atime / 1000.0, mtime / 1000.0, !follow);
-    #[cfg(not(unix))]
-    let _ = (&dst_string, atime, mtime, follow);
 }
 
 pub(crate) fn lexical_normalize_path(path: PathBuf) -> PathBuf {
@@ -327,17 +323,7 @@ fn copy_symlink_with_options_depth(
             build_fs_error_value(&err, "readlink", &src.to_string_lossy())
         })?;
         let target = resolve_copied_symlink_target(src, target, opts);
-        #[cfg(unix)]
         std::os::unix::fs::symlink(target, dst).map_err(|err| unsafe {
-            build_fs_error_value_with_dest(
-                &err,
-                "symlink",
-                &src.to_string_lossy(),
-                &dst.to_string_lossy(),
-            )
-        })?;
-        #[cfg(windows)]
-        std::os::windows::fs::symlink_file(target, dst).map_err(|err| unsafe {
             build_fs_error_value_with_dest(
                 &err,
                 "symlink",

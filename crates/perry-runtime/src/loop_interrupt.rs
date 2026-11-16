@@ -184,7 +184,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(target_os = "wasi"))]
     fn termination_handoff_overrides_the_worker_exit_code() {
         std::thread::spawn(|| {
             crate::gc::gc_init();
@@ -215,7 +214,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(target_os = "wasi"))]
     fn explicit_worker_handoff_retains_its_exit_code_and_skips_inner_traps() {
         std::thread::spawn(|| {
             crate::gc::gc_init();

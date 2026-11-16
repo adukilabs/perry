@@ -892,7 +892,6 @@ const PERF_HOOKS_DEFAULT_KEYS: &[&[u8]] = &[
 // Linux-only open() flags: Node only enumerates these on platforms whose libc
 // defines them (e.g. `O_DIRECT`/`O_NOATIME` are absent on macOS), so gate the
 // enumerable-key tail by target so `Object.keys(constants)` matches Node here.
-#[cfg(target_os = "linux")]
 fn deprecated_constants_keys() -> &'static [&'static [u8]] {
     use std::sync::OnceLock;
     static MERGED: OnceLock<Vec<&'static [u8]>> = OnceLock::new();
@@ -928,33 +927,7 @@ fn deprecated_constants_keys() -> &'static [&'static [u8]] {
         .as_slice()
 }
 
-#[cfg(target_os = "macos")]
-fn deprecated_constants_keys() -> &'static [&'static [u8]] {
-    use std::sync::OnceLock;
-    static MERGED: OnceLock<Vec<&'static [u8]>> = OnceLock::new();
-    MERGED
-        .get_or_init(|| {
-            let mut v: Vec<&'static [u8]> = Vec::with_capacity(DEPRECATED_CONSTANTS_KEYS.len() + 2);
-            for &k in DEPRECATED_CONSTANTS_KEYS {
-                if k == b"SIGSYS" {
-                    v.push(k);
-                    v.push(b"SIGINFO");
-                    continue;
-                }
-                if k == b"defaultCoreCipherList" {
-                    v.push(b"O_SYMLINK");
-                }
-                v.push(k);
-            }
-            v
-        })
-        .as_slice()
-}
 
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
-fn deprecated_constants_keys() -> &'static [&'static [u8]] {
-    DEPRECATED_CONSTANTS_KEYS
-}
 
 fn deprecated_constants_namespace_keys() -> &'static [&'static [u8]] {
     use std::sync::OnceLock;

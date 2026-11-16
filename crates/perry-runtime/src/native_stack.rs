@@ -32,9 +32,7 @@
 /// independently (a live address of this very stack lies below the mapping end
 /// by less than the stack size); anything that fails the check, or a missing
 /// `AT_EXECFN`, keeps asking pthread, exactly as before.
-#[cfg(any(target_os = "linux", target_os = "android"))]
 pub(crate) fn stack_bounds() -> Option<(usize, usize)> {
-    #[cfg(target_os = "linux")]
     if let Some(bounds) = main_thread_bounds() {
         return Some(bounds);
     }
@@ -43,12 +41,10 @@ pub(crate) fn stack_bounds() -> Option<(usize, usize)> {
 
 /// The kernel's default `RLIMIT_STACK` (`_STK_LIM`, 8 MiB): the main-thread
 /// stack size when the rlimit gives no usable bound.
-#[cfg(target_os = "linux")]
 const UNLIMITED_MAIN_STACK: usize = 8 << 20;
 
 /// Return the exclusive upper bound of this thread's native stack, or zero
 /// when it cannot be supplied. Callers use zero to abandon the stack walk.
-#[cfg(any(target_os = "linux", target_os = "android"))]
 pub(crate) fn stack_top() -> usize {
     match stack_bounds() {
         Some((low, size)) => low.checked_add(size).unwrap_or(0),
@@ -59,7 +55,6 @@ pub(crate) fn stack_top() -> usize {
 /// The process main thread's bounds from `AT_EXECFN` and the stack rlimit;
 /// `None` on any other thread or when the derived mapping end fails its
 /// consistency check.
-#[cfg(target_os = "linux")]
 fn main_thread_bounds() -> Option<(usize, usize)> {
     crate::snap_funnel!(StackBounds);
     // The main thread is the one whose tid is the pid. Every other thread
@@ -115,7 +110,6 @@ fn live_stack_address() -> usize {
 
 /// The main thread's `(low, size)` from the rlimit, the mapping end and a live
 /// address `here` of the stack; `None` when they disagree.
-#[cfg(target_os = "linux")]
 fn derive_main_bounds(rlim_cur: libc::rlim_t, end: usize, here: usize) -> Option<(usize, usize)> {
     // RLIM_INFINITY is above every mapping end, so one comparison covers it.
     let size = match usize::try_from(rlim_cur) {
@@ -131,7 +125,6 @@ fn derive_main_bounds(rlim_cur: libc::rlim_t, end: usize, here: usize) -> Option
     Some((low, size))
 }
 
-#[cfg(any(target_os = "linux", target_os = "android"))]
 fn pthread_bounds() -> Option<(usize, usize)> {
     // libc supplies the target's exact size, alignment and declarations.
     // Hand-written byte buffers and externs previously disagreed across the

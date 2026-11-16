@@ -43,7 +43,6 @@ fn metadata_decoding_matches_checked_utf8_at_offsets_and_word_boundaries() {
         );
     }
 }
-#[cfg(unix)]
 #[test]
 fn metadata_ascii_covering_reads_stay_between_guard_pages() {
     struct Mapping {

@@ -47,7 +47,6 @@
 //! keystrokes delivered for the unref cycle, 1 of 157 for rl.close + aliased
 //! resume, 157 of 157 for the control.
 
-#![cfg(unix)]
 
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};

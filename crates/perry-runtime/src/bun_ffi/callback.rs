@@ -51,13 +51,6 @@ struct PendingCallback {
 
 static PENDING_CALLBACKS: Mutex<Vec<PendingCallback>> = Mutex::new(Vec::new());
 
-#[cfg(target_vendor = "apple")]
-macro_rules! callback_symbol {
-    ($name:literal) => {
-        concat!("_", $name)
-    };
-}
-#[cfg(not(target_vendor = "apple"))]
 macro_rules! callback_symbol {
     ($name:literal) => {
         $name

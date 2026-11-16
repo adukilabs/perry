@@ -45,20 +45,6 @@ enum CheckStatus {
     Error,
 }
 
-#[cfg(target_os = "windows")]
-fn msvc_vswhere_installation_path_args() -> [&'static str; 8] {
-    [
-        "-products",
-        "*",
-        // Without the VC tools filter, `-latest` can select Management Studio.
-        "-requires",
-        "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-        "-latest",
-        "-property",
-        "installationPath",
-        "-nologo",
-    ]
-}
 
 fn check_perry_version() -> CheckResult {
     CheckResult {
@@ -131,111 +117,9 @@ fn classify_clang(path: &std::path::Path, version_output: Option<&str>) -> Check
     }
 }
 
-#[cfg(target_os = "windows")]
-fn find_xwin_sysroot() -> Option<PathBuf> {
-    let explicit = std::env::var("PERRY_WINDOWS_SYSROOT")
-        .ok()
-        .map(PathBuf::from);
-    let default = dirs::data_local_dir().map(|p| p.join("perry").join("windows-sdk"));
-    for candidate in [explicit, default].into_iter().flatten() {
-        if candidate.join("crt").join("lib").join("x86_64").exists()
-            || candidate.join("crt").join("lib").join("x64").exists()
-        {
-            return Some(candidate);
-        }
-    }
-    None
-}
 
-#[cfg(target_os = "windows")]
-fn find_lld_link() -> Option<PathBuf> {
-    if let Ok(p) = std::env::var("PERRY_LLD_LINK") {
-        let candidate = PathBuf::from(p);
-        if candidate.exists() {
-            return Some(candidate);
-        }
-    }
-    let standalone = PathBuf::from(r"C:\Program Files\LLVM\bin\lld-link.exe");
-    if standalone.exists() {
-        return Some(standalone);
-    }
-    None
-}
 
 fn check_system_linker() -> CheckResult {
-    #[cfg(target_os = "windows")]
-    {
-        // Two valid toolchains — either suffices. Prefer xwin when present
-        // (matches compile.rs precedence: user ran `perry setup windows` ⇒ opted in).
-        let xwin = find_xwin_sysroot();
-        let lld = find_lld_link();
-        if let (Some(sysroot), Some(lld_path)) = (&xwin, &lld) {
-            return CheckResult {
-                name: "system linker (lld-link + xwin sysroot)".to_string(),
-                status: CheckStatus::Ok,
-                details: Some(format!("{} + {}", lld_path.display(), sysroot.display())),
-            };
-        }
-
-        // Fall back to MSVC detection
-        let mut linker = PathBuf::from("link.exe");
-        let vswhere =
-            PathBuf::from(r"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe");
-        if vswhere.exists() {
-            if let Ok(output) = Command::new(&vswhere)
-                .args(msvc_vswhere_installation_path_args())
-                .output()
-            {
-                let install_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !install_path.is_empty() {
-                    let msvc_dir = PathBuf::from(&install_path).join(r"VC\Tools\MSVC");
-                    if let Ok(entries) = std::fs::read_dir(&msvc_dir) {
-                        let mut versions: Vec<_> = entries.filter_map(|e| e.ok()).collect();
-                        versions.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
-                        for entry in versions {
-                            let link = entry.path().join(r"bin\Hostx64\x64\link.exe");
-                            if link.exists() {
-                                linker = link;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        let output = Command::new(&linker).arg("/NOLOGO").output();
-        match output {
-            Ok(_) => CheckResult {
-                name: "system linker (MSVC link.exe)".to_string(),
-                status: CheckStatus::Ok,
-                details: Some(linker.display().to_string()),
-            },
-            Err(_) => {
-                // Neither path is complete. Report partial state when possible.
-                let hint = match (xwin, lld) {
-                    (Some(sysroot), None) => format!(
-                        "xwin sysroot at {} but lld-link.exe missing — run `winget install LLVM.LLVM`",
-                        sysroot.display()
-                    ),
-                    (None, Some(lld_path)) => format!(
-                        "lld-link at {} but no Windows SDK libs — run `perry setup windows`",
-                        lld_path.display()
-                    ),
-                    _ => String::from(
-                        "no Windows linker. Install EITHER (lightweight ~1.5 GB):\n      \
-                         winget install LLVM.LLVM && perry setup windows\n      \
-                         OR (MSVC ~8 GB): Visual Studio Installer → Modify → \"Desktop development with C++\""
-                    ),
-                };
-                CheckResult {
-                    name: "system linker".to_string(),
-                    status: CheckStatus::Error,
-                    details: Some(hint),
-                }
-            }
-        }
-    }
-    #[cfg(not(target_os = "windows"))]
     {
         let output = Command::new("cc").arg("--version").output();
         match output {

@@ -14,8 +14,6 @@
 use std::path::Path;
 use std::process::Command;
 
-#[cfg(target_os = "windows")]
-use super::super::library_search::find_windows_sdk_mt_dir;
 
 /// Win32 application manifest embedded into UI executables. Declares the
 /// comctl32 v6 (`Microsoft.Windows.Common-Controls`) side-by-side dependency
@@ -181,39 +179,11 @@ pub(crate) fn linker_is_msvc_link_exe(cmd: &Command) -> bool {
         .is_some_and(|s| s.eq_ignore_ascii_case("link"))
 }
 
-/// Make sure `link.exe` will be able to spawn `mt.exe` (#6023): if it's
-/// already on PATH (developer prompt) do nothing; otherwise locate the
-/// Windows SDK bin dir that holds it and prepend that to the child's PATH.
-/// Returns false only when `mt.exe` can't be found anywhere, in which case
-/// the caller skips the manifest embed entirely.
-#[cfg(target_os = "windows")]
-fn ensure_mt_exe_reachable(cmd: &mut Command) -> bool {
-    let on_path = Command::new("where")
-        .arg("mt.exe")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false);
-    if on_path {
-        return true;
-    }
-    if let Some(dir) = find_windows_sdk_mt_dir() {
-        let mut parts = vec![dir];
-        if let Some(existing) = std::env::var_os("PATH") {
-            parts.extend(std::env::split_paths(&existing));
-        }
-        if let Ok(joined) = std::env::join_paths(parts) {
-            cmd.env("PATH", joined);
-            return true;
-        }
-    }
-    false
-}
 
 /// Non-Windows hosts can't probe a Windows SDK, and the cross-compile path
 /// links with lld-link anyway (the bare `link.exe` fallback only fires after
 /// a loud lld-link-missing warning) — keep the pre-#6023 behavior of always
 /// embedding.
-#[cfg(not(target_os = "windows"))]
 fn ensure_mt_exe_reachable(_cmd: &mut Command) -> bool {
     true
 }

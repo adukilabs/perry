@@ -4,8 +4,6 @@
 use super::*;
 
 #[used(linker)]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_litlay")]
-#[cfg_attr(target_os = "windows", link_section = ".perrylit$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows")),
     link_section = "perry_literal_layouts"
@@ -40,39 +38,10 @@ static mut SENTINEL: PerryLayoutDesc = PerryLayoutDesc {
 // literal birth of any Windows program aborted with "literal birth requires a
 // valid literal-section descriptor". Mutable bounds share the descriptors'
 // section.
-#[cfg(target_os = "windows")]
-#[used(linker)]
-#[link_section = ".perrylit$a"]
-static mut START: [u64; 1] = [0];
-#[cfg(target_os = "windows")]
-#[used(linker)]
-#[link_section = ".perrylit$z"]
-static mut END: [u64; 1] = [0];
 
 #[inline]
 fn bounds() -> (usize, usize) {
     std::hint::black_box(std::ptr::addr_of!(SENTINEL) as usize);
-    #[cfg(target_vendor = "apple")]
-    {
-        unsafe extern "C" {
-            #[link_name = "\u{1}section$start$__DATA$__perry_litlay"]
-            static START: u8;
-            #[link_name = "\u{1}section$end$__DATA$__perry_litlay"]
-            static END: u8;
-        }
-        (
-            std::ptr::addr_of!(START) as usize,
-            std::ptr::addr_of!(END) as usize,
-        )
-    }
-    #[cfg(target_os = "windows")]
-    {
-        (
-            std::ptr::addr_of!(START) as usize + 8,
-            std::ptr::addr_of!(END) as usize,
-        )
-    }
-    #[cfg(not(any(target_vendor = "apple", target_os = "windows")))]
     {
         unsafe extern "C" {
             static __start_perry_literal_layouts: u8;
@@ -145,20 +114,6 @@ pub(super) fn literal_index(desc: *const PerryLayoutDesc) -> Option<u32> {
     (index < LAYOUT_INDEX_LIMIT).then_some(index)
 }
 
-#[cfg(all(feature = "wasm-image-selftest", target_family = "wasm"))]
-pub(super) fn check_image_indices() {
-    let eager = records::<PerryLayoutDesc>(layout_bounds()).map(|desc| (desc, false));
-    let literal = records::<PerryLayoutDesc>(bounds()).map(|desc| (desc, true));
-    let mut checked = 0;
-    for (desc, expected_literal) in eager.chain(literal) {
-        let index = descriptor_index(desc).expect("image descriptor has an index");
-        let (decoded, is_literal) = descriptor_at(index).expect("image index decodes");
-        assert!(std::ptr::eq(desc, decoded), "descriptor index round trip");
-        assert_eq!(is_literal, expected_literal, "section owns the family kind");
-        checked += 1;
-    }
-    eprintln!("wasm layout bounds: {checked} descriptor index round trips passed");
-}
 
 /// Check the current agent's authoritative record, even when another agent
 /// already published the descriptor's existing image word.

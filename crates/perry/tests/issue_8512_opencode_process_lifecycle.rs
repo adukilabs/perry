@@ -6,7 +6,6 @@
 //! but drop those callbacks, leaving the sink (and therefore the LSP or
 //! formatter lifecycle) pending forever.
 
-#![cfg(unix)]
 
 use std::io::Read;
 use std::path::PathBuf;

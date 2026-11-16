@@ -127,7 +127,6 @@ fn closes(id: u64) -> usize {
 
 // ── Adoption helpers ────────────────────────────────────────────────────────
 
-#[cfg(unix)]
 fn os_pipe() -> (std::os::fd::OwnedFd, std::os::fd::OwnedFd) {
     use std::os::fd::FromRawFd;
     let mut fds = [0i32; 2];
@@ -142,13 +141,11 @@ fn os_pipe() -> (std::os::fd::OwnedFd, std::os::fd::OwnedFd) {
     }
 }
 
-#[cfg(unix)]
 fn adopt_fd(fd: std::os::fd::OwnedFd) -> u64 {
     super::adopt_stream(super::adopt::Transport::Fd(fd), Owner::Test)
         .expect("adopting a live descriptor must succeed")
 }
 
-#[cfg(unix)]
 fn adopt_udp(udp: &UdpSocket) -> u64 {
     use std::os::fd::AsFd;
     let transport =
@@ -189,7 +186,6 @@ fn a_submission_for_an_unknown_id_is_refused() {
 
 // ── Streams ─────────────────────────────────────────────────────────────────
 
-#[cfg(unix)]
 #[test]
 fn a_pipe_streams_its_bytes_and_then_its_eof() {
     use std::io::Write;
@@ -224,7 +220,6 @@ fn a_pipe_streams_its_bytes_and_then_its_eof() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn close_releases_the_entry_exactly_once() {
     let _fixture = Fixture::start();
@@ -246,7 +241,6 @@ fn close_releases_the_entry_exactly_once() {
 
 // ── Datagrams ───────────────────────────────────────────────────────────────
 
-#[cfg(unix)]
 #[test]
 fn a_udp_round_trip_carries_bytes_and_the_source_endpoint() {
     let _fixture = Fixture::start();
@@ -280,7 +274,6 @@ fn a_udp_round_trip_carries_bytes_and_the_source_endpoint() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn a_datagram_receive_rearms_itself_until_it_is_closed() {
     let _fixture = Fixture::start();
@@ -308,7 +301,6 @@ fn a_datagram_receive_rearms_itself_until_it_is_closed() {
     assert_eq!(payloads, vec![b'a', b'b', b'c'], "in order");
 }
 
-#[cfg(unix)]
 #[test]
 fn the_retained_duplicate_names_the_same_socket_as_the_adopted_one() {
     // The whole dgram design rests on this: `setsockopt`/`getsockname` through
@@ -338,7 +330,6 @@ fn the_retained_duplicate_names_the_same_socket_as_the_adopted_one() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn queued_sends_complete_in_order_and_drain_the_queued_count() {
     // Three datagrams submitted before a single turn. The ordering and the
@@ -384,7 +375,6 @@ fn queued_sends_complete_in_order_and_drain_the_queued_count() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn a_failed_send_names_the_caller_token_and_nodes_error_code() {
     // The reporting contract `socket.send(msg, cb)` depends on: a failure has

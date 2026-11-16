@@ -102,12 +102,6 @@ pub(crate) fn posix_cwd() -> String {
     let cwd = std::env::current_dir()
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_default();
-    #[cfg(windows)]
-    {
-        let cwd = cwd.replace('\\', "/");
-        return cwd[cwd.find('/').unwrap_or(cwd.len())..].to_string();
-    }
-    #[cfg(not(windows))]
     cwd
 }
 

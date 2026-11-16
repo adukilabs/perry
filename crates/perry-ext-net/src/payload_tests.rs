@@ -223,7 +223,6 @@ unsafe extern "C" fn received_echo(_: *const RawClosureHeader, this: JsThis, chu
     p::undefined()
 }
 
-#[cfg(target_os = "linux")]
 unsafe extern "C" fn churn_readable(_: *const RawClosureHeader, this: JsThis) -> f64 {
     let scope = TransientRootScope::enter();
     let owner = scope.root_nanbox(this.as_f64());
@@ -239,7 +238,6 @@ unsafe extern "C" fn churn_readable(_: *const RawClosureHeader, this: JsThis) ->
     p::undefined()
 }
 
-#[cfg(target_os = "linux")]
 fn rss_kib() -> u64 {
     let status = std::fs::read_to_string("/proc/self/status").unwrap();
     status
@@ -253,7 +251,6 @@ fn rss_kib() -> u64 {
 
 /// Actual ordinary Socket owners and real loopback connections. Roots are
 /// bounded by the concurrency, and all owners are released after each batch.
-#[cfg(target_os = "linux")]
 // 124k socket round trips: minutes at opt-level 0, so a debug `cargo test` skips it.
 // Run it with `cargo test --release -p perry-ext-net -- --include-ignored`.
 #[cfg_attr(debug_assertions, ignore = "needs an optimized build")]
@@ -867,7 +864,6 @@ fn relisten_keeps_children_of_both_listener_incarnations_in_the_ownership_graph(
     .unwrap();
 }
 
-#[cfg(target_os = "linux")]
 #[test]
 fn n6_socket_worker_teardown_with_closed_queued_releases_fds_without_js() {
     let _serial = crate::test_serial();

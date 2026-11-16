@@ -2,13 +2,9 @@ use crate::fs::validate::{describe_received, is_numeric, throw_type_error_with_c
 use crate::string::{js_string_from_bytes, StringHeader};
 use crate::value::{JSValue, TAG_TRUE};
 use std::collections::HashMap;
-#[cfg(any(unix, windows))]
 use std::sync::atomic::AtomicBool;
-#[cfg(unix)]
 use std::sync::atomic::AtomicI32;
-#[cfg(unix)]
 use std::sync::atomic::AtomicU64;
-#[cfg(any(unix, windows, all(target_os = "wasi", target_env = "p1")))]
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{LazyLock, Mutex};
 
@@ -18,7 +14,6 @@ per_test_global! {
 }
 
 fn signal_number_by_name(name: &str) -> Option<i32> {
-    #[cfg(unix)]
     {
         match name {
             "SIGHUP" => Some(libc::SIGHUP),
@@ -38,7 +33,6 @@ fn signal_number_by_name(name: &str) -> Option<i32> {
             "SIGALRM" => Some(libc::SIGALRM),
             "SIGTERM" => Some(libc::SIGTERM),
             "SIGCHLD" => Some(libc::SIGCHLD),
-            #[cfg(target_os = "linux")]
             "SIGSTKFLT" => Some(libc::SIGSTKFLT),
             "SIGCONT" => Some(libc::SIGCONT),
             "SIGSTOP" => Some(libc::SIGSTOP),
@@ -52,100 +46,48 @@ fn signal_number_by_name(name: &str) -> Option<i32> {
             "SIGPROF" => Some(libc::SIGPROF),
             "SIGWINCH" => Some(libc::SIGWINCH),
             "SIGIO" => Some(libc::SIGIO),
-            #[cfg(any(target_os = "linux", target_os = "android"))]
             "SIGPOLL" => Some(libc::SIGPOLL),
-            #[cfg(target_os = "linux")]
             "SIGPWR" => Some(libc::SIGPWR),
             "SIGSYS" => Some(libc::SIGSYS),
-            #[cfg(target_os = "macos")]
-            "SIGINFO" => Some(29),
-            _ => None,
-        }
-    }
-    #[cfg(not(unix))]
-    {
-        match name {
-            "SIGHUP" => Some(1),
-            "SIGINT" => Some(2),
-            "SIGILL" => Some(4),
-            "SIGABRT" => Some(22),
-            "SIGFPE" => Some(8),
-            "SIGKILL" => Some(9),
-            "SIGSEGV" => Some(11),
-            "SIGTERM" => Some(15),
-            "SIGBREAK" => Some(21),
             _ => None,
         }
     }
 }
 
-#[cfg(unix)]
 static SIGNAL_WAKE_WRITE_FD: AtomicI32 = AtomicI32::new(-1);
-#[cfg(unix)]
 static SIGNAL_WAKE_THREAD_STARTED: AtomicBool = AtomicBool::new(false);
 
-#[cfg(unix)]
 static SIGHUP_PENDING: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGHUP_LISTENERS: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGHUP_INSTALLED: AtomicBool = AtomicBool::new(false);
-#[cfg(unix)]
 static SIGINT_PENDING: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGINT_LISTENERS: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGINT_INSTALLED: AtomicBool = AtomicBool::new(false);
-#[cfg(unix)]
 static SIGQUIT_PENDING: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGQUIT_LISTENERS: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGQUIT_INSTALLED: AtomicBool = AtomicBool::new(false);
-#[cfg(unix)]
 static SIGUSR1_PENDING: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGUSR1_LISTENERS: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGUSR1_INSTALLED: AtomicBool = AtomicBool::new(false);
-#[cfg(unix)]
 static SIGUSR2_PENDING: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGUSR2_LISTENERS: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGUSR2_INSTALLED: AtomicBool = AtomicBool::new(false);
-#[cfg(unix)]
 static SIGABRT_PENDING: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGABRT_LISTENERS: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGABRT_INSTALLED: AtomicBool = AtomicBool::new(false);
-#[cfg(unix)]
 static SIGBUS_PENDING: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGBUS_LISTENERS: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGBUS_INSTALLED: AtomicBool = AtomicBool::new(false);
-#[cfg(unix)]
 static SIGPIPE_PENDING: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGPIPE_LISTENERS: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGPIPE_INSTALLED: AtomicBool = AtomicBool::new(false);
-#[cfg(unix)]
 static SIGTERM_PENDING: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGTERM_LISTENERS: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGTERM_INSTALLED: AtomicBool = AtomicBool::new(false);
-#[cfg(unix)]
 static SIGWINCH_PENDING: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGWINCH_LISTENERS: AtomicUsize = AtomicUsize::new(0);
-#[cfg(unix)]
 static SIGWINCH_INSTALLED: AtomicBool = AtomicBool::new(false);
 
-#[cfg(unix)]
 struct ProcessSignalSlot {
     name: &'static str,
     number: libc::c_int,
@@ -154,7 +96,6 @@ struct ProcessSignalSlot {
     installed: &'static AtomicBool,
 }
 
-#[cfg(unix)]
 static PROCESS_SIGNAL_SLOTS: &[ProcessSignalSlot] = &[
     ProcessSignalSlot {
         name: "SIGHUP",
@@ -229,12 +170,10 @@ static PROCESS_SIGNAL_SLOTS: &[ProcessSignalSlot] = &[
     },
 ];
 
-#[cfg(unix)]
 fn slot_by_name(name: &str) -> Option<&'static ProcessSignalSlot> {
     PROCESS_SIGNAL_SLOTS.iter().find(|slot| slot.name == name)
 }
 
-#[cfg(unix)]
 fn slot_by_number(number: libc::c_int) -> Option<&'static ProcessSignalSlot> {
     PROCESS_SIGNAL_SLOTS
         .iter()
@@ -244,7 +183,6 @@ fn slot_by_number(number: libc::c_int) -> Option<&'static ProcessSignalSlot> {
 /// The one `sigaction` handler of every process-signal slot. SIGWINCH is also
 /// `tty`'s window-change source (`stdout.on("resize")`), which installs this
 /// same handler, so whichever of the two installs last serves both.
-#[cfg(unix)]
 pub(crate) extern "C" fn process_signal_handler(sig: libc::c_int) {
     if sig == libc::SIGWINCH {
         crate::tty::note_window_change();
@@ -261,7 +199,6 @@ pub(crate) extern "C" fn process_signal_handler(sig: libc::c_int) {
     }
 }
 
-#[cfg(unix)]
 fn set_fd_cloexec(fd: libc::c_int) {
     unsafe {
         let current = libc::fcntl(fd, libc::F_GETFD);
@@ -271,7 +208,6 @@ fn set_fd_cloexec(fd: libc::c_int) {
     }
 }
 
-#[cfg(unix)]
 fn set_fd_nonblocking(fd: libc::c_int) {
     unsafe {
         let current = libc::fcntl(fd, libc::F_GETFL);
@@ -281,7 +217,6 @@ fn set_fd_nonblocking(fd: libc::c_int) {
     }
 }
 
-#[cfg(unix)]
 fn ensure_signal_wake_thread() {
     if SIGNAL_WAKE_THREAD_STARTED
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
@@ -343,7 +278,6 @@ fn ensure_signal_wake_thread() {
 
 /// The portable turnloop name for a signal, or `None` when it has none and the
 /// `sigaction` path must be kept.
-#[cfg(all(unix, not(target_arch = "wasm32")))]
 fn turnloop_signal_for(number: libc::c_int) -> Option<turnloop::Signal> {
     match number {
         libc::SIGHUP => Some(turnloop::Signal::Hup),
@@ -359,14 +293,12 @@ fn turnloop_signal_for(number: libc::c_int) -> Option<turnloop::Signal> {
 /// `sigaction`, as a bitmask over `PROCESS_SIGNAL_SLOTS` indices. One word
 /// rather than nine more statics, and the uninstall path has to know which
 /// transport to unwind.
-#[cfg(unix)]
 static TURNLOOP_SIGNALS: AtomicUsize = AtomicUsize::new(0);
 
 /// The live loop-entry id per slot, so uninstall names the subscription it is
 /// actually unwinding. Zero means "none". Kept next to the bitmask rather than
 /// derived from the signal number, because an `off()`/`on()` pair for the same
 /// signal produces two entries whose lifetimes overlap.
-#[cfg(unix)]
 static TURNLOOP_SIGNAL_IDS: [AtomicUsize; 10] = [
     AtomicUsize::new(0),
     AtomicUsize::new(0),
@@ -385,7 +317,6 @@ static TURNLOOP_SIGNAL_IDS: [AtomicUsize; 10] = [
 /// agent's loop and `turnloop_proc` table, not a process-wide name, so when
 /// that agent retires, [`release_signal_subscriptions_of_agent`] finds its
 /// slots here and unwinds them.
-#[cfg(unix)]
 static TURNLOOP_SIGNAL_OWNERS: [AtomicU64; 10] = [
     AtomicU64::new(0),
     AtomicU64::new(0),
@@ -399,7 +330,6 @@ static TURNLOOP_SIGNAL_OWNERS: [AtomicU64; 10] = [
     AtomicU64::new(0),
 ];
 
-#[cfg(unix)]
 const _: () = assert!(
     TURNLOOP_SIGNAL_OWNERS.len() == PROCESS_SIGNAL_SLOTS.len(),
     "one turnloop owner cell per process-signal slot"
@@ -420,7 +350,6 @@ const _: () = assert!(
 /// slot to "not installed", so the next listener sync installs afresh on its
 /// own loop. The listener count is left alone: it mirrors whichever thread
 /// synced last, and that thread's next sync rewrites it.
-#[cfg(all(unix, not(target_arch = "wasm32")))]
 fn release_signal_subscriptions_of_agent(agent: crate::agent::AgentId) {
     for (idx, slot) in PROCESS_SIGNAL_SLOTS.iter().enumerate() {
         if TURNLOOP_SIGNAL_OWNERS[idx].load(Ordering::Acquire) != agent {
@@ -452,7 +381,6 @@ pub fn set_process_signal_listener_count_for_test(name: &str, count: usize) {
 
 /// Test probe (#11471): `(installed, on turnloop, turnloop entry id, owner
 /// agent)` for signal `name`.
-#[cfg(unix)]
 #[doc(hidden)]
 pub fn process_signal_subscription_for_test(name: &str) -> Option<(bool, bool, usize, u64)> {
     let slot = slot_by_name(name)?;
@@ -467,13 +395,11 @@ pub fn process_signal_subscription_for_test(name: &str) -> Option<(bool, bool, u
 
 // A slot added above without a matching id cell would silently index out of
 // bounds at runtime; say so at compile time instead.
-#[cfg(unix)]
 const _: () = assert!(
     TURNLOOP_SIGNAL_IDS.len() == PROCESS_SIGNAL_SLOTS.len(),
     "one turnloop id cell per process-signal slot"
 );
 
-#[cfg(unix)]
 fn slot_index(slot: &'static ProcessSignalSlot) -> usize {
     PROCESS_SIGNAL_SLOTS
         .iter()
@@ -481,7 +407,6 @@ fn slot_index(slot: &'static ProcessSignalSlot) -> usize {
         .unwrap_or(0)
 }
 
-#[cfg(unix)]
 fn mark_on_turnloop(slot: &'static ProcessSignalSlot, on: bool) {
     let bit = 1usize << slot_index(slot);
     if on {
@@ -491,7 +416,6 @@ fn mark_on_turnloop(slot: &'static ProcessSignalSlot, on: bool) {
     }
 }
 
-#[cfg(unix)]
 fn is_on_turnloop(slot: &'static ProcessSignalSlot) -> bool {
     TURNLOOP_SIGNALS.load(Ordering::Acquire) & (1usize << slot_index(slot)) != 0
 }
@@ -499,18 +423,12 @@ fn is_on_turnloop(slot: &'static ProcessSignalSlot) -> bool {
 /// Whether any signal is still being delivered through turnloop. The "subject
 /// ran" predicate a test needs: a claim that signals moved off the thread is
 /// only worth making if this was ever true.
-#[cfg(unix)]
 pub fn signals_on_turnloop() -> usize {
     TURNLOOP_SIGNALS.load(Ordering::Acquire).count_ones() as usize
 }
 
-#[cfg(not(unix))]
-pub fn signals_on_turnloop() -> usize {
-    0
-}
 
 /// Subscribe this agent's loop to `slot`. Returns whether it took.
-#[cfg(all(unix, not(target_arch = "wasm32")))]
 fn install_signal_on_loop(slot: &'static ProcessSignalSlot) -> bool {
     let Some(signal) = turnloop_signal_for(slot.number) else {
         return false;
@@ -544,10 +462,6 @@ fn install_signal_on_loop(slot: &'static ProcessSignalSlot) -> bool {
     true
 }
 
-#[cfg(all(unix, target_arch = "wasm32"))]
-fn install_signal_on_loop(_slot: &'static ProcessSignalSlot) -> bool {
-    false
-}
 
 /// One signal completion, delivered on the loop-owning thread.
 ///
@@ -556,7 +470,6 @@ fn install_signal_on_loop(_slot: &'static ProcessSignalSlot) -> bool {
 /// async-signal-safety constraint nor the thread. Everything downstream
 /// (`take_pending_process_signals`, `js_process_signal_drain`, the listener
 /// re-sync) is unchanged.
-#[cfg(all(unix, not(target_arch = "wasm32")))]
 pub(crate) fn on_signal_completion(signum: i32, event: crate::turnloop_proc::StreamEvent) {
     use crate::turnloop_proc::StreamEvent;
     match event {
@@ -575,7 +488,6 @@ pub(crate) fn on_signal_completion(signum: i32, event: crate::turnloop_proc::Str
     }
 }
 
-#[cfg(unix)]
 fn install_process_signal_handler(slot: &'static ProcessSignalSlot) {
     if slot
         .installed
@@ -606,7 +518,6 @@ fn install_process_signal_handler(slot: &'static ProcessSignalSlot) {
     }
 }
 
-#[cfg(unix)]
 fn uninstall_process_signal_handler(slot: &'static ProcessSignalSlot) {
     slot.pending.store(0, Ordering::Release);
     if slot
@@ -621,7 +532,6 @@ fn uninstall_process_signal_handler(slot: &'static ProcessSignalSlot) {
         // turnloop restores the previous disposition when the subscription
         // ends; the bit is cleared by the terminal completion, not here, so
         // the unwind stays exactly-once (DESIGN D4).
-        #[cfg(not(target_arch = "wasm32"))]
         {
             let id = TURNLOOP_SIGNAL_IDS[slot_index(slot)].swap(0, Ordering::AcqRel);
             if id != 0 {
@@ -663,149 +573,19 @@ fn uninstall_process_signal_handler(slot: &'static ProcessSignalSlot) {
 // documented safe from any thread). The main thread drains via the same
 // platform-neutral path Unix uses: `take_pending_process_signals()` from
 // `js_process_signal_drain` on the next event-loop tick.
-#[cfg(windows)]
-static WIN_SIGINT_PENDING: AtomicUsize = AtomicUsize::new(0);
-#[cfg(windows)]
-static WIN_SIGINT_LISTENERS: AtomicUsize = AtomicUsize::new(0);
-#[cfg(windows)]
-static WIN_SIGBREAK_PENDING: AtomicUsize = AtomicUsize::new(0);
-#[cfg(windows)]
-static WIN_SIGBREAK_LISTENERS: AtomicUsize = AtomicUsize::new(0);
-#[cfg(windows)]
-static WIN_SIGHUP_PENDING: AtomicUsize = AtomicUsize::new(0);
-#[cfg(windows)]
-static WIN_SIGHUP_LISTENERS: AtomicUsize = AtomicUsize::new(0);
-#[cfg(windows)]
-static WIN_SIGTERM_PENDING: AtomicUsize = AtomicUsize::new(0);
-#[cfg(windows)]
-static WIN_SIGTERM_LISTENERS: AtomicUsize = AtomicUsize::new(0);
-#[cfg(windows)]
-static WIN_CTRL_HANDLER_INSTALLED: AtomicBool = AtomicBool::new(false);
 
-#[cfg(windows)]
-struct WinSignalSlot {
-    name: &'static str,
-    /// Console control event that maps to this signal, or `None` when the
-    /// signal has no console source on Windows (SIGTERM).
-    ctrl_event: Option<u32>,
-    pending: &'static AtomicUsize,
-    listeners: &'static AtomicUsize,
-}
 
-#[cfg(windows)]
-static WIN_SIGNAL_SLOTS: &[WinSignalSlot] = &[
-    WinSignalSlot {
-        name: "SIGINT",
-        ctrl_event: Some(windows_sys::Win32::System::Console::CTRL_C_EVENT),
-        pending: &WIN_SIGINT_PENDING,
-        listeners: &WIN_SIGINT_LISTENERS,
-    },
-    WinSignalSlot {
-        name: "SIGBREAK",
-        ctrl_event: Some(windows_sys::Win32::System::Console::CTRL_BREAK_EVENT),
-        pending: &WIN_SIGBREAK_PENDING,
-        listeners: &WIN_SIGBREAK_LISTENERS,
-    },
-    WinSignalSlot {
-        name: "SIGHUP",
-        ctrl_event: Some(windows_sys::Win32::System::Console::CTRL_CLOSE_EVENT),
-        pending: &WIN_SIGHUP_PENDING,
-        listeners: &WIN_SIGHUP_LISTENERS,
-    },
-    WinSignalSlot {
-        name: "SIGTERM",
-        ctrl_event: None,
-        pending: &WIN_SIGTERM_PENDING,
-        listeners: &WIN_SIGTERM_LISTENERS,
-    },
-];
 
-#[cfg(windows)]
-fn win_slot_by_name(name: &str) -> Option<&'static WinSignalSlot> {
-    WIN_SIGNAL_SLOTS.iter().find(|slot| slot.name == name)
-}
 
-/// Console control handler — runs on a thread Windows injects, NOT the JS
-/// main thread. Async-context rules mirror the Unix `process_signal_handler`:
-/// only atomics + the any-thread-safe event-pump notify; no JS heap access,
-/// no JS calls.
-///
-/// Returns TRUE (1, "handled") iff at least one JS listener is registered
-/// for the mapped signal at this moment; otherwise FALSE (0) so the default
-/// behavior is preserved — plain Ctrl+C on a program with no `SIGINT`
-/// listener still terminates it, and removing the last listener restores
-/// default behavior without needing to unregister the handler.
-#[cfg(windows)]
-unsafe extern "system" fn win_console_ctrl_handler(ctrl_type: u32) -> windows_sys::core::BOOL {
-    let Some(slot) = WIN_SIGNAL_SLOTS
-        .iter()
-        .find(|slot| slot.ctrl_event == Some(ctrl_type))
-    else {
-        // Not a signal we map (logoff/shutdown/…): defer to the default.
-        return 0;
-    };
-    if slot.listeners.load(Ordering::Acquire) == 0 {
-        return 0;
-    }
-    slot.pending.fetch_add(1, Ordering::Release);
-    crate::event_pump::js_notify_main_thread();
-    if ctrl_type == windows_sys::Win32::System::Console::CTRL_CLOSE_EVENT {
-        // Mirror libuv: for CTRL_CLOSE_EVENT Windows terminates the process
-        // as soon as this handler *returns*, but grants ~5s while it runs.
-        // Park this handler thread so the main thread gets the full grace
-        // window to run the JS 'SIGHUP' listeners; the OS force-kills the
-        // process afterwards (or earlier, when the main thread exits).
-        loop {
-            std::thread::sleep(std::time::Duration::from_secs(60));
-        }
-    }
-    1
-}
 
-/// Install the console control handler once, on first listener registration.
-/// It stays installed for the process lifetime; the per-slot listener-count
-/// check inside the handler restores default behavior when the last listener
-/// is removed (no unregister needed, so there is no install/remove race).
-#[cfg(windows)]
-fn ensure_win_console_ctrl_handler() {
-    if WIN_CTRL_HANDLER_INSTALLED
-        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-        .is_err()
-    {
-        return;
-    }
-    let ok = unsafe {
-        windows_sys::Win32::System::Console::SetConsoleCtrlHandler(
-            Some(win_console_ctrl_handler),
-            1,
-        )
-    };
-    if ok == 0 {
-        WIN_CTRL_HANDLER_INSTALLED.store(false, Ordering::Release);
-    }
-}
 
 pub(crate) fn is_process_signal_name(name: &str) -> bool {
-    #[cfg(unix)]
     {
         slot_by_name(name).is_some()
-    }
-    #[cfg(windows)]
-    {
-        win_slot_by_name(name).is_some()
-    }
-    #[cfg(all(target_os = "wasi", target_env = "p1"))]
-    {
-        wasi_slot(name).is_some()
-    }
-    #[cfg(not(any(unix, windows, all(target_os = "wasi", target_env = "p1"))))]
-    {
-        matches!(name, "SIGINT" | "SIGTERM")
     }
 }
 
 pub(crate) fn set_process_signal_listener_count(name: &str, count: usize) {
-    #[cfg(unix)]
     {
         let Some(slot) = slot_by_name(name) else {
             return;
@@ -816,37 +596,6 @@ pub(crate) fn set_process_signal_listener_count(name: &str, count: usize) {
         } else {
             uninstall_process_signal_handler(slot);
         }
-    }
-    #[cfg(windows)]
-    {
-        let Some(slot) = win_slot_by_name(name) else {
-            return;
-        };
-        slot.listeners.store(count, Ordering::Release);
-        if count == 0 {
-            // Mirror the Unix uninstall path: drop undelivered signals so a
-            // stale pending count can't keep the event loop alive or fire
-            // into a re-registered listener later.
-            slot.pending.store(0, Ordering::Release);
-        } else if slot.ctrl_event.is_some() {
-            ensure_win_console_ctrl_handler();
-        }
-    }
-    #[cfg(all(target_os = "wasi", target_env = "p1"))]
-    {
-        if let Some(slot) = wasi_slot(name) {
-            WASI_LISTENERS[slot].store(count, Ordering::Release);
-            if count > 0 {
-                crate::turnloop_net::register_pump();
-            }
-            if count == 0 {
-                WASI_PENDING[slot].store(0, Ordering::Release);
-            }
-        }
-    }
-    #[cfg(not(any(unix, windows, all(target_os = "wasi", target_env = "p1"))))]
-    {
-        let _ = (name, count);
     }
 
     if count > 0 {
@@ -891,33 +640,14 @@ pub(crate) fn set_process_signal_listener_count(name: &str, count: usize) {
 /// alive; a delivered signal still wakes the loop via the self-pipe
 /// notify and is drained by `js_process_signal_drain` on the next tick.
 pub(crate) fn has_active_process_signal_listeners() -> bool {
-    #[cfg(unix)]
     {
         PROCESS_SIGNAL_SLOTS.iter().any(|slot| {
             slot.pending.load(Ordering::Acquire) > 0 && slot.listeners.load(Ordering::Acquire) > 0
         })
     }
-    #[cfg(windows)]
-    {
-        WIN_SIGNAL_SLOTS.iter().any(|slot| {
-            slot.pending.load(Ordering::Acquire) > 0 && slot.listeners.load(Ordering::Acquire) > 0
-        })
-    }
-    #[cfg(all(target_os = "wasi", target_env = "p1"))]
-    {
-        (0..WASI_SIGNALS.len()).any(|slot| {
-            WASI_PENDING[slot].load(Ordering::Acquire) > 0
-                && WASI_LISTENERS[slot].load(Ordering::Acquire) > 0
-        })
-    }
-    #[cfg(not(any(unix, windows, all(target_os = "wasi", target_env = "p1"))))]
-    {
-        false
-    }
 }
 
 pub(crate) fn take_pending_process_signals() -> Vec<&'static str> {
-    #[cfg(unix)]
     {
         let mut signals = Vec::new();
         for slot in PROCESS_SIGNAL_SLOTS {
@@ -929,73 +659,10 @@ pub(crate) fn take_pending_process_signals() -> Vec<&'static str> {
         }
         signals
     }
-    #[cfg(windows)]
-    {
-        let mut signals = Vec::new();
-        for slot in WIN_SIGNAL_SLOTS {
-            let count = slot.pending.swap(0, Ordering::AcqRel);
-            if count == 0 || slot.listeners.load(Ordering::Acquire) == 0 {
-                continue;
-            }
-            signals.extend(std::iter::repeat_n(slot.name, count));
-        }
-        signals
-    }
-    #[cfg(all(target_os = "wasi", target_env = "p1"))]
-    {
-        crate::turnloop_net::drain_signals();
-        let mut signals = Vec::new();
-        for (slot, (_, name)) in WASI_SIGNALS.iter().enumerate() {
-            let count = WASI_PENDING[slot].swap(0, Ordering::AcqRel);
-            if count == 0 || WASI_LISTENERS[slot].load(Ordering::Acquire) == 0 {
-                continue;
-            }
-            signals.extend(std::iter::repeat_n(*name, count));
-        }
-        signals
-    }
-    #[cfg(not(any(unix, windows, all(target_os = "wasi", target_env = "p1"))))]
-    {
-        Vec::new()
-    }
 }
 
-/// The signals a `wasm32-wasip1` guest can receive. The host writes one byte per
-/// signal to the stream named by `PERRY_SIGNAL_FD`; the byte is Perry's own code
-/// for the signal, the same on every host (`docs/WASI_P1_OUTPUT.md`).
-#[cfg(all(target_os = "wasi", target_env = "p1"))]
-const WASI_SIGNALS: [(u8, &str); 5] = [
-    (1, "SIGHUP"),
-    (2, "SIGINT"),
-    (10, "SIGUSR1"),
-    (12, "SIGUSR2"),
-    (15, "SIGTERM"),
-];
-#[cfg(all(target_os = "wasi", target_env = "p1"))]
-static WASI_PENDING: [AtomicUsize; 5] = [const { AtomicUsize::new(0) }; 5];
-#[cfg(all(target_os = "wasi", target_env = "p1"))]
-static WASI_LISTENERS: [AtomicUsize; 5] = [const { AtomicUsize::new(0) }; 5];
 
-#[cfg(all(target_os = "wasi", target_env = "p1"))]
-fn wasi_slot(name: &str) -> Option<usize> {
-    WASI_SIGNALS.iter().position(|(_, n)| *n == name)
-}
 
-/// A signal arrived from the host. A listener gets it on the next drain; with
-/// none, SIGHUP, SIGINT, SIGUSR2 and SIGTERM end the process with
-/// `128 + code`, as Node's default action does. SIGUSR1 is ignored and an
-/// unknown code is dropped.
-#[cfg(all(target_os = "wasi", target_env = "p1"))]
-pub(crate) fn wasi_deliver(code: u8) {
-    let Some(slot) = WASI_SIGNALS.iter().position(|(n, _)| *n == code) else {
-        return;
-    };
-    if WASI_LISTENERS[slot].load(Ordering::Acquire) > 0 {
-        WASI_PENDING[slot].fetch_add(1, Ordering::AcqRel);
-    } else if code != 10 {
-        std::process::exit(128 + code as i32);
-    }
-}
 
 fn signal_names() -> Vec<&'static str> {
     let mut names = vec![
@@ -1003,7 +670,6 @@ fn signal_names() -> Vec<&'static str> {
         "SIGFPE", "SIGKILL", "SIGUSR1", "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM",
         "SIGCHLD",
     ];
-    #[cfg(target_os = "linux")]
     names.push("SIGSTKFLT");
     names.extend([
         "SIGCONT",
@@ -1019,13 +685,9 @@ fn signal_names() -> Vec<&'static str> {
         "SIGWINCH",
         "SIGIO",
     ]);
-    #[cfg(any(target_os = "linux", target_os = "android"))]
     names.push("SIGPOLL");
-    #[cfg(target_os = "linux")]
     names.push("SIGPWR");
     names.push("SIGSYS");
-    #[cfg(target_os = "macos")]
-    names.push("SIGINFO");
     names
 }
 
@@ -1147,7 +809,6 @@ fn normalize_process_signal(signal: f64) -> i32 {
     throw_unknown_signal(signal)
 }
 
-#[cfg(unix)]
 fn kill_errno_code(errno: i32) -> &'static str {
     match errno {
         x if x == libc::EINVAL => "EINVAL",
@@ -1162,7 +823,6 @@ fn kill_errno_code(errno: i32) -> &'static str {
 /// `kill <CODE>` with `.code = <CODE>` and `.syscall = "kill"`. Shared by the
 /// Unix (errno-derived) and Windows (Win32-error-derived) arms so both report
 /// failures identically.
-#[cfg(any(unix, windows))]
 fn throw_kill_error_code(code: &'static str) -> ! {
     let message = format!("kill {code}");
     let msg = js_string_from_bytes(message.as_ptr(), message.len() as u32);
@@ -1171,121 +831,11 @@ fn throw_kill_error_code(code: &'static str) -> ! {
     crate::exception::throw_core(crate::error::CoreError::error(msg))
 }
 
-#[cfg(unix)]
 fn throw_kill_error(errno: i32) -> ! {
     throw_kill_error_code(kill_errno_code(errno))
 }
 
-/// Map a Win32 error from the `process.kill` syscalls to the Node errno code
-/// the Unix arm would surface for the analogous failure (libuv's
-/// `uv_translate_sys_error` conventions: invalid pid → ESRCH, access denied →
-/// EPERM, anything else falls back to the file's existing EIO convention).
-#[cfg(windows)]
-fn win_error_to_kill_code(err: u32) -> &'static str {
-    use windows_sys::Win32::Foundation::{ERROR_ACCESS_DENIED, ERROR_INVALID_PARAMETER};
-    match err {
-        ERROR_INVALID_PARAMETER => "ESRCH",
-        ERROR_ACCESS_DENIED => "EPERM",
-        _ => "EIO",
-    }
-}
 
-/// Win32 half of `process.kill(pid, sig)`, mirroring libuv's `uv_kill`
-/// (`src/win/process.c`). Returns `Ok(())` on success or the Node errno code
-/// for `throw_kill_error_code`. Kept JS-free so unit tests can exercise it
-/// directly.
-///
-/// * `sig == 0` — existence probe: `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)`
-///   then `GetExitCodeProcess`; only a `STILL_ACTIVE` process counts as alive
-///   (an exited process whose pid is pinned by an open handle reports ESRCH,
-///   like Unix `kill(pid, 0)` on a reaped pid).
-/// * SIGHUP/SIGINT/SIGQUIT/SIGKILL/SIGTERM — `OpenProcess(PROCESS_TERMINATE)`
-///   + `TerminateProcess(h, 1)`. There is no graceful termination on Windows;
-///   this is exactly what libuv does for all of them.
-/// * Other signals in `0..NSIG` — ENOSYS (libuv's "unsupported signal");
-///   outside that range — EINVAL.
-#[cfg(windows)]
-fn win_process_kill(pid: i32, sig: i32) -> Result<(), &'static str> {
-    use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, STILL_ACTIVE};
-    use windows_sys::Win32::System::Threading::{
-        GetCurrentProcess, GetExitCodeProcess, OpenProcess, TerminateProcess,
-        PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE,
-    };
-
-    // MSVC CRT signal numbers (crt/signal.h); NSIG bound mirrors libuv.
-    const SIGHUP_N: i32 = 1;
-    const SIGINT_N: i32 = 2;
-    const SIGQUIT_N: i32 = 3;
-    const SIGKILL_N: i32 = 9;
-    const SIGTERM_N: i32 = 15;
-    const NSIG: i32 = 23;
-
-    if !(0..NSIG).contains(&sig) {
-        return Err("EINVAL");
-    }
-    let desired_access = match sig {
-        0 => PROCESS_QUERY_LIMITED_INFORMATION,
-        // QUERY_LIMITED alongside TERMINATE (libuv does the same): the
-        // already-exited fallback below needs GetExitCodeProcess, which
-        // fails with ERROR_ACCESS_DENIED on a TERMINATE-only handle.
-        SIGHUP_N | SIGINT_N | SIGQUIT_N | SIGKILL_N | SIGTERM_N => {
-            PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION
-        }
-        _ => return Err("ENOSYS"),
-    };
-
-    unsafe {
-        // libuv: pid 0 targets the current process via the pseudo-handle
-        // (Windows has no Unix-style process groups for kill).
-        let is_self = pid == 0;
-        let handle = if is_self {
-            GetCurrentProcess()
-        } else {
-            OpenProcess(desired_access, 0, pid as u32)
-        };
-        if handle.is_null() {
-            // ERROR_INVALID_PARAMETER == no such pid → ESRCH.
-            return Err(win_error_to_kill_code(GetLastError()));
-        }
-        // The pseudo-handle from GetCurrentProcess needs no CloseHandle.
-        let close = |h| {
-            if !is_self {
-                CloseHandle(h);
-            }
-        };
-
-        if sig == 0 {
-            let mut status: u32 = 0;
-            if GetExitCodeProcess(handle, &mut status) == 0 {
-                let err = GetLastError();
-                close(handle);
-                return Err(win_error_to_kill_code(err));
-            }
-            close(handle);
-            if status != STILL_ACTIVE as u32 {
-                return Err("ESRCH");
-            }
-            return Ok(());
-        }
-
-        if TerminateProcess(handle, 1) == 0 {
-            let err = GetLastError();
-            // libuv: TerminateProcess fails with ERROR_ACCESS_DENIED when the
-            // target already exited — report that as ESRCH, not EPERM.
-            if err == windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED {
-                let mut status: u32 = 0;
-                if GetExitCodeProcess(handle, &mut status) != 0 && status != STILL_ACTIVE as u32 {
-                    close(handle);
-                    return Err("ESRCH");
-                }
-            }
-            close(handle);
-            return Err(win_error_to_kill_code(err));
-        }
-        close(handle);
-    }
-    Ok(())
-}
 
 /// process.kill(pid, signal?) — send signal to process. signal=0 means
 /// existence check, and omitted/undefined signal defaults to SIGTERM.
@@ -1302,22 +852,11 @@ pub extern "C" fn js_process_kill(pid: f64, signal: f64) -> f64 {
 
     let pid_i = pid_jv.as_number() as i32;
     let sig_i = normalize_process_signal(signal);
-    #[cfg(unix)]
     unsafe {
         if libc::kill(pid_i, sig_i) != 0 {
             let errno = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
             throw_kill_error(errno);
         }
-    }
-    #[cfg(windows)]
-    {
-        if let Err(code) = win_process_kill(pid_i, sig_i) {
-            throw_kill_error_code(code);
-        }
-    }
-    #[cfg(not(any(unix, windows)))]
-    {
-        let _ = (pid_i, sig_i);
     }
     f64::from_bits(TAG_TRUE)
 }
@@ -1345,126 +884,12 @@ mod tests {
         assert_eq!(signal_number_by_name("sigterm"), None);
     }
 
-    /// Spawn a child that blocks until killed: `cmd /c pause` waits for a
-    /// byte on stdin, which we pipe and never write.
-    #[cfg(windows)]
-    fn spawn_blocked_child() -> std::process::Child {
-        std::process::Command::new("cmd")
-            .args(["/c", "pause"])
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .expect("spawn cmd /c pause")
-    }
 
-    #[cfg(windows)]
-    #[test]
-    fn win_kill_terminates_child_and_sig0_tracks_liveness() {
-        let mut child = spawn_blocked_child();
-        let pid = child.id() as i32;
 
-        // sig 0 existence probe: alive → Ok.
-        assert_eq!(win_process_kill(pid, 0), Ok(()));
 
-        // SIGTERM → TerminateProcess(h, 1): child exits with code 1.
-        assert_eq!(win_process_kill(pid, 15), Ok(()));
-        let status = child.wait().expect("wait on terminated child");
-        assert_eq!(status.code(), Some(1));
 
-        // `child` (still in scope) holds the process handle, so the pid
-        // cannot be recycled: the probe must now see the exited process
-        // (GetExitCodeProcess != STILL_ACTIVE) and report ESRCH.
-        assert_eq!(win_process_kill(pid, 0), Err("ESRCH"));
-        // Terminating an already-exited process also reports ESRCH
-        // (libuv's ERROR_ACCESS_DENIED + !STILL_ACTIVE special case).
-        assert_eq!(win_process_kill(pid, 15), Err("ESRCH"));
-    }
 
-    #[cfg(windows)]
-    #[test]
-    fn win_kill_reports_esrch_for_nonexistent_pid() {
-        // Negative pid → OpenProcess(ERROR_INVALID_PARAMETER) → ESRCH,
-        // for both the probe and the terminate path.
-        assert_eq!(win_process_kill(-1, 0), Err("ESRCH"));
-        assert_eq!(win_process_kill(-1, 15), Err("ESRCH"));
-    }
 
-    #[cfg(windows)]
-    #[test]
-    fn win_kill_rejects_unsupported_signals() {
-        // SIGBREAK(21) is deliverable via the console but not via kill —
-        // libuv reports ENOSYS. Out-of-range numbers are EINVAL. Both are
-        // rejected before any handle is opened, so pid 0 (self) is safe.
-        assert_eq!(win_process_kill(0, 21), Err("ENOSYS"));
-        assert_eq!(win_process_kill(0, -3), Err("EINVAL"));
-        assert_eq!(win_process_kill(0, 99), Err("EINVAL"));
-    }
-
-    /// Serializes the tests that mutate the process-wide signal slots
-    /// (listener counts, pending counts, the global drain) — cargo runs
-    /// tests on parallel threads and interleaved drains would be flaky.
-    #[cfg(windows)]
-    static SIGNAL_SLOT_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-    /// Drive the console control handler directly (it is an ordinary
-    /// `extern "system"` fn) — deterministic coverage of the mapping,
-    /// TRUE/FALSE return semantics, and the pending→drain marshal without
-    /// touching the real console. A live `GenerateConsoleCtrlEvent`
-    /// round-trip is deliberately NOT tested here: group 0 would hit every
-    /// process sharing the test console (cargo, the shell), and a fresh
-    /// process group needs a perry-compiled child binary — verified
-    /// manually instead (see PR body).
-    #[cfg(windows)]
-    #[test]
-    fn win_console_ctrl_handler_semantics() {
-        use windows_sys::Win32::System::Console::{
-            CTRL_BREAK_EVENT, CTRL_CLOSE_EVENT, CTRL_C_EVENT,
-        };
-        let _guard = SIGNAL_SLOT_TEST_LOCK.lock().unwrap();
-
-        // No listeners registered → FALSE for every event: the default
-        // terminate behavior must be preserved.
-        assert_eq!(unsafe { win_console_ctrl_handler(CTRL_C_EVENT) }, 0);
-        assert_eq!(unsafe { win_console_ctrl_handler(CTRL_BREAK_EVENT) }, 0);
-        assert_eq!(unsafe { win_console_ctrl_handler(CTRL_CLOSE_EVENT) }, 0);
-        // Unmapped control types (logoff/shutdown) → FALSE always.
-        assert_eq!(unsafe { win_console_ctrl_handler(5) }, 0);
-        assert_eq!(unsafe { win_console_ctrl_handler(6) }, 0);
-
-        // With a SIGINT listener: CTRL_C → TRUE, records exactly one
-        // pending SIGINT, which keeps the loop alive until drained.
-        set_process_signal_listener_count("SIGINT", 1);
-        assert_eq!(unsafe { win_console_ctrl_handler(CTRL_C_EVENT) }, 1);
-        // CTRL_BREAK maps to SIGBREAK, which has no listener → FALSE.
-        assert_eq!(unsafe { win_console_ctrl_handler(CTRL_BREAK_EVENT) }, 0);
-        assert!(has_active_process_signal_listeners());
-        assert_eq!(take_pending_process_signals(), vec!["SIGINT"]);
-        assert!(!has_active_process_signal_listeners());
-
-        // Removing the last listener restores default behavior and drops
-        // any undelivered pending count.
-        assert_eq!(unsafe { win_console_ctrl_handler(CTRL_C_EVENT) }, 1);
-        set_process_signal_listener_count("SIGINT", 0);
-        assert_eq!(unsafe { win_console_ctrl_handler(CTRL_C_EVENT) }, 0);
-        assert!(take_pending_process_signals().is_empty());
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn win_sigterm_registration_is_accepted_and_inert() {
-        let _guard = SIGNAL_SLOT_TEST_LOCK.lock().unwrap();
-        // Node allows process.on('SIGTERM') on Windows; it just never fires
-        // from the console. Registration must not error, must not pin the
-        // event loop, and must never produce a pending signal.
-        assert!(is_process_signal_name("SIGTERM"));
-        assert!(is_process_signal_name("SIGBREAK"));
-        assert!(is_process_signal_name("SIGHUP"));
-        set_process_signal_listener_count("SIGTERM", 1);
-        assert!(!has_active_process_signal_listeners());
-        assert!(take_pending_process_signals().is_empty());
-        set_process_signal_listener_count("SIGTERM", 0);
-    }
 }
 
 /// Signal registrations are native leases. A retiring mutator frees their

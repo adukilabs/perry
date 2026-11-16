@@ -46,12 +46,6 @@ pub(crate) unsafe fn dispatch_wide_abi(
     // surplus arguments; a wasm `call_indirect` must match its target's type
     // exactly, so a padded call would trap (and a 1025-parameter type is not
     // even a valid wasm component). Say so instead.
-    #[cfg(target_os = "wasi")]
-    {
-        let _ = (closure, func_ptr, this, args);
-        throw_too_wide_for_wasi(width)
-    }
-    #[cfg(not(target_os = "wasi"))]
     {
         let undef = f64::from_bits(crate::value::TAG_UNDEFINED);
         let provided = args.len().min(width);
@@ -94,18 +88,6 @@ pub(crate) unsafe fn dispatch_wide_abi(
     }
 }
 
-#[cfg(target_os = "wasi")]
-#[cold]
-#[optimize(size)]
-#[inline(never)]
-fn throw_too_wide_for_wasi(width: usize) -> ! {
-    let message = format!(
-        "Calling a closure that takes {width} parameter slots dynamically is not \
-         supported on WASI yet (#11378): wasm needs an exact-arity call"
-    );
-    let msg = crate::string::js_string_from_bytes(message.as_ptr(), message.len() as u32);
-    crate::exception::throw_core(crate::error::CoreError::range_error(msg))
-}
 
 #[cold]
 #[optimize(size)]

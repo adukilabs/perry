@@ -7,12 +7,6 @@
 
 use super::*;
 
-#[cfg(any(
-    not(feature = "backend-wasm"),
-    not(feature = "backend-swiftui"),
-    not(feature = "backend-glance"),
-    not(feature = "backend-wear-tiles")
-))]
 use super::helpers::backend_disabled_msg;
 
 use anyhow::{anyhow, bail, Context, Result};
@@ -625,10 +619,6 @@ pub fn run_with_parse_cache(
     // #13717: fail an unrecognized explicit `--target` up-front, before any
     // object is emitted for the host triple.
     validate_explicit_target(args.target.as_deref())?;
-    #[cfg(feature = "target-wasi")]
-    if args.target.as_deref() == Some("wasi") {
-        perry_codegen::wasi_toolchain::check()?;
-    }
     if perry_codegen::verify_facts::enabled() {
         std::env::set_var("PERRY_NO_CACHE", "1");
         perry_codegen::verify_facts::reset();
@@ -1207,11 +1197,6 @@ pub fn run_with_parse_cache(
         .as_deref()
         .is_some_and(|t| WEB_TARGET_NAMES.contains(&t))
     {
-        #[cfg(feature = "backend-wasm")]
-        {
-            return compile_for_wasm(&ctx, &args, format);
-        }
-        #[cfg(not(feature = "backend-wasm"))]
         {
             anyhow::bail!(backend_disabled_msg(
                 args.target.as_deref().unwrap_or("wasm"),
@@ -1226,11 +1211,6 @@ pub fn run_with_parse_cache(
         .as_deref()
         .is_some_and(|t| IOS_WIDGET_TARGET_NAMES.contains(&t))
     {
-        #[cfg(feature = "backend-swiftui")]
-        {
-            return compile_for_ios_widget(&ctx, &args, format);
-        }
-        #[cfg(not(feature = "backend-swiftui"))]
         {
             anyhow::bail!(backend_disabled_msg("ios-widget", "backend-swiftui"));
         }
@@ -1240,11 +1220,6 @@ pub fn run_with_parse_cache(
         .as_deref()
         .is_some_and(|t| WATCHOS_WIDGET_TARGET_NAMES.contains(&t))
     {
-        #[cfg(feature = "backend-swiftui")]
-        {
-            return compile_for_watchos_widget(&ctx, &args, format);
-        }
-        #[cfg(not(feature = "backend-swiftui"))]
         {
             anyhow::bail!(backend_disabled_msg("watchos-widget", "backend-swiftui"));
         }
@@ -1254,11 +1229,6 @@ pub fn run_with_parse_cache(
         .as_deref()
         .is_some_and(|t| ANDROID_WIDGET_TARGET_NAMES.contains(&t))
     {
-        #[cfg(feature = "backend-glance")]
-        {
-            return compile_for_android_widget(&ctx, &args, format);
-        }
-        #[cfg(not(feature = "backend-glance"))]
         {
             anyhow::bail!(backend_disabled_msg("android-widget", "backend-glance"));
         }
@@ -1268,19 +1238,12 @@ pub fn run_with_parse_cache(
         .as_deref()
         .is_some_and(|t| WEAROS_TILE_TARGET_NAMES.contains(&t))
     {
-        #[cfg(feature = "backend-wear-tiles")]
-        {
-            return compile_for_wearos_tile(&ctx, &args, format);
-        }
-        #[cfg(not(feature = "backend-wear-tiles"))]
         {
             anyhow::bail!(backend_disabled_msg("wearos-tile", "backend-wear-tiles"));
         }
     }
 
     run_native_instance_fixups(&mut ctx);
-    #[cfg(feature = "backend-arkts")]
-    harvest_harmonyos_index_ets(&args, &mut ctx, format);
 
     let i18n_table = apply_i18n_pass(&mut ctx, i18n_config.as_ref(), &i18n_translations, format);
 
@@ -3889,11 +3852,6 @@ pub fn run_with_parse_cache(
 
     // A standalone WASI build links against the wasm32 runtime after
     // codegen and has no native link set.
-    #[cfg(feature = "target-wasi")]
-    let native_link_set_skipped = target
-        .as_deref()
-        .is_some_and(|t| super::wasi_flavour::Flavour::from_target(t).is_some());
-    #[cfg(not(feature = "target-wasi"))]
     let native_link_set_skipped = false;
 
     // Issue #76 — the wasmi host archive. A program that references
@@ -7678,88 +7636,6 @@ pub fn run_with_parse_cache(
     // built for wasm32-wasip2 (`wasi`) or wasm32-wasip1 (`wasip1`) and stop;
     // none of the native link machinery below (auto-optimize, stdlib, stubs,
     // link cache) applies.
-    #[cfg(feature = "target-wasi")]
-    if let Some(flavour) = target
-        .as_deref()
-        .and_then(super::wasi_flavour::Flavour::from_target)
-    {
-        use super::wasi_flavour::Flavour;
-        if args.output_type == "dylib" {
-            return Err(anyhow!(
-                "WASI library components use --output-type staticlib and a canonical WIT adapter"
-            ));
-        }
-        if args.output_type == "staticlib" && flavour == Flavour::P1 {
-            return Err(anyhow!(
-                "--target wasip1 does not support --output-type staticlib: library components are P2 only (use --target wasi)"
-            ));
-        }
-        let is_staticlib = args.output_type == "staticlib";
-        let stem = args
-            .input
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("output");
-        let stem = super::super::sanitize::sanitize_for_linker_argv(stem);
-        let exe_path = args.output.clone().unwrap_or_else(|| {
-            output_path::default_output_path(false, is_staticlib, Some(flavour.target()), &stem)
-        });
-        // `--no-link`: the objects, already written where `-o` points
-        // (#7167), are the product. Linking would read that object and
-        // overwrite it with the component.
-        if !args.no_link {
-            let runtime_lib = find_runtime_library(Some(flavour.target()))?;
-            let installer = super::link::wasi::feature_installer(
-                flavour,
-                &ctx,
-                &compiled_features,
-                &object_output_dir,
-            )?;
-            obj_cleanup_paths.push(installer.clone());
-            obj_paths.push(installer);
-            for input in
-                super::link::wasi::addon_link_inputs(flavour, &ctx, &object_output_dir, verbose)?
-            {
-                if input.starts_with(&object_output_dir) {
-                    obj_cleanup_paths.push(input.clone());
-                }
-                obj_paths.push(input);
-            }
-            obj_cleanup_paths.push(seed_path.clone());
-            obj_paths.push(seed_path);
-            if is_staticlib {
-                super::link::wasi::archive_library(&obj_paths, &runtime_lib, &exe_path, verbose)?;
-            } else {
-                super::link::wasi::link_wasi(
-                    flavour,
-                    &obj_paths,
-                    &runtime_lib,
-                    &exe_path,
-                    verbose,
-                )?;
-            }
-            if let OutputFormat::Text = format {
-                println!(
-                    "Wrote WASI {}: {}",
-                    match (is_staticlib, flavour) {
-                        (true, _) => "static archive",
-                        (false, Flavour::P2) => "component",
-                        (false, Flavour::P1) => "module",
-                    },
-                    exe_path.display()
-                );
-            }
-        }
-        return Ok(CompileResult {
-            output_path: exe_path,
-            target: flavour.target().to_string(),
-            bundle_id: None,
-            is_dylib: is_staticlib,
-            codegen_cache_stats: None,
-            link_cache_stats: None,
-            build_cache_stats: None,
-        });
-    }
 
     // Resolved before codegen (design §4.4); a WASI build returned above.
     let optimized_libs: OptimizedLibs =

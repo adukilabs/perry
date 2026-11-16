@@ -175,7 +175,6 @@ mod ws_stubs {
 // === Stdlib dispatch stubs ===
 // On Android, perry-ui-android provides a real js_stdlib_process_pending
 // that processes WebSocket promise resolves.
-#[cfg(not(target_os = "android"))]
 #[no_mangle]
 pub extern "C" fn js_stdlib_process_pending() -> i32 {
     // Hot-loop drain — see js_ws_process_pending above. Silent stub.
@@ -190,20 +189,17 @@ pub extern "C" fn js_stdlib_process_pending() -> i32 {
 // fallbacks so the binary links; with perry-stdlib or perry-ext-cron
 // linked, the real queue implementations win. Android's stdlib stubs
 // cover that target independently.
-#[cfg(not(target_os = "android"))]
 #[no_mangle]
 pub extern "C" fn js_cron_timer_tick() -> i32 {
     // Hot-loop drain — silent stub, same as js_stdlib_process_pending.
     0
 }
 
-#[cfg(not(target_os = "android"))]
 #[no_mangle]
 pub extern "C" fn js_cron_timer_has_pending() -> i32 {
     0
 }
 
-#[cfg(not(target_os = "android"))]
 #[no_mangle]
 pub extern "C" fn js_stdlib_init_dispatch() {
     perry_stub_warn("js_stdlib_init_dispatch", STDLIB_DISPATCH_REASON, None);
@@ -320,19 +316,16 @@ pub extern "C" fn js_response_static_error() -> f64 {
 // linked, the real implementations from `perry-stdlib::readline`
 // override these (linker picks stdlib over runtime). Android stdlib
 // stubs cover those targets independently.
-#[cfg(not(target_os = "android"))]
 #[no_mangle]
 pub extern "C" fn js_readline_set_raw_mode(_enabled: f64) -> f64 {
     perry_stub_warn("js_readline_set_raw_mode", READLINE_REASON, Some("#347"));
     f64::from_bits(0x7FFC_0000_0000_0001) // TAG_UNDEFINED
 }
-#[cfg(not(target_os = "android"))]
 #[no_mangle]
 pub extern "C" fn js_readline_stdin_on(_event_ptr: i64, _callback: i64) -> f64 {
     perry_stub_warn("js_readline_stdin_on", READLINE_REASON, Some("#347"));
     f64::from_bits(0x7FFC_0000_0000_0001)
 }
-#[cfg(not(target_os = "android"))]
 #[no_mangle]
 pub extern "C" fn js_readline_stdin_remove_listener(_event_ptr: i64, _callback: i64) -> f64 {
     perry_stub_warn(

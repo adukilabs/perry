@@ -38,7 +38,6 @@ fn embedded_and_missing_virtual_files_follow_the_same_text_decoder() {
     let _ = error; // Node-parity coverage checks code/syscall/path.
 }
 
-#[cfg(unix)]
 #[test]
 fn pipe_fd_reads_until_eof_and_keeps_the_descriptor_open() {
     use std::os::fd::FromRawFd;

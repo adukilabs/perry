@@ -201,13 +201,10 @@ fn verify_bare_address_root_word(addr: usize, source: &str) {
 #[inline(never)]
 fn invalid_precise_root(addr: usize, why: &str) -> Option<*mut GcHeader> {
     if precise_root_verification() {
-        #[cfg(target_os = "linux")]
         let region = crate::arena::region_classify(addr).map(|r| {
             let this_thread = r.thread == crate::tls_hot::thread_identity();
             (r.kind, r.space, this_thread, r.base, r.end)
         });
-        #[cfg(not(target_os = "linux"))]
-        let region: Option<()> = None;
         panic!(
             "invalid precise root header: {addr:#x} ({why}); region (kind, space, this thread, base, end): {region:?}"
         );

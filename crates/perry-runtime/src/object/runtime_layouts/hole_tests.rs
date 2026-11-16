@@ -93,8 +93,6 @@ runtime_layout!(
 
 // Same key schema, carried by a compiler-owned class family.
 #[used(linker)]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_layouts")]
-#[cfg_attr(target_os = "windows", link_section = ".perrylay$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_layouts"
@@ -146,8 +144,6 @@ runtime_layout!(
 
 // Identical key geometry in an ordinary runtime layout is not family authority.
 #[used(linker)]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_litlay")]
-#[cfg_attr(target_os = "windows", link_section = ".perrylit$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_literal_layouts"
@@ -869,7 +865,6 @@ fn classless_optional_family_keeps_shape_and_routes_unknown_keys_to_overflow() {
 
 // No eager counterpart shares these keys: the second agent must materialize
 // its own record while the immutable image word is shared by both agents.
-#[cfg(not(target_family = "wasm"))]
 mod first_birth {
     use super::*;
 
@@ -884,8 +879,6 @@ mod first_birth {
     static INDEX: [u32; 4] = layout_index(&ATOMS);
 
     #[used(linker)]
-    #[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_litlay")]
-    #[cfg_attr(target_os = "windows", link_section = ".perrylit$m")]
     #[cfg_attr(
         not(any(target_vendor = "apple", target_os = "windows")),
         link_section = "perry_literal_layouts"

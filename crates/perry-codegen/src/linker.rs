@@ -20,7 +20,6 @@ use anyhow::{anyhow, bail, Context, Result};
 mod linker_partial;
 #[path = "linker_temp.rs"]
 mod linker_temp;
-#[cfg(not(target_os = "windows"))]
 use linker_partial::unix_partial_linker;
 use linker_temp::{
     reap_stale_llvm_scratch_once, FailedScratch, FailureRetention, TempPathGuard,
@@ -1156,10 +1155,6 @@ fn compile_input_to_object_in_with_retention(
          PERRY_LLVM_CLANG to the path of clang. Run `perry doctor` to verify the install."
     })?;
     ensure_supported_clang(&clang)?;
-    #[cfg(feature = "target-wasi")]
-    if target_triple.is_some_and(|target| target.starts_with("wasm32")) {
-        crate::wasi_toolchain::check_external(&clang)?;
-    }
 
     // #7131: content-address the `.ll` basename (clang embeds it into the
     // object on ELF). #509: keep the `.o` unique via the per-call counter.
@@ -1464,20 +1459,11 @@ pub(crate) fn merge_unit_objects(objs: &[Vec<u8>]) -> Result<Vec<u8>> {
         obj_paths.push(p);
     }
 
-    #[cfg(target_os = "windows")]
-    let combined = tmp_dir.join(format!("perry_cgu_{}_{}_combined.lib", pid, nonce));
-    #[cfg(not(target_os = "windows"))]
     let combined = tmp_dir.join(format!("perry_cgu_{}_{}_combined.o", pid, nonce));
     cleanup.push(&combined);
 
-    #[cfg(target_os = "windows")]
-    let tool = env::var("PERRY_LLVM_LIB").unwrap_or_else(|_| "llvm-lib".to_string());
-    #[cfg(not(target_os = "windows"))]
     let (tool, keep_private_externs, hint) = unix_partial_linker(objs);
     let mut cmd = Command::new(&tool);
-    #[cfg(target_os = "windows")]
-    cmd.arg(format!("/OUT:{}", combined.display()));
-    #[cfg(not(target_os = "windows"))]
     cmd.arg("-r").arg("-o").arg(&combined);
     // Apple's ld64 turns private-extern (hidden) symbols into local ones in a
     // relocatable link unless told to keep them. A hidden definition must stay
@@ -1487,7 +1473,6 @@ pub(crate) fn merge_unit_objects(objs: &[Vec<u8>]) -> Result<Vec<u8>> {
     // Without this flag a module split into codegen units links only when it
     // is not split. GNU ld and lld already keep hidden symbols global, and
     // reject the flag.
-    #[cfg(not(target_os = "windows"))]
     if keep_private_externs {
         cmd.arg("-keep_private_externs");
     }
@@ -1495,11 +1480,6 @@ pub(crate) fn merge_unit_objects(objs: &[Vec<u8>]) -> Result<Vec<u8>> {
         cmd.arg(p);
     }
     let out = cmd.output().with_context(|| {
-        #[cfg(target_os = "windows")]
-        {
-            format!("failed to invoke COFF codegen-unit archiver `{}`", tool)
-        }
-        #[cfg(not(target_os = "windows"))]
         {
             format!("failed to invoke partial linker `{} -r`{}", tool, hint)
         }
@@ -1508,9 +1488,6 @@ pub(crate) fn merge_unit_objects(objs: &[Vec<u8>]) -> Result<Vec<u8>> {
         fs::read(&combined)
             .with_context(|| format!("failed to read merged object {}", combined.display()))
     } else {
-        #[cfg(target_os = "windows")]
-        let operation = format!("COFF archive `{}`", tool);
-        #[cfg(not(target_os = "windows"))]
         let operation = format!("partial link `{} -r`", tool);
         Err(anyhow!(
             "{} of {} codegen units failed (status={}).\nstderr:\n{}",
@@ -1840,19 +1817,6 @@ pub fn find_clang() -> Option<PathBuf> {
     }
 
     // Check well-known install locations.
-    #[cfg(windows)]
-    {
-        // Standalone LLVM installer (llvm.org)
-        let standalone = PathBuf::from(r"C:\Program Files\LLVM\bin\clang.exe");
-        if standalone.exists() {
-            candidates.push(standalone);
-        }
-        // MSVC Build Tools bundled clang (via "C++ Clang Compiler" component)
-        if let Some(path) = find_msvc_bundled_clang() {
-            candidates.push(path);
-        }
-    }
-    #[cfg(not(windows))]
     {
         // Homebrew on macOS, ROCm / distro LLVM on Linux.
         for prefix in &[
@@ -1885,58 +1849,7 @@ pub fn find_clang() -> Option<PathBuf> {
     select_clang_candidate_with(candidates, clang_major_version)
 }
 
-/// Search for clang.exe bundled with Visual Studio Build Tools / Community.
-/// The "C++ Clang Compiler for Windows" workload component installs it at:
-///   <VS install>/VC/Tools/Llvm/x64/bin/clang.exe
-#[cfg(windows)]
-fn msvc_vswhere_installation_path_args() -> [&'static str; 8] {
-    [
-        "-products",
-        "*",
-        // Without the VC tools filter, `-latest` can select Management Studio.
-        "-requires",
-        "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-        "-latest",
-        "-property",
-        "installationPath",
-        "-nologo",
-    ]
-}
 
-#[cfg(windows)]
-fn find_msvc_bundled_clang() -> Option<PathBuf> {
-    let vswhere_paths = [
-        PathBuf::from(r"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"),
-        PathBuf::from(r"C:\Program Files\Microsoft Visual Studio\Installer\vswhere.exe"),
-    ];
-    for vswhere in &vswhere_paths {
-        if !vswhere.exists() {
-            continue;
-        }
-        let output = std::process::Command::new(vswhere)
-            .args(msvc_vswhere_installation_path_args())
-            .output()
-            .ok()?;
-        let install_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if install_path.is_empty() {
-            continue;
-        }
-        // Check x64 first, then ARM64
-        for arch in &["x64", "ARM64"] {
-            let candidate = PathBuf::from(&install_path)
-                .join("VC")
-                .join("Tools")
-                .join("Llvm")
-                .join(arch)
-                .join("bin")
-                .join("clang.exe");
-            if candidate.exists() {
-                return Some(candidate);
-            }
-        }
-    }
-    None
-}
 
 fn which_path(name: &str) -> Option<PathBuf> {
     let path_var = match env::var_os("PATH") {
@@ -1949,18 +1862,10 @@ fn which_path(name: &str) -> Option<PathBuf> {
             return Some(candidate);
         }
         // On Windows, executables have .exe extension
-        #[cfg(windows)]
-        {
-            let with_exe = dir.join(format!("{}.exe", name));
-            if with_exe.exists() && is_executable(&with_exe) {
-                return Some(with_exe);
-            }
-        }
     }
     None
 }
 
-#[cfg(unix)]
 fn is_executable(p: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     fs::metadata(p)
@@ -1968,10 +1873,6 @@ fn is_executable(p: &Path) -> bool {
         .unwrap_or(false)
 }
 
-#[cfg(not(unix))]
-fn is_executable(p: &Path) -> bool {
-    p.exists()
-}
 
 /// Clang discovery, version preflight, compile-plan shaping, and temp-path
 /// naming. A sibling file only because of the 2,000-line cap; `use super::*`

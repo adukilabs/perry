@@ -79,12 +79,6 @@ pub extern "C" fn js_child_process_fork(module_ptr: i64, args_ptr: i64, opts_ptr
 
     // ChildProcess object: EventEmitter + stdio sub-objects + send/disconnect
     // (unix: pipe sockets, built once the spawn succeeded).
-    #[cfg(not(unix))]
-    let stdout_obj = cp_build_readable();
-    #[cfg(not(unix))]
-    let stderr_obj = cp_build_readable();
-    #[cfg(not(unix))]
-    let stdin_obj = cp_build_writable();
     let stdio_field = cp_get_field(opts_val, b"stdio");
     let ipc_fd = cp_array_ptr(stdio_field)
         .and_then(|stdio| {
@@ -169,40 +163,6 @@ pub extern "C" fn js_child_process_fork(module_ptr: i64, args_ptr: i64, opts_ptr
     let cp = cp_box_ptr(cp_obj as *const u8);
     cp_install_dispose(cp);
 
-    #[cfg(not(unix))]
-    let extra_streams = {
-        cp_set_field(cp, b"stdout", cp_stdio_js_value(stdio_kinds[1], stdout_obj));
-        cp_set_field(cp, b"stderr", cp_stdio_js_value(stdio_kinds[2], stderr_obj));
-        cp_set_field(cp, b"stdin", cp_stdio_js_value(stdio_kinds[0], stdin_obj));
-        let mut stdio = crate::array::js_array_alloc(stdio_count as u32);
-        stdio =
-            crate::array::js_array_push_f64(stdio, cp_stdio_js_value(stdio_kinds[0], stdin_obj));
-        stdio =
-            crate::array::js_array_push_f64(stdio, cp_stdio_js_value(stdio_kinds[1], stdout_obj));
-        stdio =
-            crate::array::js_array_push_f64(stdio, cp_stdio_js_value(stdio_kinds[2], stderr_obj));
-        let mut extra_streams = Vec::new();
-        for (fd, kind) in stdio_kinds.iter().copied().enumerate().skip(3) {
-            let stream = if fd != ipc_fd && kind == CpStdio::Pipe {
-                cp_build_readable()
-            } else {
-                TAG_NULL_F64
-            };
-            if fd != ipc_fd && kind == CpStdio::Pipe {
-                extra_streams.push((fd, stream));
-            }
-            stdio = crate::array::js_array_push_f64(
-                stdio,
-                if fd == ipc_fd {
-                    TAG_NULL_F64
-                } else {
-                    cp_stdio_js_value(kind, stream)
-                },
-            );
-        }
-        cp_set_field(cp, b"stdio", cp_box_ptr(stdio as *const u8));
-        extra_streams
-    };
     cp_set_field(cp, b"exitCode", TAG_NULL_F64);
     cp_set_field(cp, b"signalCode", TAG_NULL_F64);
     cp_set_field(cp, b"killed", TAG_FALSE_F64);
@@ -234,36 +194,9 @@ pub extern "C" fn js_child_process_fork(module_ptr: i64, args_ptr: i64, opts_ptr
     );
     cp_apply_detached(&mut command, opts_val);
     let launch = match cp_apply_live_stdio(&mut command, &stdio_kinds) {
-        #[cfg(unix)]
         Ok(parents) => fork_launch(
             cp,
             parents,
-            command,
-            advanced,
-            timeout,
-            kill_signal,
-            abort_signal,
-            opts_val,
-            ipc_fd,
-            &stdio_kinds,
-        ),
-        #[cfg(not(unix))]
-        Ok(extra_readers) => fork_launch(
-            cp,
-            ForkStdio {
-                stdout_obj,
-                stderr_obj,
-                stdin_obj,
-                extra_pipes: extra_readers
-                    .into_iter()
-                    .filter_map(|(fd, pipe)| {
-                        extra_streams
-                            .iter()
-                            .find(|(stream_fd, _)| *stream_fd == fd)
-                            .map(|(_, stream)| (fd, *stream, pipe))
-                    })
-                    .collect(),
-            },
             command,
             advanced,
             timeout,
@@ -292,20 +225,11 @@ pub extern "C" fn js_child_process_fork(module_ptr: i64, args_ptr: i64, opts_ptr
         // Node's `onexit` for a failed fork: the stdio sockets, the error,
         // and `'close'` once the exit, the readable sockets and the IPC
         // channel have closed.
-        #[cfg(unix)]
         let emit_closure = {
             cp_set_field(cp, b"exitCode", cp_errno_number(code));
             reactor::cp_attach_failed_pipe_sockets(cp, &stdio_kinds, pipes, true);
             crate::closure::js_closure_alloc(
                 crate::fn_info!(super::failed_spawn::emit_error_then_close, 0; with_declared(0)),
-                1,
-            )
-        };
-        #[cfg(not(unix))]
-        let emit_closure = {
-            let () = pipes;
-            crate::closure::js_closure_alloc(
-                crate::fn_info!(reactor::cp_emit_spawn_error, 0; with_declared(0)),
                 1,
             )
         };
@@ -343,27 +267,13 @@ fn current_entry_path() -> Option<String> {
     cp_value_to_string(crate::array::js_array_get_f64(argv, 1)).filter(|path| !path.is_empty())
 }
 
-/// The stdio a fork's launch hands the reactor, built before the spawn:
-/// readable/writable stream objects and the extra pipe readers (unix builds
-/// pipe sockets after the spawn from the parent ends instead).
-#[cfg(not(unix))]
-struct ForkStdio {
-    stdout_obj: f64,
-    stderr_obj: f64,
-    stdin_obj: f64,
-    extra_pipes: Vec<(usize, f64, std::fs::File)>,
-}
 
 /// A failed launch's error, with the pipe parent ends it made (unix: Node
 /// wraps them in sockets anyway).
-#[cfg(unix)]
 type ForkFailure = (std::io::Error, Vec<(usize, std::os::fd::OwnedFd)>);
-#[cfg(not(unix))]
-type ForkFailure = (std::io::Error, ());
 
 /// Wire up the platform IPC transport, launch the child, and register it with
 /// the reactor.
-#[cfg(unix)]
 #[allow(clippy::too_many_arguments)]
 fn fork_launch(
     cp: f64,
@@ -437,107 +347,4 @@ fn fork_launch(
     }
 }
 
-#[cfg(windows)]
-#[allow(clippy::too_many_arguments)]
-fn fork_launch(
-    cp: f64,
-    stdio: ForkStdio,
-    command: Command,
-    advanced: bool,
-    timeout: Option<Duration>,
-    kill_signal: i32,
-    abort_signal: Option<f64>,
-    opts_val: f64,
-    ipc_fd: usize,
-    stdio_kinds: &[CpStdio],
-) -> Result<(), ForkFailure> {
-    let ForkStdio {
-        stdout_obj,
-        stderr_obj,
-        stdin_obj,
-        extra_pipes,
-    } = stdio;
-    let clear_environment = cp_object_ptr(cp_get_field(opts_val, b"env")).is_some()
-        || crate::process::private_environment_snapshot().is_some();
-    let detached = cp_get_field(opts_val, b"detached").to_bits() == TAG_TRUE_F64.to_bits();
-    match super::windows_fork::spawn(
-        &command,
-        stdio_kinds,
-        Some(ipc_fd),
-        super::options::cp_read_argv0(opts_val).as_deref(),
-        clear_environment,
-        detached,
-    ) {
-        Ok((child, parent_pipe)) => {
-            cp_set_field(cp, b"connected", TAG_TRUE_F64);
-            let channel = cp_build_object(
-                &[
-                    ("ref", crate::fn_info!(cp_method_this0, 0; with_declared(0))),
-                    (
-                        "unref",
-                        crate::fn_info!(cp_method_this0, 0; with_declared(0)),
-                    ),
-                ],
-                CP_SHAPE_ID + 0x40,
-            );
-            cp_set_field(cp, b"channel", cp_box_ptr(channel as *const u8));
-            let handle = reactor::cp_register_windows_live_child(
-                cp,
-                stdout_obj,
-                stderr_obj,
-                stdin_obj,
-                extra_pipes,
-                child,
-                parent_pipe.expect("fork requested an IPC pipe"),
-                advanced,
-                timeout,
-                kill_signal,
-            );
-            reactor::cp_install_abort_signal(handle, abort_signal, opts_val);
-            Ok(())
-        }
-        Err(error) => Err((error, ())),
-    }
-}
 
-#[cfg(not(any(unix, windows)))]
-#[allow(clippy::too_many_arguments)]
-fn fork_launch(
-    cp: f64,
-    stdio: ForkStdio,
-    mut command: Command,
-    _advanced: bool,
-    timeout: Option<Duration>,
-    kill_signal: i32,
-    abort_signal: Option<f64>,
-    opts_val: f64,
-    _ipc_fd: usize,
-    _stdio_kinds: &[CpStdio],
-) -> Result<(), ForkFailure> {
-    let ForkStdio {
-        stdout_obj,
-        stderr_obj,
-        stdin_obj,
-        extra_pipes,
-    } = stdio;
-    match command.spawn() {
-        Ok(child) => {
-            let handle = reactor::cp_register_live_child(
-                cp,
-                stdout_obj,
-                stderr_obj,
-                stdin_obj,
-                extra_pipes,
-                0,
-                child,
-                None,
-                false,
-                timeout,
-                kill_signal,
-            );
-            reactor::cp_install_abort_signal(handle, abort_signal, opts_val);
-            Ok(())
-        }
-        Err(error) => Err((error, ())),
-    }
-}

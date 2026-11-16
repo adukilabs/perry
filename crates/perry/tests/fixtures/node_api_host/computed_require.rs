@@ -5,26 +5,9 @@ fn computed_native_requires_survive_relocation_and_authenticate_payloads() {
     if !require_tool("clang") {
         return;
     }
-    #[cfg(windows)]
-    if !require_tool("llvm-dlltool") {
-        return;
-    }
     // The shared Windows C fixture imports Node-API symbols from app.exe,
     // matching the Perry executable. Run the Node oracle under that basename
     // too so Windows binds those imports to the loaded host image.
-    #[cfg(windows)]
-    let oracle_directory = tempfile::tempdir().unwrap();
-    #[cfg(windows)]
-    let oracle_node = {
-        let mut locate = Command::new("node");
-        locate.args(["-p", "process.execPath"]);
-        let output = run(locate, "locate Node oracle");
-        let original = String::from_utf8(output.stdout).unwrap();
-        let oracle = oracle_directory.path().join("app.exe");
-        std::fs::copy(original.trim(), &oracle).unwrap();
-        oracle
-    };
-    #[cfg(not(windows))]
     let oracle_node = PathBuf::from("node");
 
     for variant in ["computed", "static-edge", "project", "platform-package"] {

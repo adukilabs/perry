@@ -22,7 +22,6 @@
 //! program prints `42` — only possible if `doThing()` reached the native
 //! symbol through the ergonomic alias.
 
-#![cfg(unix)]
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

@@ -57,14 +57,11 @@ fn env_lock_is_poison_tolerant_so_one_failure_cannot_cascade() {
         .env(CHILD, "1")
         .output()
         .unwrap();
-    #[cfg(unix)]
     let died_of_abort = {
         use std::os::unix::process::ExitStatusExt;
         output.status.signal() == Some(6) // SIGABRT
     };
     // `process::abort` is `__fastfail(FAST_FAIL_FATAL_APP_EXIT)`.
-    #[cfg(windows)]
-    let died_of_abort = output.status.code() == Some(0xC000_0409_u32 as i32);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         died_of_abort && stderr.contains(PANIC),

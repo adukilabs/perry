@@ -8,7 +8,6 @@
 
 // The macOS/Linux CLI is self-contained. Windows additionally needs LLVM-C.dll
 // staged beside the executable, which this Unix installation regression omits.
-#![cfg(unix)]
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};

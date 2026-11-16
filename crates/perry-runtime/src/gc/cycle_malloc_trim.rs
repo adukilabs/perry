@@ -198,27 +198,6 @@ pub(super) fn run_malloc_trim(_progress_kind: GcProgressKind) -> MallocTrimOutco
         };
     }
 
-    #[cfg(target_os = "macos")]
-    {
-        #[cfg(test)]
-        record_test_malloc_trim_executed();
-
-        // Darwin counterpart of glibc's malloc_trim: ask every malloc zone
-        // to return clean pages to the OS. Bounded allocator maintenance —
-        // same placement (Reclaim, outside the atomic tail).
-        unsafe extern "C" {
-            fn malloc_zone_pressure_relief(zone: *mut core::ffi::c_void, goal: usize) -> usize;
-        }
-        unsafe {
-            // NULL zone = all zones; goal 0 = release as much as possible.
-            malloc_zone_pressure_relief(core::ptr::null_mut(), 0);
-        }
-        return MallocTrimOutcome {
-            status: AllocatorMaintenanceStatus::Executed,
-            reason: AllocatorMaintenanceReason::ExplicitOrEmergency,
-            elapsed_us: trim_start.elapsed().as_micros() as u64,
-        };
-    }
 
     #[cfg(not(any(target_env = "gnu", target_os = "macos")))]
     {
@@ -268,103 +247,11 @@ pub(crate) const fn mimalloc_purge_available() -> bool {
     cfg!(all(target_pointer_width = "64", feature = "alloc-mimalloc"))
 }
 
-/// Apple and Windows GC blocks are their own regions (`arena/region/apple.rs`,
-/// `arena/region/windows.rs`), so block allocation no longer passes through
-/// mimalloc. mimalloc runs its deferred
-/// purges on its own allocation traffic, and GC block churn used to be much of
-/// it: freed collector and runtime memory then stayed dirty until the next
-/// full collection's [`run_allocator_purge`] (+5 MiB peak footprint on an
-/// Effect workload, where block allocations had been reusing that memory).
-///
-/// Drain those purges when the GC heap grows by a fresh region, at most once
-/// per mimalloc's default purge delay on each thread, so memory freed since
-/// the last drain leaves the footprint before the heap takes new pages.
-/// `PERRY_GC_MALLOC_PURGE=0` disables this along with the cycle purge.
-#[cfg(any(target_vendor = "apple", windows))]
-pub(crate) fn purge_allocator_on_region_growth() {
-    thread_local! {
-        static LAST_REGION_GROWTH_PURGE: Cell<Option<Instant>> = const { Cell::new(None) };
-    }
-    #[cfg(test)]
-    TEST_REGION_GROWTH_PURGE_CHECKS.with(|c| c.set(c.get().saturating_add(1)));
-    if !allocator_purge_enabled() {
-        return;
-    }
-    if !LAST_REGION_GROWTH_PURGE.with(|last| region_growth_purge_due(last, Instant::now())) {
-        return;
-    }
-    #[cfg(all(target_pointer_width = "64", feature = "alloc-mimalloc"))]
-    // SAFETY: as in `run_allocator_purge`: mimalloc's own maintenance entry,
-    // called from a thread that allocates; it touches allocator metadata only.
-    unsafe {
-        libmimalloc_sys::mi_collect(true);
-    }
-}
 
-/// mimalloc's default `purge_delay`.
-#[cfg(any(target_vendor = "apple", windows))]
-const REGION_GROWTH_PURGE_INTERVAL: Duration = Duration::from_millis(10);
 
-#[cfg(any(target_vendor = "apple", windows))]
-fn region_growth_purge_due(last: &Cell<Option<Instant>>, now: Instant) -> bool {
-    if last
-        .get()
-        .is_some_and(|then| now.saturating_duration_since(then) < REGION_GROWTH_PURGE_INTERVAL)
-    {
-        return false;
-    }
-    last.set(Some(now));
-    true
-}
 
-#[cfg(all(test, any(target_vendor = "apple", windows)))]
-thread_local! {
-    static TEST_REGION_GROWTH_PURGE_CHECKS: Cell<usize> = const { Cell::new(0) };
-}
 
-#[cfg(all(test, any(target_vendor = "apple", windows)))]
-pub(crate) fn test_region_growth_purge_checks() -> usize {
-    TEST_REGION_GROWTH_PURGE_CHECKS.with(Cell::get)
-}
 
-#[cfg(all(test, any(target_vendor = "apple", windows)))]
-mod region_growth_purge_tests {
-    use super::*;
-
-    #[test]
-    fn region_growth_purges_at_most_once_per_purge_delay() {
-        let last = Cell::new(None);
-        let start = Instant::now();
-        assert!(region_growth_purge_due(&last, start), "first growth drains");
-        assert!(!region_growth_purge_due(
-            &last,
-            start + Duration::from_millis(1)
-        ));
-        assert!(!region_growth_purge_due(
-            &last,
-            start + REGION_GROWTH_PURGE_INTERVAL - Duration::from_micros(1)
-        ));
-        assert!(region_growth_purge_due(
-            &last,
-            start + REGION_GROWTH_PURGE_INTERVAL
-        ));
-        assert!(!region_growth_purge_due(
-            &last,
-            start + REGION_GROWTH_PURGE_INTERVAL + Duration::from_millis(1)
-        ));
-    }
-
-    #[test]
-    fn fresh_region_maps_check_for_a_due_purge() {
-        let before = test_region_growth_purge_checks();
-        unsafe {
-            let data = crate::arena::new_test_block_backing(crate::arena::BLOCK_SIZE);
-            assert!(!data.is_null());
-            crate::arena::release_test_block_backing(data, crate::arena::BLOCK_SIZE);
-        }
-        assert_eq!(test_region_growth_purge_checks(), before + 1);
-    }
-}
 
 #[cfg(test)]
 mod reclaim_purge_tests {

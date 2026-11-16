@@ -58,8 +58,6 @@ mod native_features;
 mod pkg_config;
 mod platform_cmd;
 mod runtime_layouts;
-#[cfg(feature = "target-wasi")]
-pub(super) mod wasi;
 mod watchos_frameworks;
 mod windows_link;
 mod winui_assets;
@@ -978,14 +976,6 @@ mod response_file_tests {
         assert!(!p.contains("aarch64-linux-android24-clang"), "{p}");
         assert!(!p.ends_with(".cmd"), "{p}");
         assert!(p.starts_with("/ndk/toolchains/llvm/prebuilt/"), "{p}");
-        #[cfg(target_os = "macos")]
-        assert_eq!(p, "/ndk/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang");
-        #[cfg(target_os = "windows")]
-        assert_eq!(
-            p,
-            "/ndk/toolchains/llvm/prebuilt/windows-x86_64/bin/clang.exe"
-        );
-        #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
         assert_eq!(p, "/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/clang");
     }
 

@@ -32,8 +32,6 @@ pub(crate) use v8_serde::{
 };
 
 use std::process::Command;
-#[cfg(not(unix))]
-use std::process::Stdio;
 
 #[cfg(test)]
 use crate::object::js_object_get_field_by_name_f64;
@@ -94,24 +92,14 @@ pub(crate) use emitter::{
     cp_method_remove_listener, cp_method_send, cp_method_this0, cp_method_unref, cp_register,
     js_fork_child,
 };
-#[cfg(not(unix))]
-pub(crate) use emitter::{
-    cp_method_pipe, cp_method_read, cp_method_set_encoding, cp_method_stdin_end,
-    cp_method_stdin_write, cp_readable_end,
-};
 
 // builder.rs — heap object construction + shape ids.
 pub(crate) use builder::{
     cp_build_object, cp_build_unstarted_child_process, cp_install_dispose, CpFn, CP_SHAPE_ID,
 };
-#[cfg(not(unix))]
-pub(crate) use builder::{cp_build_readable, cp_build_writable};
 
 // options.rs — command option application (cwd/env/uid/gid/argv0/detached/stdio).
-#[cfg(unix)]
 pub(crate) use options::cp_resolve_program_path;
-#[cfg(not(unix))]
-pub(crate) use options::cp_stdio_js_value;
 pub(crate) use options::{
     cp_abort_signal_is_aborted, cp_apply_argv0, cp_apply_detached, cp_apply_live_stdio,
     cp_apply_options, cp_build_command, cp_command_for_program, cp_read_abort_signal,
@@ -173,9 +161,6 @@ mod tests {
         // Windows — spawnSync (no shell) can never launch it there, in Node
         // too (ENOENT). The subject is the result shape of a SUCCESSFUL
         // spawn, so spawn `cmd /c echo hi` on Windows instead (#7356).
-        #[cfg(windows)]
-        let (cmd, extra_args): (&str, &[&[u8]]) = ("cmd", &[b"/c", b"echo"]);
-        #[cfg(not(windows))]
         let (cmd, extra_args): (&str, &[&[u8]]) = ("echo", &[]);
 
         let cmd_ptr = js_string_from_bytes(cmd.as_ptr(), cmd.len() as u32);
@@ -241,9 +226,4 @@ mod tests {
 /// or acquiring process registries, so the exception remains safely catchable.
 #[inline]
 fn cp_require_process_support() {
-    #[cfg(target_os = "wasi")]
-    crate::fs::validate::throw_error_with_code(
-        "child_process is not supported on WASI",
-        "ERR_NOT_SUPPORTED",
-    );
 }

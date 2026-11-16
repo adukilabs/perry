@@ -1,14 +1,5 @@
 //! #9607 — Claude Code's vendor Bun.ant peer-credential and pressure hooks.
 
-#![cfg(any(
-    target_os = "linux",
-    target_os = "android",
-    target_os = "macos",
-    target_os = "freebsd",
-    target_os = "openbsd",
-    target_os = "netbsd",
-    target_os = "dragonfly"
-))]
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

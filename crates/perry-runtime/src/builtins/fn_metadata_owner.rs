@@ -423,22 +423,15 @@ impl<'a> Record<'a> {
 /// directly; other formats and unloadable copies use an allocation-free scan.
 pub(crate) struct BundleFunctionNames<'a>(&'a [ImageRecords]);
 
-#[cfg(all(unix, not(target_vendor = "apple")))]
 #[path = "ordered_function_records.rs"]
 mod ordered_records;
 
-#[cfg(all(unix, not(target_vendor = "apple")))]
 core::arch::global_asm!(".weak perry_fnrec_bounds\n.hidden perry_fnrec_bounds");
 
 fn static_record_bounds() -> Option<&'static FunctionRecordBounds> {
     // Mach-O cannot bind this reference: the `.weak` definition above is ELF-only,
     // and an extern_weak with no definition is a hard undefined symbol there.
     // Apple images fall through to the allocation-free scan.
-    #[cfg(target_vendor = "apple")]
-    {
-        return None;
-    }
-    #[cfg(not(target_vendor = "apple"))]
     {
         unsafe extern "C" {
             #[linkage = "extern_weak"]
@@ -544,7 +537,6 @@ impl BundleFunctionNames<'_> {
             .into_iter()
             .chain(self.0.iter().copied())
             .filter_map(|image| {
-                #[cfg(all(unix, not(target_vendor = "apple")))]
                 if let ImageRecords::Image(bounds) = image {
                     return ordered_records::predecessor(bounds, ip);
                 }

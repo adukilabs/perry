@@ -975,7 +975,6 @@ mod state_tests {
         assert!(a.to_string_lossy().contains("app-a"));
     }
 
-    #[cfg(all(unix, not(target_os = "macos")))]
     #[test]
     fn linux_honours_xdg_then_falls_back_to_dot_cache() {
         let xdg = state_dir_for("app", Some("/x/cache"), Some("/home/u"), None).unwrap();
@@ -987,15 +986,6 @@ mod state_tests {
         assert!(empty.starts_with("/home/u/.cache"));
     }
 
-    #[cfg(target_os = "macos")]
-    #[test]
-    fn macos_uses_library_caches_rather_than_xdg() {
-        let dir = state_dir_for("app", Some("/x/cache"), Some("/home/u"), None).unwrap();
-        assert!(
-            dir.to_string_lossy().contains("Library/Caches"),
-            "a program writing ~/.cache on macOS looks unported: {dir:?}"
-        );
-    }
 
     #[test]
     fn nothing_recorded_means_nothing_to_say() {

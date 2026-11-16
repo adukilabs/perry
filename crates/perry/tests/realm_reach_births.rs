@@ -10,7 +10,6 @@
 //! never goes through a JS-visible builder: it births no Timeout/Immediate
 //! handle, so those programs run without the TIMEOUT/IMMEDIATE layouts, in
 //! the same loop phase and order as node, as node's async_hooks providers.
-#![cfg(target_os = "linux")]
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};

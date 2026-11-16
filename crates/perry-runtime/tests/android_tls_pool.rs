@@ -1,6 +1,5 @@
 //! #10219: more live Perry declarations than Android's entire pthread key
 //! budget. The same binary checks thread isolation and real value destruction.
-#![cfg(unix)]
 #![recursion_limit = "512"]
 
 use std::cell::RefCell;
@@ -82,54 +81,3 @@ fn hundreds_of_perry_declarations_initialize_and_drop_on_multiple_threads() {
 
 // A destructor owned by another library can run after Perry's entire pool.
 // Keep try_with fallible then, including across repeated POSIX destructor passes.
-#[cfg(target_os = "android")]
-#[test]
-fn later_pthread_destructors_cannot_resurrect_the_hot_cache() {
-    use std::sync::atomic::AtomicU8;
-    static OBSERVED: AtomicU8 = AtomicU8::new(0);
-    perry_runtime::perry_thread_local! {
-        static LATE_PROBE: RefCell<Vec<u8>> = RefCell::new(Vec::new());
-    }
-    struct Callback {
-        key: libc::pthread_key_t,
-        round: u8,
-    }
-    unsafe extern "C" fn callback(raw: *mut libc::c_void) {
-        let state = &mut *raw.cast::<Callback>();
-        state.round += 1;
-        if state.round < 3 {
-            assert_eq!(libc::pthread_setspecific(state.key, raw), 0);
-            return;
-        }
-        let observed = match std::panic::catch_unwind(|| LATE_PROBE.try_with(|_| ())) {
-            Ok(Err(_)) => 1,
-            Ok(Ok(_)) => 2,
-            Err(_) => 3,
-        };
-        OBSERVED.store(observed, Ordering::SeqCst);
-        drop(Box::from_raw(raw.cast::<Callback>()));
-    }
-    // By the third callback pass the pool has been destroyed, regardless of
-    // which key the platform visits first within each pass.
-    let key = std::thread::spawn(|| {
-        LATE_PROBE.with(|value| value.borrow_mut().push(1));
-        let mut key = 0;
-        assert_eq!(
-            unsafe { libc::pthread_key_create(&mut key, Some(callback)) },
-            0
-        );
-        let state = Box::into_raw(Box::new(Callback { key, round: 0 }));
-        assert_eq!(unsafe { libc::pthread_setspecific(key, state.cast()) }, 0);
-        key
-    })
-    .join()
-    .unwrap();
-    unsafe {
-        libc::pthread_key_delete(key);
-    }
-    assert_eq!(
-        OBSERVED.load(Ordering::SeqCst),
-        1,
-        "1=AccessError, 2=resurrected value, 3=panic, 0=callback never ran"
-    );
-}

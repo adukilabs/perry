@@ -31,14 +31,11 @@ pub(in crate::child_process) fn cp_exec_async(
     // off the display command string.
     let file = {
         let program = command.get_program().to_string_lossy();
-        #[cfg(unix)]
         if program == "sh" {
             "/bin/sh".to_string()
         } else {
             program.into_owned()
         }
-        #[cfg(not(unix))]
-        program.into_owned()
     };
 
     let timeout = run_options.timeout();
@@ -107,7 +104,6 @@ pub(in crate::child_process) fn cp_exec_async(
 /// Unix: Node's `execFile` is a `spawn` with the default stdio (three pipes,
 /// so `stdin`/`stdout`/`stderr` are sockets); the callback buffers what the
 /// stdout/stderr sockets read and fires on `'close'`.
-#[cfg(unix)]
 fn cp_exec_launch(
     cp: f64,
     mut command: Command,
@@ -153,131 +149,6 @@ fn cp_exec_launch(
     }
 }
 
-/// Elsewhere stdout/stderr are read on background reader threads and stdin is
-/// not fed.
-#[cfg(not(unix))]
-fn cp_exec_launch(
-    cp: f64,
-    mut command: Command,
-    exec: Box<CpExecPending>,
-    timeout: Option<Duration>,
-    kill_signal: i32,
-) -> f64 {
-    // exec/execFile capture stdout+stderr and never feed stdin.
-    command.stdin(Stdio::null());
-    command.stdout(Stdio::piped());
-    command.stderr(Stdio::piped());
-    let stdout_obj = cp_build_readable();
-    let stderr_obj = cp_build_readable();
-    cp_set_field(cp, b"stdout", stdout_obj);
-    cp_set_field(cp, b"stderr", stderr_obj);
-    cp_set_field(cp, b"stdin", TAG_NULL_F64);
-    let mut stdio = crate::array::js_array_alloc(3);
-    stdio = crate::array::js_array_push_f64(stdio, TAG_NULL_F64);
-    stdio = crate::array::js_array_push_f64(stdio, stdout_obj);
-    stdio = crate::array::js_array_push_f64(stdio, stderr_obj);
-    cp_set_field(cp, b"stdio", cp_box_ptr(stdio as *const u8));
-
-    #[cfg(not(windows))]
-    let launch = command.spawn();
-    #[cfg(windows)]
-    let launch = super::super::windows_child::spawn(
-        &mut command,
-        &[CpStdio::Ignore, CpStdio::Pipe, CpStdio::Pipe],
-        exec.run_options.argv0.as_deref(),
-        exec.run_options.clear_environment,
-        exec.run_options.detached,
-    );
-    match launch {
-        Ok(mut child) => {
-            let pid = child.id();
-            // Duplicate the process handle BEFORE `child` moves to the waiter
-            // thread — the kill paths act on it instead of the recyclable pid.
-            #[cfg(windows)]
-            let win_proc_handle = cp_win_dup_proc_handle(&child);
-            let stdout_pipe = child.stdout.take();
-            let stderr_pipe = child.stderr.take();
-            let stdout_open = stdout_pipe.is_some();
-            let stderr_open = stderr_pipe.is_some();
-            let handle = CP_NEXT_LIVE_ID.fetch_add(1, Ordering::SeqCst);
-            cp_set_field(cp, b"pid", pid as f64);
-            cp_set_field(cp, b"__cpHandle", handle as f64);
-            cp_set_field(stdout_obj, b"__cpHandle", handle as f64);
-            cp_set_field(stderr_obj, b"__cpHandle", handle as f64);
-            let closes_needed = 1 + stdout_open as u32 + stderr_open as u32;
-            cp_set_field(cp, b"_closesNeeded", closes_needed as f64);
-            cp_set_field(cp, b"_closesGot", 0.0);
-
-            let (process_ids, pipe_ids) = cp_init_async_resources(cp, None, stdout_obj, stderr_obj);
-
-            {
-                register_thread_exit_release();
-                let mut guard = cp_live_lock();
-                let map = guard.get_or_insert_with(HashMap::new);
-                map.insert(
-                    handle,
-                    LiveChild {
-                        owner: crate::agent::current_agent(),
-                        cp_bits: cp.to_bits(),
-                        process_ids,
-                        pipe_ids,
-                        pipe_bits: [
-                            TAG_NULL_F64.to_bits(),
-                            stdout_obj.to_bits(),
-                            stderr_obj.to_bits(),
-                        ],
-                        pid: pid as i32,
-                        stdin: None,
-                        stdout_open,
-                        stderr_open,
-                        stdout_eof_pending: false,
-                        extra_open: Vec::new(),
-                        loop_streams: Vec::new(),
-                        spawned: false,
-                        exited: None,
-                        exit_emitted: false,
-                        closes_needed,
-                        closes_got: 0,
-                        closed: false,
-                        refed: true,
-                        ipc_send: None,
-                        ipc_advanced: false,
-                        abort_signal_bits: 0,
-                        abort_listener_bits: 0,
-                        abort_kill_signal: libc_sigterm(),
-                        #[cfg(windows)]
-                        win_kill_signal: None,
-                        #[cfg(windows)]
-                        win_proc_handle,
-                        exec: Some(exec),
-                    },
-                );
-            }
-            crate::stdlib_pump::register_runtime_pump(0, cp_reactor_pump_extern);
-            CP_LIVE_COUNT.fetch_add(1, Ordering::SeqCst);
-            CP_REFED_COUNT.fetch_add(1, Ordering::SeqCst);
-
-            if let Some(o) = stdout_pipe {
-                cp_spawn_reader(handle, cp_pipe_from_child_stdout(o), 1);
-            }
-            if let Some(e) = stderr_pipe {
-                cp_spawn_reader(handle, cp_pipe_from_child_stderr(e), 2);
-            }
-            let waiter: CpWaiter = Box::new(move || match child.wait() {
-                Ok(status) => (status.code(), None),
-                Err(_) => (Some(-1), None),
-            });
-            cp_spawn_waiter(
-                handle,
-                waiter,
-                timeout.map(|timeout| (timeout, kill_signal)),
-            );
-            crate::event_pump::js_notify_main_thread();
-            cp
-        }
-        Err(error) => cp_exec_spawn_failed(cp, exec, &error),
-    }
-}
 
 /// Could not spawn at all (ENOENT, EACCES…). Build the same callback error
 /// the sync path produced and fire it on a later tick.

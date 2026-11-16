@@ -187,7 +187,6 @@ pub fn retire_agent(id: AgentId) {
     //
     // The primary agent is not retired; its loop goes down through the
     // process-exit funnel (`event_pump::shutdown_wait_driver`) instead.
-    #[cfg(not(target_arch = "wasm32"))]
     crate::event_pump::shutdown_agent_loop();
     crate::timer::purge_agent_timers(id);
     crate::thread_hook_slots::purge_agent_thread_results(id);
@@ -275,35 +274,7 @@ mod tests {
 /// Native thread identity for diagnostics. This identifies the physical thread,
 /// separately from current_agent(), which identifies its JS heap owner.
 pub fn current_thread_native_id() -> u64 {
-    #[cfg(any(target_os = "linux", target_os = "android"))]
     {
         unsafe { libc::syscall(libc::SYS_gettid) as u64 }
-    }
-    #[cfg(target_vendor = "apple")]
-    {
-        let mut tid = 0;
-        unsafe {
-            libc::pthread_threadid_np(0, &mut tid);
-        }
-        tid
-    }
-    #[cfg(all(
-        unix,
-        not(any(target_os = "linux", target_os = "android", target_vendor = "apple"))
-    ))]
-    {
-        unsafe { libc::pthread_self() as u64 }
-    }
-    #[cfg(windows)]
-    {
-        #[link(name = "kernel32")]
-        unsafe extern "system" {
-            fn GetCurrentThreadId() -> u32;
-        }
-        unsafe { GetCurrentThreadId() as u64 }
-    }
-    #[cfg(not(any(unix, windows)))]
-    {
-        current_agent()
     }
 }

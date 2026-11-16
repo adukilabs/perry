@@ -11,7 +11,6 @@
 //! These modules live behind perry-stdlib's `container` feature, which the
 //! prebuilt `full` archive does not include, so the program is compiled with
 //! auto-optimize (it rebuilds runtime+stdlib with `container`).
-#![cfg(unix)]
 
 use std::os::unix::fs::PermissionsExt;
 use std::process::Command;

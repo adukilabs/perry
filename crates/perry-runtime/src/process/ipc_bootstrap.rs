@@ -1,12 +1,8 @@
 //! Existing Node environment/channel bootstrap state; one guard, unchanged.
 use std::collections::VecDeque;
-#[cfg(unix)]
 use std::os::unix::net::UnixStream;
 use std::sync::{Mutex, MutexGuard, OnceLock};
-#[cfg(unix)]
 pub(super) type IpcStream = UnixStream;
-#[cfg(windows)]
-pub(super) type IpcStream = crate::child_process::ipc_transport::IpcStream;
 
 pub(super) enum IpcEvent {
     Message(String),
@@ -21,7 +17,6 @@ pub(super) struct ChildIpcState {
     pub(super) refed: bool,
     pub(super) disconnect_emitted: bool,
     pub(super) advanced: bool,
-    #[cfg(any(unix, windows))]
     pub(super) send: Option<IpcStream>,
     pub(super) queue: VecDeque<IpcEvent>,
 }
@@ -35,7 +30,6 @@ impl ChildIpcState {
             refed: false,
             disconnect_emitted: false,
             advanced: false,
-            #[cfg(any(unix, windows))]
             send: None,
             queue: VecDeque::new(),
         }

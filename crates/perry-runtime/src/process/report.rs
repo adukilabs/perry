@@ -176,7 +176,6 @@ fn process_report_object(trigger: &str, filename: Option<&str>) -> f64 {
             .to_bits(),
         ),
     );
-    #[cfg(not(windows))]
     obj.set(
         9,
         JSValue::from_bits((process_report_user_limits_object()).to_bits()),
@@ -440,7 +439,6 @@ fn process_report_thread_resource_usage_object() -> f64 {
     module_object_value(obj.finish())
 }
 
-#[cfg(not(windows))]
 fn process_report_user_limits_object() -> f64 {
     crate::object::runtime_layouts::runtime_record!(obj, RECORD_Q466_0);
     obj.set(
@@ -609,11 +607,6 @@ pub(crate) fn process_report_json_string(trigger: &str, filename: Option<&str>) 
             }
         }
         *header = ordered;
-    }
-    #[cfg(windows)]
-    if let Some(value) = value.as_object_mut() {
-        value.remove("userLimits");
-        value["header"]["release"]["libUrl"] = serde_json::json!("");
     }
     serde_json::to_string_pretty(&value).unwrap_or_else(|_| "{}".to_string())
 }

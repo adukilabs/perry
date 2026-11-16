@@ -73,7 +73,6 @@ mod tests {
         }
     }
 
-    #[cfg(unix)]
     #[test]
     fn each_operand_stops_before_a_guard_page() {
         unsafe {

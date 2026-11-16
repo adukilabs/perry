@@ -52,7 +52,6 @@ fn run_ts(src: &str) -> String {
 // executable on Windows, and asserts a status-0/stdout shape specific to it.
 // The fix under test (default-import alias registration) is platform-agnostic;
 // this just exercises it through a concrete builtin call.
-#[cfg(unix)]
 #[test]
 fn default_imported_child_process_spawn_sync_dispatches() {
     // `cp.spawnSync` via a DEFAULT import (the require()-adoption shape) must

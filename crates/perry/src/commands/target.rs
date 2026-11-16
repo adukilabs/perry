@@ -867,6 +867,3 @@ fn run_remove(
 
 // The fixtures sign with ed25519-dalek, a direct dependency only with updater-cli.
 // Beside this file, not in `target/`: the repo's .gitignore claims `target/`.
-#[cfg(all(test, feature = "updater-cli"))]
-#[path = "target_tests.rs"]
-mod target_tests;

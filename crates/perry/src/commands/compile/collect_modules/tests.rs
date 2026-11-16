@@ -423,7 +423,6 @@ void value;
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn symlinked_entry_resolves_relative_imports_from_lexical_path() {
     let dir = tempfile::tempdir().expect("tempdir");
@@ -1256,7 +1255,6 @@ fn perry_native_library_package_is_not_rejected_by_node_addon_guard() {
         .expect("perry.nativeLibrary package should not be rejected by the Node addon guard");
 }
 
-#[cfg(unix)]
 #[test]
 fn bun_compile_package_js_esm_realpath_parses_as_module() {
     let dir = tempfile::tempdir().expect("tempdir");

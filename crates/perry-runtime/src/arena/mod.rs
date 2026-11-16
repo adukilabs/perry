@@ -116,7 +116,6 @@ pub(crate) use page_meta::{page_generation_cache_hot_addr, page_generations_hot_
 pub(crate) use block::block_pool_bytes;
 pub(crate) use page_meta::page_meta_census;
 pub(crate) use region::contains as region_contains;
-#[cfg(target_os = "linux")]
 pub(crate) use region::reservation::classify as region_classify;
 pub(crate) use stats::arena_free_list_bytes;
 pub(crate) use walk::arena_space_census;
@@ -231,8 +230,6 @@ pub(crate) use page_meta::old_arena_block_ranges;
 
 #[cfg(test)]
 pub(crate) use region::new_test_block_backing;
-#[cfg(all(test, any(target_vendor = "apple", windows)))]
-pub(crate) use region::release_test_block_backing;
 
 pub(crate) use inline::refresh_inline_allocation_limit;
 #[cfg(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64"))]

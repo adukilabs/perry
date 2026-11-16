@@ -752,7 +752,6 @@ struct ListenPlan {
     /// and passes accepted descriptors instead of this worker binding.
     rr_inject: bool,
     /// 4 or 6; keys the primary's descriptor channel (unix only).
-    #[cfg_attr(not(unix), allow(dead_code))]
     address_type: i32,
 }
 
@@ -789,7 +788,6 @@ impl ListenPlan {
     /// parks on `recv_fd` and hands every descriptor to this agent's loop
     /// (`turnloop_serve::adopt_connection`), where it is served exactly like a
     /// connection turnloop accepted itself.
-    #[cfg(unix)]
     fn start_rr_inject(&self) -> bool {
         let actual_port = self.resolved.expect("rr_inject implies a resolved port");
         crate::server::cluster_bind::notify_listening(&self.host, actual_port);
@@ -836,10 +834,6 @@ impl ListenPlan {
         true
     }
 
-    #[cfg(not(unix))]
-    fn start_rr_inject(&self) -> bool {
-        false
-    }
 }
 
 /// SCHED_RR workers' "stop accepting" flag, set by `server.close()`.

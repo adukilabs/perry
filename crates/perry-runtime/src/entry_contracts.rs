@@ -300,13 +300,10 @@ mod tests {
                 .env("PERRY_CONTRACT_TEST_KIND", kind)
                 .output()
                 .unwrap();
-            #[cfg(unix)]
             {
                 use std::os::unix::process::ExitStatusExt;
                 assert_eq!(output.status.signal(), Some(6), "{kind}: {:?}", output);
             }
-            #[cfg(not(unix))]
-            assert!(!output.status.success());
             let error = String::from_utf8_lossy(&output.stderr);
             assert!(error.contains("[perry-contract]"), "{kind}: {error}");
             let expected = if kind == "Handle" || kind == "Extent" {

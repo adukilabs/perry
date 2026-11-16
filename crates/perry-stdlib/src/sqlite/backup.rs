@@ -393,20 +393,5 @@ pub(crate) fn resolve_sqlite_path(filename: &str) -> String {
     if filename == ":memory:" || filename.starts_with('/') || filename.starts_with(':') {
         return filename.to_string();
     }
-    #[cfg(target_os = "ios")]
-    {
-        extern "C" {
-            fn getenv(name: *const i8) -> *const i8;
-        }
-        unsafe {
-            let home = getenv(b"HOME\0".as_ptr() as *const i8);
-            if !home.is_null() {
-                let home_str = std::ffi::CStr::from_ptr(home).to_str().unwrap_or("");
-                let docs = format!("{}/Documents", home_str);
-                let _ = std::fs::create_dir_all(&docs);
-                return format!("{}/{}", docs, filename);
-            }
-        }
-    }
     filename.to_string()
 }

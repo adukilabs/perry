@@ -153,7 +153,6 @@ pub(crate) fn native_root_slot_context() -> Option<NativeRootSlotContext> {
 /// Best-effort symbol name for an address, via `dladdr` — same approach as
 /// `eh_walker.rs`. `PERRY_KEEP_SYMBOLS=1` binaries resolve their own
 /// `perry_closure_*` symbols; stripped ones print only the address.
-#[cfg(unix)]
 fn symbol_near(addr: usize) -> Option<String> {
     let mut info: libc::Dl_info = unsafe { std::mem::zeroed() };
     if unsafe { libc::dladdr(addr as *const libc::c_void, &mut info) } == 0
@@ -165,10 +164,6 @@ fn symbol_near(addr: usize) -> Option<String> {
     Some(name.to_string_lossy().into_owned())
 }
 
-#[cfg(not(unix))]
-fn symbol_near(_addr: usize) -> Option<String> {
-    None
-}
 
 /// Has any object in a space the copying minor relocates ever been pinned?
 ///

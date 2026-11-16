@@ -472,7 +472,6 @@ console.log("reload", m2 !== m, m2.loads, require.cache[path].exports === m2);
 /// gets the native module, the one a static import gets, even with the npm
 /// package installed in `node_modules`. The stub package's `spawn` throws, so
 /// reaching it fails the test.
-#[cfg(unix)]
 #[test]
 fn create_require_of_native_package_is_the_native_module() {
     let dir = tempfile::tempdir().expect("tempdir");

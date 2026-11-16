@@ -483,8 +483,6 @@ mod tests {
                 ship_package_payload: true,
                 reach: Default::default(),
                 node_api_imports: Default::default(),
-                #[cfg(feature = "target-wasi")]
-                wasm_archives: Vec::new(),
             },
         );
         let root = stage_native_addon_sidecar(&ctx, &output, None)
@@ -560,8 +558,6 @@ mod tests {
             ship_package_payload: true,
             reach: Default::default(),
             node_api_imports: Default::default(),
-            #[cfg(feature = "target-wasi")]
-            wasm_archives: Vec::new(),
         };
         let ctx = CompilationContext::new(dir.path().to_path_buf());
         let actual = addon_payload_files(&ctx, &addon)
@@ -614,8 +610,6 @@ mod tests {
             ship_package_payload: true,
             reach: Default::default(),
             node_api_imports: Default::default(),
-            #[cfg(feature = "target-wasi")]
-            wasm_archives: Vec::new(),
         };
         fs::write(package.join("package.json"), r#"{"name":"demo"}"#).unwrap();
         assert_eq!(package_entry_aliases(&addon), vec!["demo"]);
@@ -644,41 +638,19 @@ mod tests {
             .map(|index| (index % 251) as u8)
             .collect::<Vec<_>>();
         fs::write(&source, &bytes).unwrap();
-        #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(&source, fs::Permissions::from_mode(0o744)).unwrap();
         }
-        #[cfg(target_os = "macos")]
-        assert!(std::process::Command::new("xattr")
-            .args(["-w", "com.perry.payload-test", "retained"])
-            .arg(&source)
-            .status()
-            .unwrap()
-            .success());
         let (hash, size) = copy_and_hash_file(&source, &destination).unwrap();
         assert_eq!(size, bytes.len() as u64);
         assert_eq!(hash, perry_hex::encode(Sha256::digest(&bytes)));
         assert_eq!(fs::read(&destination).unwrap(), bytes);
-        #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             assert_eq!(
                 fs::metadata(&destination).unwrap().permissions().mode() & 0o777,
                 0o744
-            );
-        }
-        #[cfg(target_os = "macos")]
-        {
-            let attribute = std::process::Command::new("xattr")
-                .args(["-p", "com.perry.payload-test"])
-                .arg(&destination)
-                .output()
-                .unwrap();
-            assert!(attribute.status.success());
-            assert_eq!(
-                String::from_utf8_lossy(&attribute.stdout).trim(),
-                "retained"
             );
         }
     }

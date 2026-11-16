@@ -288,7 +288,6 @@ mod tests {
         );
     }
 
-    #[cfg(unix)]
     #[test]
     fn isolated_store_payload_inherits_the_wrapper_opt_in() {
         // pnpm's global virtual store: the wrapper and each payload live in

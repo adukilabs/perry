@@ -7,7 +7,6 @@
 //! PTY arms are load-bearing: two competing `StdinLock` owners can appear green
 //! under a pipe depending on which reader happens to start first.
 
-#![cfg(unix)]
 
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};

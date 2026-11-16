@@ -9,7 +9,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 use std::time::Duration;
 
-#[cfg(unix)]
 use std::time::SystemTime;
 
 use anyhow::Error;
@@ -158,7 +157,6 @@ pub(super) fn reap_stale_llvm_scratch_once(tmp_dir: &Path) {
     });
 }
 
-#[cfg(unix)]
 pub(super) fn reap_stale_llvm_scratch(tmp_dir: &Path, min_age: Duration) -> usize {
     let Ok(entries) = fs::read_dir(tmp_dir) else {
         return 0;
@@ -194,14 +192,7 @@ pub(super) fn reap_stale_llvm_scratch(tmp_dir: &Path, min_age: Duration) -> usiz
     removed
 }
 
-#[cfg(not(unix))]
-pub(super) fn reap_stale_llvm_scratch(_tmp_dir: &Path, _min_age: Duration) -> usize {
-    // Windows has no `kill(pid, 0)` equivalent in the standard library. Keep
-    // the retention cap there, but do not risk deleting another process's IR.
-    0
-}
 
-#[cfg(unix)]
 fn scratch_owner_pid(name: &str) -> Option<u32> {
     let suffix = name.strip_prefix(SCRATCH_PREFIX)?;
     let (pid, counter) = suffix.split_once('_')?;
@@ -216,7 +207,6 @@ fn scratch_owner_pid(name: &str) -> Option<u32> {
     (pid != 0).then_some(pid)
 }
 
-#[cfg(unix)]
 fn was_explicitly_kept(path: &Path) -> bool {
     if path.join(EXPLICIT_KEEP_MARKER).is_file() {
         return true;
@@ -233,7 +223,6 @@ fn was_explicitly_kept(path: &Path) -> bool {
     })
 }
 
-#[cfg(unix)]
 fn process_is_alive(pid: u32) -> bool {
     use std::os::raw::c_int;
 

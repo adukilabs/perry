@@ -26,26 +26,8 @@ fn target_node_platform(target: Option<&str>) -> Option<&'static str> {
         | Some("tvos-simulator") => Some("darwin"),
         Some(_) => None,
         None => {
-            #[cfg(target_os = "windows")]
-            {
-                Some("win32")
-            }
-            #[cfg(target_os = "linux")]
             {
                 Some("linux")
-            }
-            #[cfg(any(target_os = "macos", target_os = "ios"))]
-            {
-                Some("darwin")
-            }
-            #[cfg(not(any(
-                target_os = "windows",
-                target_os = "linux",
-                target_os = "macos",
-                target_os = "ios"
-            )))]
-            {
-                None
             }
         }
     }

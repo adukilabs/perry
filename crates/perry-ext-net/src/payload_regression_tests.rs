@@ -384,7 +384,6 @@ fn tls_roundtrip_through_a_rooted_wrapper_and_its_native_parent() {
     .unwrap();
 }
 
-#[cfg(target_os = "linux")]
 #[test]
 fn worker_retirement_releases_live_sockets_without_dispatching_their_js() {
     let _serial = crate::test_serial();

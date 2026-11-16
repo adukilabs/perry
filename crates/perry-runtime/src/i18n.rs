@@ -203,32 +203,8 @@ fn detect_system_locale() -> Option<String> {
             }
 
             // 2. Platform-native APIs (GUI apps and env-less environments).
-            #[cfg(any(
-                target_os = "macos",
-                target_os = "ios",
-                target_os = "watchos",
-                target_os = "tvos",
-                target_os = "visionos"
-            ))]
-            {
-                if let Some(locale) = detect_apple_locale() {
-                    return Some(locale);
-                }
-            }
 
-            #[cfg(target_os = "windows")]
-            {
-                if let Some(locale) = detect_windows_locale() {
-                    return Some(locale);
-                }
-            }
 
-            #[cfg(target_os = "android")]
-            {
-                if let Some(locale) = detect_android_locale() {
-                    return Some(locale);
-                }
-            }
 
             None
         });
@@ -262,32 +238,8 @@ fn detect_system_locale() -> Option<String> {
             }
 
             // 2. Platform-native APIs (GUI apps and env-less environments).
-            #[cfg(any(
-                target_os = "macos",
-                target_os = "ios",
-                target_os = "watchos",
-                target_os = "tvos",
-                target_os = "visionos"
-            ))]
-            {
-                if let Some(locale) = detect_apple_locale() {
-                    return Some(locale);
-                }
-            }
 
-            #[cfg(target_os = "windows")]
-            {
-                if let Some(locale) = detect_windows_locale() {
-                    return Some(locale);
-                }
-            }
 
-            #[cfg(target_os = "android")]
-            {
-                if let Some(locale) = detect_android_locale() {
-                    return Some(locale);
-                }
-            }
 
             None
         }
@@ -336,154 +288,8 @@ fn match_locale(system_locale: &str, locales: &[&str]) -> Option<usize> {
 // Platform-native locale detection
 // ============================================================================
 
-/// Apple platforms (macOS, iOS, watchOS, tvOS, visionOS): use
-/// NSBundle.mainBundle.preferredLocalizations to respect per-app language
-/// settings in Settings. Falls back to CFLocaleCopyCurrent if NSBundle is
-/// unavailable. Both APIs exist on every Apple OS.
-#[cfg(any(
-    target_os = "macos",
-    target_os = "ios",
-    target_os = "watchos",
-    target_os = "tvos",
-    target_os = "visionos"
-))]
-fn detect_apple_locale() -> Option<String> {
-    type CFTypeRef = *const std::ffi::c_void;
-    type CFStringRef = CFTypeRef;
-    type CFIndex = isize;
 
-    extern "C" {
-        fn CFStringGetLength(string: CFStringRef) -> CFIndex;
-        fn CFStringGetCString(
-            string: CFStringRef,
-            buffer: *mut u8,
-            buffer_size: CFIndex,
-            encoding: u32,
-        ) -> bool;
-        fn CFRelease(cf: CFTypeRef);
-        fn CFLocaleCopyCurrent() -> CFTypeRef;
-        fn CFLocaleGetIdentifier(locale: CFTypeRef) -> CFStringRef;
-    }
 
-    const K_CF_STRING_ENCODING_UTF8: u32 = 0x08000100;
-
-    // Helper to convert CFString/NSString to Rust String
-    unsafe fn cfstring_to_string(s: CFStringRef) -> Option<String> {
-        if s.is_null() {
-            return None;
-        }
-        let len = CFStringGetLength(s);
-        if len <= 0 || len > 64 {
-            return None;
-        }
-        let mut buf = [0u8; 128];
-        let ok = CFStringGetCString(
-            s,
-            buf.as_mut_ptr(),
-            buf.len() as CFIndex,
-            K_CF_STRING_ENCODING_UTF8,
-        );
-        if ok {
-            std::ffi::CStr::from_ptr(buf.as_ptr() as *const i8)
-                .to_str()
-                .ok()
-                .map(|s| s.to_string())
-        } else {
-            None
-        }
-    }
-
-    // Try NSBundle.mainBundle.preferredLocalizations.firstObject first
-    // This respects per-app language settings on iOS
-    unsafe {
-        extern "C" {
-            fn objc_getClass(name: *const i8) -> *const std::ffi::c_void;
-            fn sel_registerName(name: *const i8) -> *const std::ffi::c_void;
-            fn objc_msgSend(
-                receiver: *const std::ffi::c_void,
-                sel: *const std::ffi::c_void,
-                ...
-            ) -> *const std::ffi::c_void;
-        }
-
-        let ns_bundle = objc_getClass(b"NSBundle\0".as_ptr() as *const i8);
-        if !ns_bundle.is_null() {
-            let main_bundle_sel = sel_registerName(b"mainBundle\0".as_ptr() as *const i8);
-            let bundle = objc_msgSend(ns_bundle, main_bundle_sel);
-            if !bundle.is_null() {
-                let pref_sel = sel_registerName(b"preferredLocalizations\0".as_ptr() as *const i8);
-                let localizations = objc_msgSend(bundle, pref_sel);
-                if !localizations.is_null() {
-                    let first_sel = sel_registerName(b"firstObject\0".as_ptr() as *const i8);
-                    let first = objc_msgSend(localizations, first_sel);
-                    if let Some(lang) = cfstring_to_string(first as CFStringRef) {
-                        return Some(lang);
-                    }
-                }
-            }
-        }
-    }
-
-    // Fallback: CFLocaleCopyCurrent
-    unsafe {
-        let locale = CFLocaleCopyCurrent();
-        if locale.is_null() {
-            return None;
-        }
-        let identifier = CFLocaleGetIdentifier(locale);
-        let result = cfstring_to_string(identifier);
-        CFRelease(locale);
-        result
-    }
-}
-
-/// Windows: use GetUserDefaultLocaleName (Win32 API).
-#[cfg(target_os = "windows")]
-fn detect_windows_locale() -> Option<String> {
-    extern "system" {
-        fn GetUserDefaultLocaleName(lp_locale_name: *mut u16, cch_locale_name: i32) -> i32;
-    }
-
-    let mut buf = [0u16; 85]; // LOCALE_NAME_MAX_LENGTH = 85
-    let len = unsafe { GetUserDefaultLocaleName(buf.as_mut_ptr(), buf.len() as i32) };
-
-    if len > 0 {
-        let name = String::from_utf16_lossy(&buf[..len as usize - 1]); // strip null
-        if !name.is_empty() {
-            return Some(name);
-        }
-    }
-    None
-}
-
-/// Android: read persist.sys.locale or ro.product.locale system properties.
-#[cfg(target_os = "android")]
-fn detect_android_locale() -> Option<String> {
-    // __system_property_get is available in Android's libc (bionic)
-    extern "C" {
-        fn __system_property_get(name: *const u8, value: *mut u8) -> i32;
-    }
-
-    let props: &[&[u8]] = &[
-        b"persist.sys.locale\0",
-        b"ro.product.locale\0",
-        b"persist.sys.language\0",
-    ];
-
-    for prop in props {
-        let mut buf = [0u8; 92]; // PROP_VALUE_MAX = 92
-        let len = unsafe { __system_property_get(prop.as_ptr(), buf.as_mut_ptr()) };
-        if len > 0 {
-            if let Ok(s) = std::str::from_utf8(&buf[..len as usize]) {
-                let s = s.trim_end_matches('\0');
-                if !s.is_empty() {
-                    return Some(s.to_string());
-                }
-            }
-        }
-    }
-    None
-}
 
 // --- String interpolation ---
 

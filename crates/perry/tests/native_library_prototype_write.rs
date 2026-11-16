@@ -1,5 +1,4 @@
 //! A foreign FFI body can add an own property that shadows a known holder.
-#![cfg(any(target_os = "linux", target_os = "macos"))]
 
 use std::path::Path;
 use std::process::{Command, Output};

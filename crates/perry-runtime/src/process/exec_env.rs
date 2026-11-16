@@ -264,7 +264,6 @@ pub extern "C" fn js_process_execve(exec_path: f64, args: f64, env: f64) -> f64 
 
     // libc exposes no execve on tvOS and watchOS (the platforms forbid it): take the
     // unsupported arm there.
-    #[cfg(all(unix, not(any(target_os = "tvos", target_os = "watchos"))))]
     {
         let path_c = match std::ffi::CString::new(path.as_str()) {
             Ok(path_c) => path_c,
@@ -290,12 +289,4 @@ pub extern "C" fn js_process_execve(exec_path: f64, args: f64, env: f64) -> f64 
         }
     }
 
-    #[cfg(not(all(unix, not(any(target_os = "tvos", target_os = "watchos")))))]
-    {
-        let _ = (path, argv, env_pairs);
-        crate::fs::validate::throw_type_error_with_code(
-            "process.execve() is unavailable on this platform",
-            "ERR_FEATURE_UNAVAILABLE_ON_PLATFORM",
-        )
-    }
 }

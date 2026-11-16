@@ -22,7 +22,6 @@
 ///
 /// Not inherited by children: Rust's `Command` restores `SIGPIPE` to
 /// `SIG_DFL` in the forked child before `exec`, matching Node.
-#[cfg(unix)]
 pub(crate) fn ignore_sigpipe_at_startup() {
     use std::sync::Once;
     static ONCE: Once = Once::new();
@@ -44,7 +43,3 @@ pub(crate) fn ignore_sigpipe_at_startup() {
     });
 }
 
-/// Windows has no `SIGPIPE`: a write to a closed pipe already fails with
-/// `ERROR_BROKEN_PIPE` instead of raising a signal.
-#[cfg(not(unix))]
-pub(crate) fn ignore_sigpipe_at_startup() {}

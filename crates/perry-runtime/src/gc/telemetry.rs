@@ -44,11 +44,6 @@ pub(super) fn note_old_reclaim_why(why: &'static str) {
 /// Compiled-code temp roots held right now (WASI only; other targets root
 /// compiled temporaries on the native stack).
 fn temp_root_depth() -> usize {
-    #[cfg(target_os = "wasi")]
-    {
-        super::roots::temp_root_len()
-    }
-    #[cfg(not(target_os = "wasi"))]
     {
         0
     }

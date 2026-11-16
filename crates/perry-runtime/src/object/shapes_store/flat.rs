@@ -41,7 +41,6 @@ struct Leaf {
 /// bookkeeping ([`committed_in`]).
 pub(super) const RESERVATION_READABLE: bool = !cfg!(windows);
 
-#[cfg(unix)]
 unsafe fn reserve(bytes: usize) -> *mut u8 {
     // Readable, not writable: see [`RESERVATION_READABLE`]. MAP_NORESERVE:
     // reading an untouched page maps the shared zero page and charges nothing.
@@ -59,17 +58,14 @@ unsafe fn reserve(bytes: usize) -> *mut u8 {
         p.cast()
     }
 }
-#[cfg(unix)]
 unsafe fn commit(at: *mut u8, bytes: usize) -> bool {
     libc::mprotect(at.cast(), bytes, libc::PROT_READ | libc::PROT_WRITE) == 0
 }
-#[cfg(unix)]
 unsafe fn discard(at: *mut u8, bytes: usize) -> bool {
     // Given back, read-only again: a stale word reads the zero page (absent).
     libc::madvise(at.cast(), bytes, libc::MADV_DONTNEED) == 0
         && libc::mprotect(at.cast(), bytes, libc::PROT_READ) == 0
 }
-#[cfg(unix)]
 unsafe fn unreserve(at: *mut u8, bytes: usize) {
     assert!(
         libc::munmap(at.cast(), bytes) == 0,
@@ -77,65 +73,15 @@ unsafe fn unreserve(at: *mut u8, bytes: usize) {
     );
 }
 
-#[cfg(windows)]
-unsafe fn reserve(bytes: usize) -> *mut u8 {
-    use windows_sys::Win32::System::Memory::*;
-    VirtualAlloc(core::ptr::null(), bytes, MEM_RESERVE, PAGE_NOACCESS).cast()
-}
-#[cfg(windows)]
-unsafe fn commit(at: *mut u8, bytes: usize) -> bool {
-    use windows_sys::Win32::System::Memory::*;
-    !VirtualAlloc(at.cast(), bytes, MEM_COMMIT, PAGE_READWRITE).is_null()
-}
-#[cfg(windows)]
-unsafe fn discard(at: *mut u8, bytes: usize) -> bool {
-    use windows_sys::Win32::System::Memory::*;
-    VirtualFree(at.cast(), bytes, MEM_DECOMMIT) != 0
-}
-#[cfg(windows)]
-unsafe fn unreserve(at: *mut u8, _bytes: usize) {
-    use windows_sys::Win32::System::Memory::*;
-    assert!(
-        VirtualFree(at.cast(), 0, MEM_RELEASE) != 0,
-        "shape Region release failed"
-    );
-}
 
 // Wasm/limited-address-space targets keep a fixed, nonmoving allocation.
-#[cfg(not(any(unix, windows)))]
-unsafe fn reserve(bytes: usize) -> *mut u8 {
-    std::alloc::alloc_zeroed(std::alloc::Layout::from_size_align(bytes, 4096).unwrap())
-}
-#[cfg(not(any(unix, windows)))]
-unsafe fn commit(_at: *mut u8, _bytes: usize) -> bool {
-    true
-}
-#[cfg(not(any(unix, windows)))]
-unsafe fn discard(at: *mut u8, bytes: usize) -> bool {
-    core::ptr::write_bytes(at, 0, bytes);
-    true
-}
-#[cfg(not(any(unix, windows)))]
-unsafe fn unreserve(at: *mut u8, bytes: usize) {
-    std::alloc::dealloc(
-        at,
-        std::alloc::Layout::from_size_align(bytes, 4096).unwrap(),
-    );
-}
 
 fn os_page() -> usize {
-    #[cfg(unix)]
     {
         let p = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
         if p > 0 {
             return p as usize;
         }
-    }
-    #[cfg(windows)]
-    {
-        let mut info = unsafe { core::mem::zeroed() };
-        unsafe { windows_sys::Win32::System::SystemInformation::GetSystemInfo(&mut info) };
-        return info.dwPageSize as usize;
     }
     #[allow(unreachable_code)]
     4096

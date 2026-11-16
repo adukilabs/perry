@@ -880,7 +880,6 @@ pub extern "C" fn js_perry_tui_stdout_rows(_handle: i64) -> f64 {
 }
 
 fn term_size() -> (u16, u16) {
-    #[cfg(unix)]
     unsafe {
         let mut ws: libc::winsize = std::mem::zeroed();
         if libc::ioctl(1, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0 && ws.ws_row > 0 {

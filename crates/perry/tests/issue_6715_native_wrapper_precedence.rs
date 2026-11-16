@@ -25,7 +25,6 @@
 //! the import bound directly to the FFI symbol (which would print no marker
 //! and yield the raw `42`).
 
-#![cfg(unix)]
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

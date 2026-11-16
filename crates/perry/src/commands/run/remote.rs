@@ -676,7 +676,6 @@ pub fn extract_app_from_ipa(ipa_path: &Path, dest_dir: &Path) -> Result<PathBuf>
     }
 
     // Make the main executable... executable
-    #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         // Find the executable inside the .app (same name as app, without .app)

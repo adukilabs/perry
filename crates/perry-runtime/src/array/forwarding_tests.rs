@@ -252,7 +252,6 @@ fn retired_growth_payload_pages_are_dead_but_alias_and_gc_reachability_survive()
         js_array_get_f64(original, capacity - 1),
         capacity as f64 - 0.75
     );
-    #[cfg(target_os = "linux")]
     unsafe {
         let page = libc::sysconf(libc::_SC_PAGESIZE) as usize;
         let dead_start = original as usize + std::mem::size_of::<u64>();

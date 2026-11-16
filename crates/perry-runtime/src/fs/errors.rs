@@ -14,12 +14,6 @@ pub(crate) fn enoent_os_error() -> std::io::Error {
 /// `ERROR_INVALID_HANDLE`, the Win32 error libuv translates to `EBADF`:
 /// `libc::EBADF` (9) is `ERROR_INVALID_BLOCK` there and translates to nothing.
 pub(crate) fn ebadf_os_error() -> std::io::Error {
-    #[cfg(windows)]
-    {
-        const ERROR_INVALID_HANDLE: i32 = 6;
-        std::io::Error::from_raw_os_error(ERROR_INVALID_HANDLE)
-    }
-    #[cfg(not(windows))]
     {
         std::io::Error::from_raw_os_error(libc::EBADF)
     }
@@ -142,7 +136,6 @@ mod tests {
 
     /// #10451: an fs error message carries libuv's description of the errno,
     /// as Node's does, not Rust's "No such file or directory (os error 2)".
-    #[cfg(unix)]
     #[test]
     fn fs_error_description_uses_libuv_text() {
         let described = |errno| fs_error_description(&std::io::Error::from_raw_os_error(errno));
@@ -158,7 +151,6 @@ mod tests {
     /// whose failures used to be a bare `None` the Buffer forms returned as
     /// `null`/`undefined`. A missing file must fail the `open` and name the path;
     /// a directory opens and must fail the `read`, which Node reports pathless.
-    #[cfg(unix)]
     #[test]
     fn read_file_failures_keep_the_os_error_and_failing_syscall() {
         let _global = crate::gc::global_side_table_test_lock();

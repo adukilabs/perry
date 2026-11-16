@@ -201,9 +201,7 @@ pub(crate) fn js_util_convert_process_signal_to_exit_code(signal_code: f64) -> f
             |run| run(signal_code),
         )
 }
-#[cfg(all(unix, not(target_arch = "wasm32")))]
 static ON_SIGNAL_COMPLETION: Hook<fn(i32, crate::turnloop_proc::StreamEvent) -> ()> = Hook::empty();
-#[cfg(all(unix, not(target_arch = "wasm32")))]
 pub(crate) fn on_signal_completion(signum: i32, event: crate::turnloop_proc::StreamEvent) -> () {
     ON_SIGNAL_COMPLETION
         .get()
@@ -236,19 +234,10 @@ pub(crate) fn remove_internal_process_listener(
         .get()
         .map_or_else(|| (), |run| run(event, callback))
 }
-#[cfg(unix)]
 static SIGNALS_ON_TURNLOOP: Hook<fn() -> usize> = Hook::empty();
 pub(crate) fn signals_on_turnloop() -> usize {
-    #[cfg(unix)]
     {
         SIGNALS_ON_TURNLOOP.get().map_or_else(|| 0, |run| run())
-    }
-    #[cfg(not(unix))]
-    {
-        // The non-Unix implementation is a constant-zero leaf. Call it
-        // directly: optimized COFF archives need not retain its own symbol,
-        // so it cannot be the named target of an indirect GC-effects rule.
-        crate::os::signal::signals_on_turnloop()
     }
 }
 static STDIN_LISTENERS_KEEP_LOOP_ALIVE: Hook<fn() -> bool> = Hook::empty();

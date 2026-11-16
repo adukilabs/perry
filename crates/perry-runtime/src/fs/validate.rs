@@ -57,10 +57,6 @@ fn encoded_path_separator(pathname: &str) -> bool {
         if hex_hi == b'2' && hex_lo == b'f' {
             return true;
         }
-        #[cfg(windows)]
-        if hex_hi == b'5' && hex_lo == b'c' {
-            return true;
-        }
     }
     false
 }
@@ -169,10 +165,7 @@ pub(crate) fn ebadf_error(syscall: &'static str) -> crate::error::CoreError {
     let msg = js_string_from_bytes(message.as_ptr(), message.len() as u32);
     crate::node_submodules::register_error_code_pub(msg, "EBADF");
     crate::node_submodules::register_error_syscall(msg, syscall);
-    #[cfg(unix)]
     crate::node_submodules::register_error_errno(msg, -libc::EBADF);
-    #[cfg(not(unix))]
-    crate::node_submodules::register_error_errno(msg, -9);
     crate::error::CoreError::error(msg)
 }
 

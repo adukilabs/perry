@@ -10,13 +10,8 @@ fn ops() -> &'static abi::Ops {
 fn check(e: abi::Error) {
     assert_eq!((e.kind, e.os), (0, 0));
 }
-#[cfg(unix)]
 fn raw<T: std::os::fd::IntoRawFd>(socket: T) -> usize {
     socket.into_raw_fd() as usize
-}
-#[cfg(windows)]
-fn raw<T: std::os::windows::io::IntoRawSocket>(socket: T) -> usize {
-    socket.into_raw_socket() as usize
 }
 unsafe fn adopt_test(socket: usize) -> abi::Opaque {
     let mut res = ptr::null_mut();

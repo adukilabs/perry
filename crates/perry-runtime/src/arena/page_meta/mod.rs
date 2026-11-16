@@ -24,7 +24,6 @@ pub(crate) enum RegionOwnership {
     Current,
     /// A live region of another thread's heap. Every native thread owns its
     /// heap and its collector; this collector never marks or moves it.
-    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     // Linux reservation ownership only.
     OtherHeap,
     /// Not in any live arena region this thread can attribute.
@@ -477,7 +476,6 @@ pub(crate) fn register_block_with_kind(
     if base == 0 || size == 0 || matches!(generation, HeapGeneration::Unknown) {
         return;
     }
-    #[cfg(target_os = "linux")]
     if super::region::reservation::set_space_with_kind(
         base,
         size,
@@ -578,7 +576,6 @@ fn retag_block_space_inner(
     if base == 0 || size == 0 || matches!(generation, HeapGeneration::Unknown) {
         return;
     }
-    #[cfg(target_os = "linux")]
     if super::region::reservation::set_space(base, size, space, None) {
         if register_old_pages && matches!(generation, HeapGeneration::Old) {
             register_old_block_pages(base, size);
@@ -874,7 +871,6 @@ pub(crate) fn unregister_block_generation(base: usize, size: usize) {
     if base == 0 || size == 0 {
         return;
     }
-    #[cfg(target_os = "linux")]
     if let Some(generation) = super::region::reservation::owned_generation(base) {
         let was_old = generation == HeapGeneration::Old;
         super::region::reservation::set_space(base, size, HeapSpace::Unknown, Some(0));
@@ -1061,7 +1057,6 @@ fn classify_heap_space_in_range_uncached(
 /// avoid this metadata write on their bump-allocation path.
 #[inline(always)]
 pub(crate) fn record_arena_object_start(header_addr: usize, obj_type: u8) {
-    #[cfg(target_os = "linux")]
     if obj_type == crate::gc::GC_TYPE_NATIVE_HANDLE {
         super::region::reservation::note_payload_cell(header_addr);
     }

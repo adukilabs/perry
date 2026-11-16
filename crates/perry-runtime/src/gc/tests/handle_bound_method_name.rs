@@ -153,7 +153,6 @@ unsafe fn assert_names_the_literal(
     // must not be the MOVABLE key string's interior. That invariant is asserted
     // unconditionally below, together with the length and the bytes, so Windows
     // keeps real coverage — it just cannot use address equality as the proxy.
-    #[cfg(not(windows))]
     assert_eq!(
         name_ptr,
         expected.as_ptr(),

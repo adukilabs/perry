@@ -127,12 +127,10 @@ pub(super) fn with_write_bytes<R>(chunk: f64, encoding: f64, f: impl FnOnce(&[u8
 
 /// Largest single `write(2)` request. macOS rejects a count above `INT_MAX`
 /// with `EINVAL`, and Linux transfers at most `0x7FFF_F000` per call anyway.
-#[cfg(unix)]
 const MAX_WRITE_REQUEST: usize = 0x4000_0000;
 
 /// Block until `fd` accepts more bytes. Errors are not inspected: whatever
 /// woke the poll, the caller's next `write` reports the real condition.
-#[cfg(unix)]
 fn wait_writable(fd: i32) {
     let mut poll_fd = libc::pollfd {
         fd,
@@ -145,7 +143,6 @@ fn wait_writable(fd: i32) {
 
 /// Write all of `bytes` to `fd`, completing partial writes and waiting out
 /// `EAGAIN` on a non-blocking descriptor instead of dropping the remainder.
-#[cfg(unix)]
 pub(super) fn write_all_fd(fd: i32, mut bytes: &[u8]) -> std::io::Result<()> {
     while !bytes.is_empty() {
         let request = bytes.len().min(MAX_WRITE_REQUEST);
@@ -170,7 +167,6 @@ pub(super) fn write_all_fd(fd: i32, mut bytes: &[u8]) -> std::io::Result<()> {
 
 /// Drain Rust's own buffer for the stream (`console.log` prints through it),
 /// so bytes written straight to the fd afterwards cannot overtake it.
-#[cfg(unix)]
 fn flush_completely(handle: &mut impl std::io::Write, fd: i32) -> bool {
     loop {
         match handle.flush() {
@@ -191,17 +187,10 @@ pub(super) fn write_stdout(bytes: &[u8]) {
     crate::effect!(host_write, stdio);
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
-    #[cfg(unix)]
     {
         if flush_completely(&mut handle, libc::STDOUT_FILENO) {
             let _ = write_all_fd(libc::STDOUT_FILENO, bytes);
         }
-    }
-    #[cfg(not(unix))]
-    {
-        use std::io::Write;
-        let _ = handle.write_all(bytes);
-        let _ = handle.flush();
     }
 }
 
@@ -210,17 +199,10 @@ pub(super) fn write_stderr(bytes: &[u8]) {
     crate::effect!(host_write, stdio);
     let stderr = std::io::stderr();
     let mut handle = stderr.lock();
-    #[cfg(unix)]
     {
         if flush_completely(&mut handle, libc::STDERR_FILENO) {
             let _ = write_all_fd(libc::STDERR_FILENO, bytes);
         }
-    }
-    #[cfg(not(unix))]
-    {
-        use std::io::Write;
-        let _ = handle.write_all(bytes);
-        let _ = handle.flush();
     }
 }
 

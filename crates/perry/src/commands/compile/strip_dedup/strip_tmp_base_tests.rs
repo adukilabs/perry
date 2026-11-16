@@ -43,10 +43,7 @@ fn base_is_created_once_and_stable() {
 #[test]
 fn live_pid_probe_is_correct_at_the_boundaries() {
     assert!(pid_is_live(std::process::id()), "self must read live");
-    #[cfg(unix)]
     assert!(pid_is_live(1), "pid 1 (init) must read live on unix");
-    #[cfg(windows)]
-    assert!(pid_is_live(4), "pid 4 (System) must read live on windows");
     assert!(!pid_is_live(u32::MAX), "an unassignable pid must read dead");
     assert!(!pid_is_live(0), "pid 0 is not an ordinary process");
 }

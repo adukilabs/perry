@@ -1,7 +1,6 @@
 //! `Stats` / bigint-`Stats` object + `statSync` / `lstatSync`.
 
 use std::fs;
-#[cfg(unix)]
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
 
 use super::*;
@@ -305,7 +304,6 @@ pub(crate) fn metadata_times_ms(meta: &fs::Metadata) -> (f64, f64, f64, f64) {
     (atime, mtime, ctime, birth)
 }
 
-#[cfg(unix)]
 pub(crate) fn unix_ctime_ms(meta: &fs::Metadata) -> Option<f64> {
     // `MetadataExt::ctime` is seconds since epoch; combine with the
     // nanosecond fraction so we don't drop sub-second precision in the
@@ -315,15 +313,10 @@ pub(crate) fn unix_ctime_ms(meta: &fs::Metadata) -> Option<f64> {
     Some(secs as f64 * 1000.0 + nsecs / 1_000_000.0)
 }
 
-#[cfg(not(unix))]
-pub(crate) fn unix_ctime_ms(_meta: &fs::Metadata) -> Option<f64> {
-    None
-}
 
 /// Nanosecond timestamps for `bigint: true` Stats. On Unix we read the
 /// real `*time_nsec` fields directly; elsewhere we fall back to the
 /// millisecond × 1_000_000 approximation.
-#[cfg(unix)]
 pub(crate) fn metadata_times_ns(meta: &fs::Metadata) -> (i64, i64, i64, i64) {
     let to_ns = |secs: i64, nsecs: i64| -> i64 {
         secs.saturating_mul(1_000_000_000)
@@ -343,45 +336,16 @@ pub(crate) fn metadata_times_ns(meta: &fs::Metadata) -> (i64, i64, i64, i64) {
     (a, m, c, birth)
 }
 
-#[cfg(not(unix))]
-pub(crate) fn metadata_times_ns(meta: &fs::Metadata) -> (i64, i64, i64, i64) {
-    let to_ns = |ms: f64| -> i64 {
-        if ms.is_finite() {
-            (ms as i64).saturating_mul(1_000_000)
-        } else {
-            0
-        }
-    };
-    let (atime_ms, mtime_ms, ctime_ms, birthtime_ms) = metadata_times_ms(meta);
-    (
-        to_ns(atime_ms),
-        to_ns(mtime_ms),
-        to_ns(ctime_ms),
-        to_ns(birthtime_ms),
-    )
-}
 
 pub(crate) fn metadata_owner_ids(meta: &fs::Metadata) -> (f64, f64) {
-    #[cfg(unix)]
     {
         (meta.uid() as f64, meta.gid() as f64)
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = meta;
-        (-1.0, -1.0)
     }
 }
 
 pub(crate) fn metadata_nlink(meta: &fs::Metadata) -> f64 {
-    #[cfg(unix)]
     {
         meta.nlink() as f64
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = meta;
-        1.0
     }
 }
 
@@ -420,7 +384,6 @@ mod tests {
 }
 
 pub(crate) fn metadata_node_extra_fields(meta: Option<&fs::Metadata>) -> (u64, u64, u64, u64, u64) {
-    #[cfg(unix)]
     {
         if let Some(meta) = meta {
             return (
@@ -437,7 +400,6 @@ pub(crate) fn metadata_node_extra_fields(meta: Option<&fs::Metadata>) -> (u64, u
 }
 
 fn metadata_special_file_predicates(meta: Option<&fs::Metadata>) -> (bool, bool, bool, bool) {
-    #[cfg(unix)]
     {
         if let Some(meta) = meta {
             let ft = meta.file_type();
@@ -526,14 +488,7 @@ pub extern "C" fn js_fs_stat_sync_options(path_value: f64, options_value: f64) -
                 let is_dir = meta.is_dir();
                 let is_symlink = meta.file_type().is_symlink();
                 let size = meta.len();
-                #[cfg(unix)]
                 let mode = meta.permissions().mode();
-                #[cfg(not(unix))]
-                let mode = if meta.permissions().readonly() {
-                    0o444
-                } else {
-                    0o666
-                };
                 let (uid, gid) = metadata_owner_ids(&meta);
                 let nlink = metadata_nlink(&meta);
                 let (atime, mtime, ctime, birth) = metadata_times_ms(&meta);
@@ -597,14 +552,7 @@ pub extern "C" fn js_fs_lstat_sync_options(path_value: f64, options_value: f64) 
             Ok(meta) => {
                 let ft = meta.file_type();
                 let size = meta.len();
-                #[cfg(unix)]
                 let mode = meta.permissions().mode();
-                #[cfg(not(unix))]
-                let mode = if meta.permissions().readonly() {
-                    0o444
-                } else {
-                    0o666
-                };
                 let (uid, gid) = metadata_owner_ids(&meta);
                 let nlink = metadata_nlink(&meta);
                 let (atime, mtime, ctime, birth) = metadata_times_ms(&meta);

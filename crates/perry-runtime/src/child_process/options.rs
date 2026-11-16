@@ -22,7 +22,6 @@ pub(crate) fn cp_read_uid_gid_option(opts_val: f64, key: &[u8]) -> Option<u32> {
 }
 
 pub(crate) fn cp_apply_uid_gid(command: &mut Command, opts_val: f64) {
-    #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
 
@@ -34,10 +33,6 @@ pub(crate) fn cp_apply_uid_gid(command: &mut Command, opts_val: f64) {
         }
     }
 
-    #[cfg(not(unix))]
-    {
-        let _ = (command, opts_val);
-    }
 }
 
 /// Apply shared command options to `command`. `cwd` and `env` are portable;
@@ -130,14 +125,9 @@ pub(crate) fn cp_apply_argv0(command: &mut Command, opts_val: f64) {
     let Some(argv0) = cp_read_argv0(opts_val) else {
         return;
     };
-    #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
         command.arg0(argv0);
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = (command, argv0);
     }
 }
 
@@ -153,7 +143,6 @@ pub(crate) fn cp_apply_detached(command: &mut Command, opts_val: f64) {
         return;
     }
 
-    #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
         // NOTE: a `pre_exec` closure forces std onto the `fork`+`exec` path
@@ -172,16 +161,7 @@ pub(crate) fn cp_apply_detached(command: &mut Command, opts_val: f64) {
         }
     }
 
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x00000008 | 0x00000200);
-    }
 
-    #[cfg(not(any(unix, windows)))]
-    {
-        let _ = command;
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -263,45 +243,22 @@ pub(crate) fn cp_read_stdio(opts_val: f64, fds: usize) -> Vec<CpStdio> {
     out
 }
 
-#[cfg(not(unix))]
-pub(crate) fn cp_stdio_js_value(kind: CpStdio, pipe_obj: f64) -> f64 {
-    match kind {
-        CpStdio::Pipe => pipe_obj,
-        CpStdio::Ignore | CpStdio::Inherit | CpStdio::Fd(_) => TAG_NULL_F64,
-    }
-}
 
 /// The parent end of a child's stdio pipe slot.
-#[cfg(unix)]
 pub(crate) type CpParentPipe = std::os::fd::OwnedFd;
-#[cfg(not(unix))]
-pub(crate) type CpParentPipe = std::fs::File;
 
 /// A connected `AF_UNIX` stream pair, both ends close-on-exec: Node's pipe
 /// slots are sockets in the child too (`fstat` on fd 0/1/3 reports a socket).
-#[cfg(unix)]
 pub(crate) fn cp_socketpair() -> std::io::Result<(std::os::fd::OwnedFd, std::os::fd::OwnedFd)> {
-    #[cfg(not(any(target_os = "linux", target_os = "android")))]
-    use std::os::fd::AsRawFd;
     use std::os::fd::{FromRawFd, OwnedFd};
     let mut pair = [0; 2];
-    #[cfg(any(target_os = "linux", target_os = "android"))]
     let kind = libc::SOCK_STREAM | libc::SOCK_CLOEXEC;
-    #[cfg(not(any(target_os = "linux", target_os = "android")))]
-    let kind = libc::SOCK_STREAM;
     // SAFETY: `pair` has room for the two descriptors socketpair writes.
     if unsafe { libc::socketpair(libc::AF_UNIX, kind, 0, pair.as_mut_ptr()) } != 0 {
         return Err(std::io::Error::last_os_error());
     }
     // SAFETY: socketpair succeeded, so both descriptors are open and ours.
     let (parent, child) = unsafe { (OwnedFd::from_raw_fd(pair[0]), OwnedFd::from_raw_fd(pair[1])) };
-    #[cfg(not(any(target_os = "linux", target_os = "android")))]
-    for end in [&parent, &child] {
-        // SAFETY: `end` is an open descriptor owned above.
-        if unsafe { libc::fcntl(end.as_raw_fd(), libc::F_SETFD, libc::FD_CLOEXEC) } < 0 {
-            return Err(std::io::Error::last_os_error());
-        }
-    }
     Ok((parent, child))
 }
 
@@ -316,7 +273,6 @@ pub(crate) fn cp_apply_live_stdio(
 ) -> std::io::Result<Vec<(usize, CpParentPipe)>> {
     let slot = |fd: usize| stdio.get(fd).copied().unwrap_or(CpStdio::Pipe);
 
-    #[cfg(unix)]
     {
         use std::os::fd::AsRawFd;
         use std::os::unix::process::CommandExt;
@@ -379,26 +335,9 @@ pub(crate) fn cp_apply_live_stdio(
         return Ok(parents);
     }
 
-    #[cfg(not(unix))]
-    {
-        let to_stdio = |kind: CpStdio| match kind {
-            CpStdio::Pipe => Stdio::piped(),
-            CpStdio::Ignore => Stdio::null(),
-            CpStdio::Inherit => Stdio::inherit(),
-            CpStdio::Fd(fd) => cp_stdio_from_fd(fd),
-        };
-        command.stdin(to_stdio(slot(0)));
-        command.stdout(to_stdio(slot(1)));
-        command.stderr(to_stdio(slot(2)));
-    }
 
-    #[cfg(not(unix))]
-    {
-        Ok(Vec::new())
-    }
 }
 
-#[cfg(unix)]
 pub(crate) fn cp_stdio_from_fd(fd: i32) -> Stdio {
     use std::os::fd::FromRawFd;
 
@@ -413,18 +352,9 @@ pub(crate) fn cp_stdio_from_fd(fd: i32) -> Stdio {
     unsafe { Stdio::from_raw_fd(dup_fd) }
 }
 
-#[cfg(not(unix))]
-pub(crate) fn cp_stdio_from_fd(_fd: i32) -> Stdio {
-    Stdio::null()
-}
 
 /// Default shell for `{ shell: true }` (`shell: "<path>"` overrides it).
 fn cp_default_shell() -> String {
-    #[cfg(windows)]
-    {
-        std::env::var("ComSpec").unwrap_or_else(|_| "cmd.exe".to_string())
-    }
-    #[cfg(not(windows))]
     {
         "/bin/sh".to_string()
     }
@@ -432,7 +362,6 @@ fn cp_default_shell() -> String {
 
 /// Fallback search path when a child's environment carries no `PATH` — the same
 /// default `execvp(3)` uses (`_PATH_DEFPATH`).
-#[cfg(unix)]
 const CP_DEFAULT_PATH: &str = "/usr/bin:/bin:/usr/sbin:/sbin";
 
 /// The child's effective `PATH` for resolving a bare command name. When an `env`
@@ -440,7 +369,6 @@ const CP_DEFAULT_PATH: &str = "/usr/bin:/bin:/usr/sbin:/sbin";
 /// semantics), so its `PATH` — not the parent's — governs the lookup; a missing
 /// `PATH` falls back to the `execvp` default. With no `env` option the parent's
 /// `PATH` applies.
-#[cfg(unix)]
 fn cp_effective_path(opts_val: f64) -> String {
     if cp_object_ptr(opts_val).is_some() {
         let env_val = cp_get_field(opts_val, b"env");
@@ -457,7 +385,6 @@ fn cp_effective_path(opts_val: f64) -> String {
 }
 
 /// Whether `path` names an executable regular file (following symlinks).
-#[cfg(unix)]
 fn cp_is_executable(path: &std::path::Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     std::fs::metadata(path)
@@ -468,7 +395,6 @@ fn cp_is_executable(path: &std::path::Path) -> bool {
 /// Resolve a bare command name to an absolute path by walking `path` (a
 /// colon-separated `PATH`), returning the first executable match. An empty
 /// `PATH` element means the current directory (POSIX `execvp` semantics).
-#[cfg(unix)]
 pub(crate) fn cp_resolve_program_path(program: &str, path: &str) -> Option<String> {
     for dir in path.split(':') {
         let base = if dir.is_empty() { "." } else { dir };
@@ -504,7 +430,6 @@ pub(crate) fn cp_resolve_program_path(program: &str, path: &str) -> Option<Strin
 /// stays identical.
 pub(crate) fn cp_command_for_program(program: &str, opts_val: f64) -> Command {
     cp_require_process_support();
-    #[cfg(unix)]
     {
         if !program.is_empty() && !program.contains('/') {
             let path = cp_effective_path(opts_val);
@@ -515,10 +440,6 @@ pub(crate) fn cp_command_for_program(program: &str, opts_val: f64) -> Command {
                 return command;
             }
         }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = opts_val;
     }
     Command::new(program)
 }
@@ -555,24 +476,6 @@ pub(super) fn cp_shell_command(line: &str, opts_val: f64) -> Command {
     };
     validate::cp_validate_no_null_bytes("options.shell", &shell_bin);
     let mut command = cp_command_for_program(&shell_bin, opts_val);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        let name = std::path::Path::new(&shell_bin)
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy();
-        if name.eq_ignore_ascii_case("cmd") || name.eq_ignore_ascii_case("cmd.exe") {
-            command
-                .arg("/d")
-                .arg("/s")
-                .arg("/c")
-                .raw_arg(format!("\"{}\"", line));
-        } else {
-            command.arg("-c").arg(line);
-        }
-    }
-    #[cfg(not(windows))]
     command.arg("-c").arg(line);
     command
 }
@@ -683,7 +586,6 @@ mod posix_spawn_tests {
 mod tests {
     use super::cp_should_use_node_interpreter;
 
-    #[cfg(unix)]
     #[test]
     fn a_pipe_slot_is_a_close_on_exec_socket_pair() {
         use std::io::{Read, Write};
@@ -709,7 +611,6 @@ mod tests {
         assert_eq!(&buf, b"down");
     }
 
-    #[cfg(unix)]
     #[test]
     fn every_pipe_slot_reaches_the_child_as_a_socket() {
         use super::{cp_apply_live_stdio, CpStdio};
@@ -896,7 +797,6 @@ mod environment_tests {
         .unwrap();
     }
 
-    #[cfg(unix)]
     #[test]
     fn private_worker_default_path_resolves_its_own_executable() {
         let directory =

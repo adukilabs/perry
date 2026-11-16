@@ -58,7 +58,6 @@ fn fd_from_value(value: f64) -> Option<libc::c_int> {
     Some(number as libc::c_int)
 }
 
-#[cfg(any(target_os = "linux", target_os = "android"))]
 fn linux_peer_credentials(fd: libc::c_int) -> Option<libc::ucred> {
     let mut credentials = std::mem::MaybeUninit::<libc::ucred>::uninit();
     let mut len = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
@@ -77,82 +76,19 @@ fn linux_peer_credentials(fd: libc::c_int) -> Option<libc::ucred> {
     Some(unsafe { credentials.assume_init() })
 }
 
-#[cfg(any(target_os = "linux", target_os = "android"))]
 fn peer_uid(fd: libc::c_int) -> Option<u32> {
     linux_peer_credentials(fd).map(|credentials| credentials.uid)
 }
 
-#[cfg(any(target_os = "linux", target_os = "android"))]
 fn peer_pid(fd: libc::c_int) -> Option<u32> {
     let pid = linux_peer_credentials(fd)?.pid;
     (pid > 0).then_some(pid as u32)
 }
 
-#[cfg(any(
-    target_os = "macos",
-    target_os = "freebsd",
-    target_os = "openbsd",
-    target_os = "netbsd",
-    target_os = "dragonfly"
-))]
-fn peer_uid(fd: libc::c_int) -> Option<u32> {
-    let mut uid = 0 as libc::uid_t;
-    let mut gid = 0 as libc::gid_t;
-    (unsafe { libc::getpeereid(fd, &mut uid, &mut gid) } == 0).then_some(uid as u32)
-}
 
-#[cfg(target_os = "macos")]
-fn peer_pid(fd: libc::c_int) -> Option<u32> {
-    let mut pid = 0 as libc::pid_t;
-    let mut len = std::mem::size_of::<libc::pid_t>() as libc::socklen_t;
-    let result = unsafe {
-        libc::getsockopt(
-            fd,
-            libc::SOL_LOCAL,
-            libc::LOCAL_PEERPID,
-            (&mut pid as *mut libc::pid_t).cast::<libc::c_void>(),
-            &mut len,
-        )
-    };
-    (result == 0 && (len as usize) >= std::mem::size_of::<libc::pid_t>() && pid > 0)
-        .then_some(pid as u32)
-}
 
-#[cfg(any(
-    target_os = "freebsd",
-    target_os = "openbsd",
-    target_os = "netbsd",
-    target_os = "dragonfly"
-))]
-fn peer_pid(_fd: libc::c_int) -> Option<u32> {
-    None
-}
 
-#[cfg(not(any(
-    target_os = "linux",
-    target_os = "android",
-    target_os = "macos",
-    target_os = "freebsd",
-    target_os = "openbsd",
-    target_os = "netbsd",
-    target_os = "dragonfly"
-)))]
-fn peer_uid(_fd: libc::c_int) -> Option<u32> {
-    None
-}
 
-#[cfg(not(any(
-    target_os = "linux",
-    target_os = "android",
-    target_os = "macos",
-    target_os = "freebsd",
-    target_os = "openbsd",
-    target_os = "netbsd",
-    target_os = "dragonfly"
-)))]
-fn peer_pid(_fd: libc::c_int) -> Option<u32> {
-    None
-}
 
 /// `Bun.ant.getPeerUid(fd)` — effective UID for the peer of a local socket.
 #[no_mangle]
@@ -174,10 +110,6 @@ pub extern "C" fn js_bun_ant_get_peer_pid(fd: f64) -> f64 {
 
 // Its production callers are the Linux/Android cgroup and sysinfo paths below;
 // on other targets only the unit test uses it.
-#[cfg_attr(
-    not(any(target_os = "linux", target_os = "android", test)),
-    allow(dead_code)
-)]
 fn classify_availability(available: u64, limit: u64) -> Option<MemoryPressureLevel> {
     if limit == 0 {
         return None;
@@ -202,7 +134,6 @@ fn classify_dispatch_pressure_flag(flag: u32) -> Option<MemoryPressureLevel> {
     }
 }
 
-#[cfg(any(target_os = "linux", target_os = "android"))]
 fn parse_meminfo(contents: &str) -> Option<(u64, u64)> {
     fn kib_value(contents: &str, key: &str) -> Option<u64> {
         let line = contents.lines().find(|line| line.starts_with(key))?;
@@ -213,7 +144,6 @@ fn parse_meminfo(contents: &str) -> Option<(u64, u64)> {
     Some((available, total))
 }
 
-#[cfg(any(target_os = "linux", target_os = "android"))]
 fn cgroup_v2_directory() -> Option<std::path::PathBuf> {
     let cgroup = std::fs::read_to_string("/proc/self/cgroup").ok()?;
     let relative = cgroup.lines().find_map(|line| {
@@ -226,12 +156,10 @@ fn cgroup_v2_directory() -> Option<std::path::PathBuf> {
     Some(std::path::Path::new("/sys/fs/cgroup").join(relative.trim_start_matches('/')))
 }
 
-#[cfg(any(target_os = "linux", target_os = "android"))]
 fn read_u64(path: &std::path::Path) -> Option<u64> {
     std::fs::read_to_string(path).ok()?.trim().parse().ok()
 }
 
-#[cfg(any(target_os = "linux", target_os = "android"))]
 fn cgroup_memory_level() -> Option<MemoryPressureLevel> {
     let directory = cgroup_v2_directory()?;
     let current = read_u64(&directory.join("memory.current"))?;
@@ -245,7 +173,6 @@ fn cgroup_memory_level() -> Option<MemoryPressureLevel> {
     classify_availability(limit.saturating_sub(current), limit)
 }
 
-#[cfg(any(target_os = "linux", target_os = "android"))]
 fn platform_memory_pressure_level() -> Option<MemoryPressureLevel> {
     let host = std::fs::read_to_string("/proc/meminfo")
         .ok()
@@ -254,32 +181,7 @@ fn platform_memory_pressure_level() -> Option<MemoryPressureLevel> {
     [host, cgroup_memory_level()].into_iter().flatten().max()
 }
 
-#[cfg(target_os = "macos")]
-fn platform_memory_pressure_level() -> Option<MemoryPressureLevel> {
-    // This masked sysctl returns the public dispatch-memory-pressure flags,
-    // not XNU's separate 0–100 memorystatus percentage.
-    const NAME: &[u8] = b"kern.memorystatus_vm_pressure_level\0";
-    let mut level = 0 as libc::c_uint;
-    let mut len = std::mem::size_of::<libc::c_uint>();
-    let result = unsafe {
-        libc::sysctlbyname(
-            NAME.as_ptr().cast::<libc::c_char>(),
-            (&mut level as *mut libc::c_uint).cast::<libc::c_void>(),
-            &mut len,
-            std::ptr::null_mut(),
-            0,
-        )
-    };
-    if result != 0 || len < std::mem::size_of::<libc::c_uint>() {
-        return None;
-    }
-    classify_dispatch_pressure_flag(level)
-}
 
-#[cfg(not(any(target_os = "linux", target_os = "android", target_os = "macos")))]
-fn platform_memory_pressure_level() -> Option<MemoryPressureLevel> {
-    None
-}
 
 fn memory_pressure_level_from(source: &dyn MemoryPressureSource) -> Option<MemoryPressureLevel> {
     source.current_level()
@@ -353,22 +255,12 @@ mod tests {
         assert_eq!(classify_dispatch_pressure_flag(0), None);
     }
 
-    #[cfg(any(
-        target_os = "linux",
-        target_os = "android",
-        target_os = "macos",
-        target_os = "freebsd",
-        target_os = "openbsd",
-        target_os = "netbsd",
-        target_os = "dragonfly"
-    ))]
     #[test]
     fn peer_credentials_accept_a_local_socket_and_reject_bad_descriptors() {
         use std::os::fd::AsRawFd;
 
         let (left, right) = std::os::unix::net::UnixStream::pair().expect("UnixStream pair");
         assert_eq!(peer_uid(left.as_raw_fd()), Some(unsafe { libc::geteuid() }));
-        #[cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))]
         assert!(peer_pid(left.as_raw_fd()).is_some_and(|pid| pid > 0));
         assert_eq!(peer_uid(-1), None);
         assert_eq!(peer_pid(-1), None);
@@ -380,7 +272,6 @@ mod tests {
         drop(left);
     }
 
-    #[cfg(any(target_os = "linux", target_os = "android"))]
     #[test]
     fn parses_linux_mem_available() {
         let contents = "MemTotal:       1000 kB\nMemFree: 1 kB\nMemAvailable:    120 kB\n";

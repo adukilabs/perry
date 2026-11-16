@@ -439,7 +439,6 @@ fn t10_two_hundred_thousand_owner_cycles_have_flat_rss() {
     let _guard = CopyingNurseryTestGuard::new(0);
     let _reset = Reset::new();
     let _no_stack = ConservativeScanDisabledGuard::new();
-    #[cfg_attr(not(target_os = "linux"), allow(unused_mut))]
     let mut rss: Vec<usize> = Vec::new();
     for batch in 0..20 {
         for _ in 0..10_000 {
@@ -461,7 +460,6 @@ fn t10_two_hundred_thousand_owner_cycles_have_flat_rss() {
         }
         full();
         assert_eq!(DROPS.load(Ordering::SeqCst), (batch + 1) * 10_000);
-        #[cfg(target_os = "linux")]
         {
             let stat = std::fs::read_to_string("/proc/self/statm").unwrap();
             let pages: usize = stat.split_whitespace().nth(1).unwrap().parse().unwrap();

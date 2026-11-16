@@ -11,7 +11,6 @@
 //! returns plain Rust [`Answer`] values plus a [`DnsError`] that `dns.rs`
 //! maps onto Node's c-ares error codes.
 
-#[cfg(any(unix, test))]
 #[path = "dns_config.rs"]
 mod config;
 
@@ -165,7 +164,6 @@ fn bytes_to_string(bytes: &[u8]) -> String {
 /// resolver fallback when the file is missing, empty, or unparsable (e.g.
 /// on Windows, which has no resolv.conf).
 pub fn system_nameservers() -> Vec<SocketAddr> {
-    #[cfg(unix)]
     {
         if let Ok(data) = std::fs::read("/etc/resolv.conf") {
             let servers = config::nameservers(&data);
@@ -235,12 +233,6 @@ fn parse_hosts_file(content: &str) -> Vec<HostsEntry> {
 }
 
 fn hosts_file_path() -> std::path::PathBuf {
-    #[cfg(windows)]
-    {
-        let root = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".to_string());
-        return std::path::PathBuf::from(format!("{root}\\System32\\drivers\\etc\\hosts"));
-    }
-    #[cfg(not(windows))]
     std::path::PathBuf::from("/etc/hosts")
 }
 

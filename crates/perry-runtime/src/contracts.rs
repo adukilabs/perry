@@ -235,48 +235,14 @@ fn parse_blob(b: &[u8], at: &mut usize, out: &mut HashMap<u32, Claim>) -> Option
 
 /// Every loaded `.perry_facts` section of the executable.
 fn facts_sections() -> Vec<&'static [u8]> {
-    #[cfg(target_os = "linux")]
     {
         linux_section(b".perry_facts").into_iter().collect()
     }
-    #[cfg(target_vendor = "apple")]
-    {
-        apple_section().into_iter().collect()
-    }
-    #[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
-    {
-        Vec::new()
-    }
 }
 
-#[cfg(target_vendor = "apple")]
-fn apple_section() -> Option<&'static [u8]> {
-    unsafe extern "C" {
-        fn _dyld_get_image_header(idx: u32) -> *const libc::c_void;
-        fn getsectiondata(
-            mhp: *const libc::c_void,
-            segname: *const std::os::raw::c_char,
-            sectname: *const std::os::raw::c_char,
-            size: *mut std::os::raw::c_ulong,
-        ) -> *mut u8;
-    }
-    unsafe {
-        let mh = _dyld_get_image_header(0);
-        if mh.is_null() {
-            return None;
-        }
-        let mut size: std::os::raw::c_ulong = 0;
-        let p = getsectiondata(mh, c"__DATA".as_ptr(), c"__perry_facts".as_ptr(), &mut size);
-        if p.is_null() || size == 0 {
-            return None;
-        }
-        Some(std::slice::from_raw_parts(p, size as usize))
-    }
-}
 
 /// The main executable's section `name`: section headers from
 /// `/proc/self/exe`, load bias from the first `dl_iterate_phdr` image.
-#[cfg(target_os = "linux")]
 fn linux_section(name: &[u8]) -> Option<&'static [u8]> {
     use std::os::unix::fs::FileExt;
     let f = std::fs::File::open("/proc/self/exe").ok()?;
@@ -321,7 +287,6 @@ fn linux_section(name: &[u8]) -> Option<&'static [u8]> {
     None
 }
 
-#[cfg(target_os = "linux")]
 fn main_image_bias() -> Option<usize> {
     #[repr(C)]
     struct Info {

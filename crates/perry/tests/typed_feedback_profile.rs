@@ -1,5 +1,4 @@
 //! #8504: exercise real capture/replay, stale-input isolation and JS parity.
-#![cfg(unix)]
 use serde_json::Value;
 use std::path::Path;
 use std::process::{Command, Output};

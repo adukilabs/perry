@@ -234,7 +234,6 @@ pub extern "C" fn js_runtime_install_compiled() {
 /// module installer. Empty operation slots leave a program with no IO inert.
 #[no_mangle]
 pub extern "C" fn js_runtime_install_turnloop() {
-    #[cfg(not(target_arch = "wasm32"))]
     perry_install_once!({
         crate::event_pump::loop_hooks::install();
     });

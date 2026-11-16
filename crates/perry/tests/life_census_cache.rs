@@ -2,7 +2,6 @@
 //! so a compile served from the object cache or the build cache would leave
 //! it silently empty. With the census set, a recompile of an unchanged,
 //! already cached program still runs codegen and writes every row.
-#![cfg(unix)]
 
 use std::fs;
 use std::path::Path;

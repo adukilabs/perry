@@ -21,15 +21,10 @@
 //! `SCHED_NONE` keeps the #4914 SO_REUSEPORT path (kernel-balanced) and just
 //! layers the shared-port round-trip on top.
 
-#[cfg(unix)]
 use std::collections::HashMap;
-#[cfg(unix)]
 use std::collections::VecDeque;
-#[cfg(unix)]
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
-#[cfg(unix)]
 use std::sync::{Condvar, Mutex};
-#[cfg(unix)]
 use std::time::Duration;
 
 // Binary fd-frame on the IPC byte stream: a reserved 0xFE tag followed by the
@@ -37,9 +32,7 @@ use std::time::Duration;
 // advanced IPC length prefix cannot start with it for a representable payload
 // in this process. The accompanying fd rides in the `SCM_RIGHTS` ancillary
 // data of the same `sendmsg`.
-#[cfg(unix)]
 const FD_FRAME_TAG: u8 = 0xFE;
-#[cfg(unix)]
 const FD_FRAME_LEN: usize = 5; // tag + u32 key id
 
 /// Stable 32-bit routing key for an address. Both primary (fd-frame tag) and
@@ -60,7 +53,6 @@ pub fn compute_key_id(host: &str, port: u16, address_type: i32) -> u32 {
 /// to the exact (possibly port-0) listen it issued. The scheduling mode is part
 /// of the key so an RR query never reuses a non-RR primary entry (which would
 /// return a port but spawn no accept thread, hanging the RR worker).
-#[cfg(unix)]
 fn req_key(host: &str, req_port: i32, address_type: i32, rr: bool) -> String {
     let mode = if rr { "rr" } else { "n" };
     format!("{address_type}:{mode}:{host}:{req_port}")
@@ -75,14 +67,12 @@ fn req_key(host: &str, req_port: i32, address_type: i32, rr: bool) -> String {
 /// `fd_cv`) so `recv_fd`'s predicate check and condvar wait are atomic against
 /// the close handler — a separate `closed` lock would let a notify slip between
 /// the check and the wait and hang the waiter forever.
-#[cfg(unix)]
 #[derive(Default)]
 struct FdInbox {
     queues: HashMap<u32, VecDeque<RawFd>>,
     closed: bool,
 }
 
-#[cfg(unix)]
 struct WorkerState {
     /// In-flight queryServer round-trips: reqKey -> resolved port (None until
     /// the primary replies).
@@ -92,7 +82,6 @@ struct WorkerState {
     fd_cv: Condvar,
 }
 
-#[cfg(unix)]
 impl WorkerState {
     fn new() -> Self {
         Self {
@@ -104,7 +93,6 @@ impl WorkerState {
     }
 }
 
-#[cfg(unix)]
 fn worker_state() -> &'static WorkerState {
     use std::sync::OnceLock;
     static WS: OnceLock<WorkerState> = OnceLock::new();
@@ -125,7 +113,6 @@ pub fn worker_sched_is_rr() -> bool {
 /// caller's own bind instead of hanging). Returns the resolved port, or `None`
 /// on timeout/failure. `rr` selects fd-passing (primary owns the socket) vs the
 /// reuseport reservation used by SCHED_NONE and the non-injectable listeners.
-#[cfg(unix)]
 pub fn worker_query_listen(host: &str, req_port: i32, address_type: i32, rr: bool) -> Option<u16> {
     let key = req_key(host, req_port, address_type, rr);
     {
@@ -173,7 +160,6 @@ pub fn worker_query_listen(host: &str, req_port: i32, address_type: i32, rr: boo
 
 /// Block until the primary passes a connection fd for `key_id` (SCHED_RR
 /// accept loop). Returns the raw fd, or -1 once the IPC channel closes.
-#[cfg(unix)]
 pub fn worker_recv_fd(key_id: u32) -> RawFd {
     let mut inbox = worker_state().fd_inbox.lock().unwrap();
     loop {
@@ -193,7 +179,6 @@ pub fn worker_recv_fd(key_id: u32) -> RawFd {
 /// routes ancillary connection fds. `queryServerReply` frames are consumed
 /// here; every other frame is handed to the matching callback so normal
 /// `process.on('message')` delivery is unaffected.
-#[cfg(unix)]
 pub fn worker_recv_loop(
     stream: std::os::unix::net::UnixStream,
     advanced: bool,
@@ -282,7 +267,6 @@ pub fn worker_recv_loop(
 /// Split `acc` into complete frames in place: NUL-led binary fd-frames route a
 /// queued fd to its injection queue; newline-delimited JSON lines are either
 /// consumed (queryServerReply) or forwarded to `on_message`.
-#[cfg(unix)]
 fn drain_json_frames(
     acc: &mut Vec<u8>,
     fd_queue: &mut VecDeque<RawFd>,
@@ -333,7 +317,6 @@ fn drain_json_frames(
 /// still recognizing the reserved fd-passing frame. Query-server replies are
 /// decoded without constructing JS heap values on this reader thread because
 /// the JS main thread is synchronously waiting for that reply inside `listen()`.
-#[cfg(unix)]
 fn drain_advanced_frames(
     acc: &mut Vec<u8>,
     fd_queue: &mut VecDeque<RawFd>,
@@ -380,7 +363,6 @@ fn drain_advanced_frames(
 
 /// Extract the three fields in Perry's flat advanced `queryServerReply`
 /// object without constructing JS heap values on the IPC reader thread.
-#[cfg(unix)]
 fn try_consume_advanced_query_reply(payload: &[u8]) -> bool {
     let mut reader = FlatV8Reader::new(payload);
     let Some(fields) = reader.read_object() else {
@@ -402,7 +384,6 @@ fn try_consume_advanced_query_reply(payload: &[u8]) -> bool {
     true
 }
 
-#[cfg(unix)]
 #[derive(Default)]
 struct QueryReplyFields {
     act: Option<String>,
@@ -413,13 +394,11 @@ struct QueryReplyFields {
 /// Tiny, allocation-safe V8 reader for a flat object whose keys/values are
 /// strings or numbers. This intentionally is not a second structured-clone
 /// implementation; it only recognizes the cluster control message above.
-#[cfg(unix)]
 struct FlatV8Reader<'a> {
     bytes: &'a [u8],
     pos: usize,
 }
 
-#[cfg(unix)]
 impl<'a> FlatV8Reader<'a> {
     fn new(bytes: &'a [u8]) -> Self {
         Self { bytes, pos: 0 }
@@ -523,7 +502,6 @@ impl<'a> FlatV8Reader<'a> {
 
 /// Resolve a `queryServerReply` line (lightweight scan — runs on the reader
 /// thread, so no JS-runtime parsing). Returns true if the line was a reply.
-#[cfg(unix)]
 fn try_consume_query_reply(line: &[u8]) -> bool {
     let Ok(s) = std::str::from_utf8(line) else {
         return false;
@@ -546,7 +524,6 @@ fn try_consume_query_reply(line: &[u8]) -> bool {
 
 /// Extract `"name":"<value>"` from a flat JSON object string (no nested escapes
 /// beyond the `\\`/`\"` our own senders produce).
-#[cfg(unix)]
 fn json_str_field(s: &str, name: &str) -> Option<String> {
     let needle = format!("\"{name}\":\"");
     let start = s.find(&needle)? + needle.len();
@@ -568,7 +545,6 @@ fn json_str_field(s: &str, name: &str) -> Option<String> {
 }
 
 /// Extract `"name":<number>` from a flat JSON object string.
-#[cfg(unix)]
 fn json_num_field(s: &str, name: &str) -> Option<i32> {
     let needle = format!("\"{name}\":");
     let start = s.find(&needle)? + needle.len();
@@ -583,7 +559,6 @@ fn json_num_field(s: &str, name: &str) -> Option<i32> {
 // Primary side
 // ---------------------------------------------------------------------------
 
-#[cfg(unix)]
 struct PrimaryKey {
     actual_port: u16,
     key_id: u32,
@@ -592,14 +567,12 @@ struct PrimaryKey {
     inner: Mutex<PrimaryKeyInner>,
 }
 
-#[cfg(unix)]
 #[derive(Default)]
 struct PrimaryKeyInner {
     workers: Vec<u64>,
     rr_index: usize,
 }
 
-#[cfg(unix)]
 fn primary_keys() -> &'static Mutex<HashMap<String, std::sync::Arc<PrimaryKey>>> {
     use std::sync::OnceLock;
     static KEYS: OnceLock<Mutex<HashMap<String, std::sync::Arc<PrimaryKey>>>> = OnceLock::new();
@@ -609,7 +582,6 @@ fn primary_keys() -> &'static Mutex<HashMap<String, std::sync::Arc<PrimaryKey>>>
 /// Handle a worker's `queryServer`: bind/reserve the address once per key, add
 /// the worker to its round-robin set, and return the resolved port the worker
 /// should report. `None` means the primary could not bind (worker falls back).
-#[cfg(unix)]
 pub fn primary_handle_query(
     worker_handle: u64,
     host: &str,
@@ -669,7 +641,6 @@ pub fn primary_handle_query(
 
 /// Drop a dead worker from every key's rotation so the accept loop stops
 /// targeting it. Called from the cluster `exit` path.
-#[cfg(unix)]
 pub fn primary_remove_worker(worker_handle: u64) {
     let map = primary_keys().lock().unwrap();
     for entry in map.values() {
@@ -683,7 +654,6 @@ pub fn primary_remove_worker(worker_handle: u64) {
     }
 }
 
-#[cfg(unix)]
 fn bind_primary_listener(
     host: &str,
     port: u16,
@@ -731,7 +701,6 @@ fn bind_primary_listener(
 
 /// Round-robin accept loop: pass each accepted connection's fd to the next live
 /// worker over its IPC socketpair.
-#[cfg(unix)]
 fn spawn_accept_thread(entry: std::sync::Arc<PrimaryKey>, listener: std::net::TcpListener) {
     std::thread::spawn(move || {
         let key_id = entry.key_id;
@@ -754,7 +723,6 @@ fn spawn_accept_thread(entry: std::sync::Arc<PrimaryKey>, listener: std::net::Tc
 
 /// Pass the fd to the next live worker in rotation. Returns whether any worker
 /// took it.
-#[cfg(unix)]
 fn dispatch_fd_round_robin(entry: &PrimaryKey, key_id: u32, fd: RawFd) -> bool {
     let mut inner = entry.inner.lock().unwrap();
     let n = inner.workers.len();
@@ -775,7 +743,6 @@ fn dispatch_fd_round_robin(entry: &PrimaryKey, key_id: u32, fd: RawFd) -> bool {
 
 /// Low-level `sendmsg` of one fd with its routing tag. Used by the reactor
 /// (under the live-child lock, so writes to the socket stay serialized).
-#[cfg(unix)]
 pub fn send_fd_over(sock_fd: RawFd, key_id: u32, payload_fd: RawFd) -> bool {
     let mut frame = [0u8; FD_FRAME_LEN];
     frame[0] = FD_FRAME_TAG;
@@ -811,7 +778,6 @@ pub fn send_fd_over(sock_fd: RawFd, key_id: u32, payload_fd: RawFd) -> bool {
 }
 
 /// Reconstruct a `std::net::TcpStream` from a passed fd (worker side).
-#[cfg(unix)]
 pub fn tcp_stream_from_fd(fd: RawFd) -> std::net::TcpStream {
     unsafe { std::net::TcpStream::from_raw_fd(fd) }
 }
@@ -821,7 +787,6 @@ pub fn tcp_stream_from_fd(fd: RawFd) -> std::net::TcpStream {
 // perry-ffi's helpers and `perry_cluster_worker_listening`.
 // ---------------------------------------------------------------------------
 
-#[cfg(unix)]
 unsafe fn read_host(ptr: *const u8, len: u32) -> String {
     if ptr.is_null() || len == 0 {
         String::new()
@@ -833,7 +798,6 @@ unsafe fn read_host(ptr: *const u8, len: u32) -> String {
 /// 1 when this worker uses SCHED_RR, else 0. Always 0 off Unix.
 #[no_mangle]
 pub extern "C" fn perry_cluster_worker_sched_is_rr() -> i32 {
-    #[cfg(unix)]
     {
         if crate::cluster::is_cluster_worker() && worker_sched_is_rr() {
             return 1;
@@ -851,7 +815,6 @@ pub extern "C" fn perry_cluster_worker_query_listen(
     address_type: i32,
     rr: i32,
 ) -> i32 {
-    #[cfg(unix)]
     {
         if !crate::cluster::is_cluster_worker() {
             return -1;
@@ -862,24 +825,13 @@ pub extern "C" fn perry_cluster_worker_query_listen(
             None => -1,
         }
     }
-    #[cfg(not(unix))]
-    {
-        let _ = (host_ptr, host_len, port, address_type, rr);
-        -1
-    }
 }
 
 /// Block for the next SCHED_RR connection fd for `key_id`; -1 on channel close.
 #[no_mangle]
 pub extern "C" fn perry_cluster_worker_recv_fd(key_id: u32) -> i32 {
-    #[cfg(unix)]
     {
         worker_recv_fd(key_id) as i32
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = key_id;
-        -1
     }
 }
 
@@ -891,14 +843,8 @@ pub extern "C" fn perry_cluster_compute_key_id(
     port: i32,
     address_type: i32,
 ) -> u32 {
-    #[cfg(unix)]
     {
         let host = unsafe { read_host(host_ptr, host_len) };
         compute_key_id(&host, port.max(0) as u16, address_type)
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = (host_ptr, host_len, port, address_type);
-        0
     }
 }

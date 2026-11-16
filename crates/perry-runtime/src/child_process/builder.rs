@@ -8,10 +8,6 @@ use crate::value::JSValue;
 // (0x7FFF_FE40), and weakref (0x7FFF_FE10+).
 pub(crate) const CP_SHAPE_ID: u32 = 0x7FFF_FD00;
 // The pre-socket stdio objects (unix pipe slots are net sockets).
-#[cfg(not(unix))]
-pub(crate) const CP_READABLE_SHAPE_ID: u32 = 0x7FFF_FD40;
-#[cfg(not(unix))]
-pub(crate) const CP_WRITABLE_SHAPE_ID: u32 = 0x7FFF_FD80;
 
 // ----- object construction -----
 
@@ -78,7 +74,6 @@ pub(crate) fn cp_install_dispose(cp: f64) {
 /// `createSocket(pipe, readable)`: `readable` is false for stdin (slot 0).
 /// The descriptor is consumed. Throws when the program links no net provider,
 /// since the pipe has no other representation.
-#[cfg(unix)]
 pub(crate) fn cp_pipe_socket(readable: bool, pipe: std::os::fd::OwnedFd) -> f64 {
     use std::os::fd::IntoRawFd;
     let scope = crate::gc::RuntimeHandleScope::new();
@@ -125,7 +120,6 @@ core::arch::global_asm!(".weak js_ext_net_nm_install\n.hidden js_ext_net_nm_inst
 /// once: the dispatcher it registers is the "installed" state. The reference
 /// is weak: a program without perry-ext-net resolves it to null and
 /// [`cp_pipe_socket`] reports the missing provider.
-#[cfg(unix)]
 fn cp_install_net_provider() {
     if !crate::value::JS_NATIVE_NET_DISPATCH
         .load(std::sync::atomic::Ordering::SeqCst)
@@ -154,125 +148,7 @@ fn cp_install_net_provider() {
     }
 }
 
-/// Build a stdout/stderr Readable-shaped EventEmitter.
-#[cfg(not(unix))]
-pub(crate) fn cp_build_readable() -> f64 {
-    let methods: [(&str, CpFn); 13] = [
-        ("on", crate::fn_info!(cp_method_on, 2; with_declared(2))),
-        ("once", crate::fn_info!(cp_method_on, 2; with_declared(2))),
-        (
-            "addListener",
-            crate::fn_info!(cp_method_on, 2; with_declared(2)),
-        ),
-        (
-            "prependListener",
-            crate::fn_info!(cp_method_on, 2; with_declared(2)),
-        ),
-        (
-            "off",
-            crate::fn_info!(cp_method_remove_listener, 2; with_declared(2)),
-        ),
-        (
-            "removeListener",
-            crate::fn_info!(cp_method_remove_listener, 2; with_declared(2)),
-        ),
-        ("emit", crate::fn_info!(cp_method_emit, 2; with_declared(2))),
-        (
-            "pause",
-            crate::fn_info!(cp_method_this0, 0; with_declared(0)),
-        ),
-        (
-            "resume",
-            crate::fn_info!(cp_method_this0, 0; with_declared(0)),
-        ),
-        (
-            "destroy",
-            crate::fn_info!(cp_method_this0, 0; with_declared(0)),
-        ),
-        (
-            "setEncoding",
-            crate::fn_info!(cp_method_set_encoding, 1; with_declared(1)),
-        ),
-        ("read", crate::fn_info!(cp_method_read, 1; with_declared(1))),
-        ("pipe", crate::fn_info!(cp_method_pipe, 1; with_declared(1))),
-    ];
-    let obj = cp_build_object(&methods, CP_READABLE_SHAPE_ID + methods.len() as u32);
-    let val = cp_box_ptr(obj as *const u8);
-    cp_set_field(val, b"readable", TAG_TRUE_F64);
-    cp_set_field(val, b"readableEnded", TAG_FALSE_F64);
-    cp_set_field(val, b"destroyed", TAG_FALSE_F64);
-    // A child's `stdout`/`stderr` must be async-iterable, like Node's: both
-    // `for await (const chunk of child.stdout)` and the `isAsyncIterable` probe
-    // every stream-consuming library runs —
-    // `typeof stream[Symbol.asyncIterator] === "function"` — depend on it.
-    // Without the symbol, `get-stream` (used by execa) rejects the stream with
-    // "The first argument must be a Readable, a ReadableStream, or an async
-    // iterable", which silently aborted the background downloads of a large
-    // esbuild-bundled CLI app.
-    //
-    // Reuse node:stream's iterator: it is event-driven (it attaches persistent
-    // `data`/`end`/`error` listeners and settles a promise per pull), so it
-    // drives this emitter-backed object as-is — `cp_emit` forwards to node:stream's
-    // listener registry so those listeners fire.
-    crate::node_stream::async_iterator::install_foreign_readable_async_iterator_symbol(val);
-    val
-}
 
-/// Build a stdin Writable-shaped EventEmitter.
-#[cfg(not(unix))]
-pub(crate) fn cp_build_writable() -> f64 {
-    let methods: [(&str, CpFn); 11] = [
-        ("on", crate::fn_info!(cp_method_on, 2; with_declared(2))),
-        ("once", crate::fn_info!(cp_method_on, 2; with_declared(2))),
-        (
-            "addListener",
-            crate::fn_info!(cp_method_on, 2; with_declared(2)),
-        ),
-        (
-            "removeListener",
-            crate::fn_info!(cp_method_remove_listener, 2; with_declared(2)),
-        ),
-        (
-            "off",
-            crate::fn_info!(cp_method_remove_listener, 2; with_declared(2)),
-        ),
-        ("emit", crate::fn_info!(cp_method_emit, 2; with_declared(2))),
-        (
-            "write",
-            crate::fn_info!(cp_method_stdin_write, 3; with_declared(3)),
-        ),
-        (
-            "end",
-            crate::fn_info!(cp_method_stdin_end, 3; with_declared(3)),
-        ),
-        (
-            "destroy",
-            crate::fn_info!(cp_method_this0, 0; with_declared(0)),
-        ),
-        (
-            "cork",
-            crate::fn_info!(cp_method_this0, 0; with_declared(0)),
-        ),
-        (
-            "uncork",
-            crate::fn_info!(cp_method_this0, 0; with_declared(0)),
-        ),
-    ];
-    let obj = cp_build_object(&methods, CP_WRITABLE_SHAPE_ID + methods.len() as u32);
-    let val = cp_box_ptr(obj as *const u8);
-    cp_set_field(val, b"readable", TAG_FALSE_F64);
-    cp_set_field(val, b"writable", TAG_TRUE_F64);
-    cp_set_field(val, b"destroyed", TAG_FALSE_F64);
-    // #9493: the back-pressure observables `stdin.write()` maintains.
-    cp_set_field(val, b"writableLength", 0.0);
-    cp_set_field(
-        val,
-        b"writableHighWaterMark",
-        reactor::CP_STDIN_HIGH_WATER_MARK as f64,
-    );
-    cp_set_field(val, b"writableNeedDrain", TAG_FALSE_F64);
-    val
-}
 
 /// Build the inert public `new ChildProcess()` instance. Normal `spawn()` and
 /// `fork()` construct their live variants in the reactor; this low-level Node

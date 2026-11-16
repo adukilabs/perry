@@ -370,7 +370,6 @@ fn two_hundred_thousand_released_cells_have_flat_rss_and_exact_counts() {
     let _reset = Reset::new();
     let _no_stack = ConservativeScanDisabledGuard::new();
     let before = finalized();
-    #[cfg_attr(not(target_os = "linux"), allow(unused_mut))]
     let mut rss: Vec<usize> = Vec::new();
     for batch in 0..20 {
         for _ in 0..10_000 {
@@ -390,7 +389,6 @@ fn two_hundred_thousand_released_cells_have_flat_rss_and_exact_counts() {
         full();
         assert_eq!(finalized() - before, (batch + 1) * 10_000);
         assert_eq!(DROPS.load(Ordering::SeqCst), (batch + 1) * 10_000);
-        #[cfg(target_os = "linux")]
         {
             let stat = std::fs::read_to_string("/proc/self/statm").unwrap();
             let pages: usize = stat.split_whitespace().nth(1).unwrap().parse().unwrap();

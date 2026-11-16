@@ -3,10 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// One usable block per aligned Linux region. Other backends keep their
 /// existing geometry until their OS reservation implementation is validated.
-#[cfg(target_os = "linux")]
 pub(crate) const BLOCK_SIZE: usize = super::region::ALIGN;
-#[cfg(not(target_os = "linux"))]
-pub(crate) const BLOCK_SIZE: usize = 1024 * 1024;
 pub(crate) const FRESH_GENERAL_BLOCK_MIN_USED_BYTES: usize = 256 * 1024;
 
 /// Create a block of at least the given size (for oversized allocations)
@@ -55,12 +52,6 @@ fn block_size_for(min_size: usize) -> usize {
 /// arena (the pool's reuse window), when no classification admits it.
 pub(super) fn discard_empty_block_pages(block: &ArenaBlock) -> usize {
     debug_assert_eq!(block.offset, 0);
-    #[cfg(windows)]
-    {
-        let _ = block;
-        0
-    }
-    #[cfg(not(windows))]
     unsafe {
         release_block_pages(block.data, block.size)
     }
@@ -73,11 +64,6 @@ pub(super) fn discard_empty_block_pages(block: &ArenaBlock) -> usize {
 /// [`block_pool_take`] commits them again. Other targets advise the interior
 /// pages and need no reactivation.
 unsafe fn release_block_pages(data: *mut u8, size: usize) -> usize {
-    #[cfg(any(target_vendor = "apple", windows))]
-    {
-        super::region::release(data, size)
-    }
-    #[cfg(not(any(target_vendor = "apple", windows)))]
     {
         decommit::release(data, size)
     }
@@ -226,7 +212,6 @@ fn block_pool_cap_bytes() -> usize {
 
 // Apple releases whole regions instead; the interior-page helper stays
 // compiled there for its unit tests.
-#[cfg_attr(target_vendor = "apple", allow(dead_code))]
 #[path = "block/decommit.rs"]
 mod decommit;
 pub(crate) use decommit::release as discard_dead_payload_pages;
@@ -544,11 +529,6 @@ impl ArenaBlock {
     /// before any of its bytes are written, so this is off the bump path.
     #[inline]
     fn prepare_reuse(&mut self) {
-        #[cfg(target_vendor = "apple")]
-        if self.idle_pages_discarded {
-            unsafe { super::region::reuse(self.data, self.size) };
-            self.idle_pages_discarded = false;
-        }
     }
 
     #[inline]

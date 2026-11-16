@@ -19,7 +19,6 @@
 //! registration order.
 
 use std::collections::HashMap;
-#[cfg(not(windows))]
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::sync::Mutex;
@@ -56,13 +55,9 @@ unsafe impl Send for LibHandle {}
 // `perry_plugin_load` / `perry_plugin_unload` bodies don't have to fork.
 // ============================================================================
 
-#[cfg(unix)]
 type RawLibHandle = *mut libc::c_void;
 
-#[cfg(windows)]
-type RawLibHandle = windows_sys::Win32::Foundation::HMODULE;
 
-#[cfg(unix)]
 unsafe fn open_library(path: &str) -> Option<RawLibHandle> {
     let c_path = CString::new(path).ok()?;
     let h = libc::dlopen(c_path.as_ptr(), libc::RTLD_NOW | libc::RTLD_LOCAL);
@@ -73,20 +68,7 @@ unsafe fn open_library(path: &str) -> Option<RawLibHandle> {
     }
 }
 
-#[cfg(windows)]
-unsafe fn open_library(path: &str) -> Option<RawLibHandle> {
-    use windows_sys::Win32::System::LibraryLoader::LoadLibraryW;
-    // LoadLibraryW takes a NUL-terminated UTF-16 path. Encode once, free on return.
-    let wide: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
-    let h = LoadLibraryW(wide.as_ptr());
-    if h.is_null() {
-        None
-    } else {
-        Some(h)
-    }
-}
 
-#[cfg(unix)]
 unsafe fn lookup_symbol(handle: RawLibHandle, name: &str) -> Option<*mut libc::c_void> {
     let c_name = CString::new(name).ok()?;
     let p = libc::dlsym(handle, c_name.as_ptr());
@@ -97,34 +79,12 @@ unsafe fn lookup_symbol(handle: RawLibHandle, name: &str) -> Option<*mut libc::c
     }
 }
 
-#[cfg(windows)]
-unsafe fn lookup_symbol(handle: RawLibHandle, name: &str) -> Option<*mut libc::c_void> {
-    use windows_sys::Win32::System::LibraryLoader::GetProcAddress;
-    // GetProcAddress's `lpProcName` is a NUL-terminated *ANSI* string. The
-    // plugin ABI surface (perry_plugin_*, plugin_activate, plugin_deactivate)
-    // is all ASCII, so a CString is the right shape. GetProcAddress returns
-    // `Option<unsafe extern "system" fn() -> isize>` — None means "symbol
-    // not found", which is what we want to forward up the call chain.
-    let c_name = CString::new(name).ok()?;
-    let p = GetProcAddress(handle, c_name.as_ptr() as *const u8);
-    match p {
-        Some(f) => Some(f as *mut libc::c_void),
-        None => None,
-    }
-}
 
-#[cfg(unix)]
 unsafe fn close_library(_handle: RawLibHandle) {
     libc::dlclose(_handle);
 }
 
-#[cfg(windows)]
-unsafe fn close_library(handle: RawLibHandle) {
-    use windows_sys::Win32::Foundation::FreeLibrary;
-    let _ = FreeLibrary(handle);
-}
 
-#[cfg(unix)]
 fn last_load_error(path: &str) -> String {
     unsafe {
         let err = libc::dlerror();
@@ -140,35 +100,13 @@ fn last_load_error(path: &str) -> String {
     }
 }
 
-#[cfg(windows)]
-fn last_load_error(path: &str) -> String {
-    use windows_sys::Win32::Foundation::GetLastError;
-    let err = unsafe { GetLastError() };
-    format!("LoadLibraryW failed for {}: Win32 error {}", path, err)
-}
 
 // WASI (#11377) has no dynamic loading: every load fails through the ordinary
 // "load failed" path, so the other helpers are never reached with a handle.
-#[cfg(target_os = "wasi")]
-type RawLibHandle = *mut libc::c_void;
 
-#[cfg(target_os = "wasi")]
-unsafe fn open_library(_path: &str) -> Option<RawLibHandle> {
-    None
-}
 
-#[cfg(target_os = "wasi")]
-unsafe fn lookup_symbol(_handle: RawLibHandle, _name: &str) -> Option<*mut libc::c_void> {
-    None
-}
 
-#[cfg(target_os = "wasi")]
-unsafe fn close_library(_handle: RawLibHandle) {}
 
-#[cfg(target_os = "wasi")]
-fn last_load_error(path: &str) -> String {
-    format!("cannot load native plugin {path}: WASI has no dynamic libraries")
-}
 
 struct PluginMetadata {
     name: String,

@@ -111,7 +111,6 @@ fn escaped_chunks_do_not_grow_scratch_before_the_string_needs_it() {
 }
 
 #[test]
-#[cfg(unix)]
 fn escaped_chunk_never_reads_past_guarded_input() {
     unsafe {
         let page = libc::sysconf(libc::_SC_PAGESIZE) as usize;

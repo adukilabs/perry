@@ -21,17 +21,10 @@ fn provider_copies_share_storage_without_initializing_a_second_value() {
         }
     }
     type Storage = super::HotCell<Probe, 1>;
-    #[cfg(not(target_os = "android"))]
     thread_local! {
         static FIRST_STORAGE: Storage = Storage::new(Probe::new());
         static SECOND_STORAGE: Storage = Storage::new(Probe::new());
     }
-    #[cfg(target_os = "android")]
-    static FIRST_STORAGE: crate::tls_os_pool::LocalKey<Storage> =
-        crate::tls_os_pool::LocalKey::new(|| Storage::new(Probe::new()));
-    #[cfg(target_os = "android")]
-    static SECOND_STORAGE: crate::tls_os_pool::LocalKey<Storage> =
-        crate::tls_os_pool::LocalKey::new(|| Storage::new(Probe::new()));
     const FIRST_SLOT: super::SlotId = super::SlotId::named("provider-test::shared");
     const SECOND_SLOT: super::SlotId = super::SlotId::named("provider-test::shared");
     static FIRST: super::HotKey<Probe> = super::HotKey::new(FIRST_SLOT, |idx| {

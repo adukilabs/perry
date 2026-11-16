@@ -12,53 +12,18 @@ use super::*;
 // program that has no image strings and then cannot synthesize
 // `section$start/end$__TEXT$__perry_strings`, so every link fails.
 #[used(linker)]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows")),
     link_section = "perry_strings"
 )]
 static IMAGE_SECTION_SENTINEL: [u64; 1] = [0];
 
-#[cfg(target_os = "windows")]
-#[used(linker)]
-#[link_section = ".perrystr$a"]
-static IMAGE_START: [u64; 1] = [0];
-#[cfg(target_os = "windows")]
-#[used(linker)]
-#[link_section = ".perrystr$z"]
-static IMAGE_END: [u64; 1] = [0];
 
 #[inline]
 pub(super) fn bounds() -> (usize, usize) {
     // A real reference: whatever links this function links the sentinel too.
     std::hint::black_box(std::ptr::addr_of!(IMAGE_SECTION_SENTINEL));
-    #[cfg(target_vendor = "apple")]
-    {
-        // ld64 synthesizes `section$start$SEG$SECT` only under that exact
-        // name. The leading \x01 tells LLVM not to add Mach-O's `_` global
-        // prefix; without it the linker sees `_section$start$...`, which it
-        // never defines, and every link fails.
-        unsafe extern "C" {
-            #[link_name = "\u{1}section$start$__TEXT$__perry_strings"]
-            static START: u8;
-            #[link_name = "\u{1}section$end$__TEXT$__perry_strings"]
-            static END: u8;
-        }
-        (
-            std::ptr::addr_of!(START) as usize,
-            std::ptr::addr_of!(END) as usize,
-        )
-    }
-    #[cfg(target_os = "windows")]
-    {
-        (
-            std::ptr::addr_of!(IMAGE_START) as usize + 8,
-            std::ptr::addr_of!(IMAGE_END) as usize,
-        )
-    }
     // ELF and wasm-ld both synthesize these for the C-identifier section name.
-    #[cfg(not(any(target_vendor = "apple", target_os = "windows")))]
     {
         unsafe extern "C" {
             static __start_perry_strings: u8;
@@ -83,12 +48,6 @@ pub(super) unsafe fn header(addr: usize) -> Option<std::ptr::NonNull<GcHeader>> 
     // Runtime images are not in the section on wasm; they own exact ranges
     // registered at startup. Program literals are in it, so the section
     // bounds are exact for them as on every other target.
-    #[cfg(target_family = "wasm")]
-    let (start, end) = if (start..end).contains(&header_addr) {
-        (start, end)
-    } else {
-        crate::wasm_image::bounds(header_addr)?
-    };
     let data = addr.checked_add(std::mem::size_of::<StringHeader>())?;
     if header_addr < start || data >= end || addr % 8 != 0 {
         return None;

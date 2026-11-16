@@ -160,7 +160,6 @@ pub unsafe extern "C" fn napi_queue_async_work(env: NapiEnv, handle: NapiAsyncWo
     // addon's `execute` inline: an addon that queues async work expects it
     // *not* to run on the JS thread (that is the whole point of the API), so
     // `submit_or_run_inline` would be the wrong fallback here.
-    #[cfg(not(target_arch = "wasm32"))]
     let queued = {
         let pooled = std::sync::Arc::clone(&work);
         crate::turnloop_pool::submit(
@@ -176,8 +175,6 @@ pub unsafe extern "C" fn napi_queue_async_work(env: NapiEnv, handle: NapiAsyncWo
         )
         .is_ok()
     };
-    #[cfg(target_arch = "wasm32")]
-    let queued = false;
     if !queued {
         std::thread::spawn(move || {
             if let Some(work) = run_async_work(work) {
@@ -269,7 +266,6 @@ pub(crate) fn drain_async_completions() -> i32 {
     //
     // Costs a thread-local read and no syscall when this process has queued no
     // pool job.
-    #[cfg(not(target_arch = "wasm32"))]
     if crate::turnloop_pool::has_pending_jobs() {
         crate::event_pump::js_loop_turn_bounded(0);
     }

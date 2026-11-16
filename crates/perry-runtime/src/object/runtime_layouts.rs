@@ -705,10 +705,6 @@ use literal_atoms::ATOM_9;
 #[cfg(test)]
 use literal_atoms::IMAGE_0;
 
-#[cfg(all(test, target_os = "windows"))]
-pub(crate) fn test_image_atom() -> *const StaticAtom {
-    std::ptr::addr_of!(ATOM_0)
-}
 
 #[cfg(test)]
 pub(crate) fn test_image_string() -> *const StringHeader {
@@ -818,8 +814,6 @@ pub(crate) use http_instances::*;
 
 /// `Symbol.iterator` as a layout key (§6a, a well-known symbol atom).
 #[used(linker)]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -876,8 +870,6 @@ runtime_layout!(
 // Fixed legacy SQLite column metadata; the five data properties are all present.
 #[used(linker)]
 #[export_name = "perry_image_literal_0_636f6c756d6e"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -885,8 +877,6 @@ runtime_layout!(
 static SQLITE_IMAGE_0: ImageString<7> = image(*b"column\0");
 wasm_string_image!(SQLITE_IMAGE_0);
 #[used(linker)]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -902,8 +892,6 @@ static SQLITE_ATOM_0: StaticAtom = StaticAtom {
 wasm_atom!(SQLITE_ATOM_0);
 #[used(linker)]
 #[export_name = "perry_image_literal_0_6461746162617365"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -911,8 +899,6 @@ wasm_atom!(SQLITE_ATOM_0);
 static SQLITE_IMAGE_1: ImageString<9> = image(*b"database\0");
 wasm_string_image!(SQLITE_IMAGE_1);
 #[used(linker)]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -928,8 +914,6 @@ static SQLITE_ATOM_1: StaticAtom = StaticAtom {
 wasm_atom!(SQLITE_ATOM_1);
 #[used(linker)]
 #[export_name = "perry_image_literal_0_6e616d65"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -937,8 +921,6 @@ wasm_atom!(SQLITE_ATOM_1);
 static SQLITE_IMAGE_2: ImageString<5> = image(*b"name\0");
 wasm_string_image!(SQLITE_IMAGE_2);
 #[used(linker)]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -954,8 +936,6 @@ static SQLITE_ATOM_2: StaticAtom = StaticAtom {
 wasm_atom!(SQLITE_ATOM_2);
 #[used(linker)]
 #[export_name = "perry_image_literal_0_7461626c65"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -963,8 +943,6 @@ wasm_atom!(SQLITE_ATOM_2);
 static SQLITE_IMAGE_3: ImageString<6> = image(*b"table\0");
 wasm_string_image!(SQLITE_IMAGE_3);
 #[used(linker)]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"
@@ -980,8 +958,6 @@ static SQLITE_ATOM_3: StaticAtom = StaticAtom {
 wasm_atom!(SQLITE_ATOM_3);
 #[used(linker)]
 #[export_name = "perry_image_literal_0_74797065"]
-#[cfg_attr(target_vendor = "apple", link_section = "__TEXT,__perry_strings")]
-#[cfg_attr(target_os = "windows", link_section = ".perrystr$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_strings"
@@ -989,8 +965,6 @@ wasm_atom!(SQLITE_ATOM_3);
 static SQLITE_IMAGE_4: ImageString<5> = image(*b"type\0");
 wasm_string_image!(SQLITE_IMAGE_4);
 #[used(linker)]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_atoms")]
-#[cfg_attr(target_os = "windows", link_section = ".perryatm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_atoms"

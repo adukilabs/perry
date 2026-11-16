@@ -79,11 +79,6 @@ pub(crate) fn system_certificates() -> &'static [String] {
 }
 
 fn load_system_certificates() -> Vec<String> {
-    #[cfg(target_os = "macos")]
-    {
-        macos::load()
-    }
-    #[cfg(not(target_os = "macos"))]
     {
         multi_cert_or_fallback(load_first_existing_bundle())
     }

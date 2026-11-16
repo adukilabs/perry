@@ -754,21 +754,6 @@ fn resolve_program(program: &OsStr, cmd: &Command, cwd: &Path) -> Option<PathBuf
 }
 
 fn program_candidates(program: &OsStr) -> Vec<OsString> {
-    #[cfg(windows)]
-    {
-        let mut candidates = vec![program.to_os_string()];
-        if Path::new(program).extension().is_none() {
-            let pathext = std::env::var_os("PATHEXT")
-                .unwrap_or_else(|| OsString::from(".COM;.EXE;.BAT;.CMD"));
-            for ext in pathext.to_string_lossy().split(';') {
-                let mut candidate = program.to_os_string();
-                candidate.push(ext.to_ascii_lowercase());
-                candidates.push(candidate);
-            }
-        }
-        candidates
-    }
-    #[cfg(not(windows))]
     {
         vec![program.to_os_string()]
     }
@@ -1041,7 +1026,6 @@ mod tests {
         assert_links(project, &cmd, &output, &[input]);
     }
 
-    #[cfg(unix)]
     #[test]
     fn link_cache_output_identity_does_not_change_after_output_is_created() {
         let dir = tempfile::tempdir().unwrap();

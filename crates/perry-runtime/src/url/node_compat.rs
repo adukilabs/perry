@@ -181,44 +181,8 @@ mod tests {
         assert_eq!(super::options_windows_flag(obj_f64), cfg!(windows));
     }
 
-    #[cfg(windows)]
-    #[test]
-    fn file_url_conversions_default_to_win32_on_windows() {
-        let undefined = f64::from_bits(crate::value::TAG_UNDEFINED);
 
-        let path = super::js_url_file_url_to_path(str_f64("file:///C:/tmp/x.txt"), undefined);
-        assert_eq!(super::string_from_js_value(path), "C:\\tmp\\x.txt");
 
-        let out = super::js_url_path_to_file_url(str_f64("C:\\tmp\\x.txt"), undefined);
-        let obj = crate::url::object_from_f64(out).expect("URL object");
-        assert_eq!(
-            crate::url::object_prop_string(obj, "href"),
-            "file:///C:/tmp/x.txt"
-        );
-
-        // Relative inputs resolve against the cwd (Node uses
-        // `path.win32.resolve` before building the URL).
-        let out = super::js_url_path_to_file_url(str_f64("x.txt"), undefined);
-        let obj = crate::url::object_from_f64(out).expect("URL object");
-        let href = crate::url::object_prop_string(obj, "href");
-        let drive = std::env::current_dir().expect("cwd").to_string_lossy()[..2].to_string();
-        assert!(
-            href.starts_with(&format!("file:///{drive}/")),
-            "href {href:?} does not start with the cwd drive"
-        );
-        assert!(href.ends_with("/x.txt"), "href {href:?}");
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn legacy_verbatim_import_meta_url_decodes_as_drive_path() {
-        let undefined = f64::from_bits(crate::value::TAG_UNDEFINED);
-        let path =
-            super::js_url_file_url_to_path(str_f64("file:////?/C:/project/bundle.mjs"), undefined);
-        assert_eq!(super::string_from_js_value(path), "C:\\project\\bundle.mjs");
-    }
-
-    #[cfg(not(windows))]
     #[test]
     fn file_url_conversions_default_to_posix_elsewhere() {
         let undefined = f64::from_bits(crate::value::TAG_UNDEFINED);

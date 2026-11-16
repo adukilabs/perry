@@ -44,20 +44,9 @@ impl Context {
             let Some(file) = file else {
                 return -1;
             };
-            #[cfg(unix)]
             {
                 use std::os::fd::AsRawFd;
                 file.as_raw_fd() as i64
-            }
-            #[cfg(windows)]
-            {
-                use std::os::windows::io::AsRawHandle;
-                file.as_raw_handle() as i64
-            }
-            #[cfg(not(any(unix, windows)))]
-            {
-                let _ = file;
-                -1
             }
         });
         let mut error = std::ptr::null_mut();

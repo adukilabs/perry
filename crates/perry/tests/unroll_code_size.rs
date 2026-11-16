@@ -1,5 +1,4 @@
 //! #13649: compare actual renderer machine code for equivalent loop updates.
-#![cfg(any(target_os = "macos", target_os = "linux"))]
 
 use object::{Object, ObjectSection, ObjectSymbol, SymbolKind};
 use std::path::{Path, PathBuf};

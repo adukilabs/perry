@@ -54,7 +54,6 @@ fn grid() -> &'static Mutex<Grid> {
 /// Read the current terminal size via TIOCGWINSZ. Falls back to 80x24
 /// when stdout isn't a TTY.
 fn current_term_size() -> (u16, u16) {
-    #[cfg(unix)]
     unsafe {
         let mut ws: libc::winsize = std::mem::zeroed();
         if libc::ioctl(1, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0 && ws.ws_row > 0 {

@@ -62,7 +62,6 @@ fn assert_report(case: &str, predicate: &str) {
         .env_remove("__RUST_TEST_INVOKE")
         .output()
         .unwrap();
-    #[cfg(unix)]
     let status = {
         use std::os::unix::process::ExitStatusExt;
         child
@@ -70,8 +69,6 @@ fn assert_report(case: &str, predicate: &str) {
             .code()
             .unwrap_or_else(|| 128 + child.status.signal().unwrap())
     };
-    #[cfg(not(unix))]
-    let status = child.status.code().unwrap_or(-1);
     let stderr = String::from_utf8(child.stderr).unwrap();
     assert_eq!(status, 86, "{case}: {stderr}");
     assert_eq!(stderr.lines().count(), 1, "{case}: {stderr}");

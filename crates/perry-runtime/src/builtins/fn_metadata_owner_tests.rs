@@ -414,7 +414,6 @@ fn name_lookup_allocates_nothing_on_first_and_repeated_queries() {
     assert_eq!(allocations, 0, "static record lookup must not allocate");
 }
 
-#[cfg(all(unix, not(target_vendor = "apple")))]
 #[test]
 fn linker_ordered_records_have_a_sentinel_and_reject_broken_order() {
     let mut fixture = image(0x1000);

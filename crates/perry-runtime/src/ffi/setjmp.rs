@@ -54,39 +54,8 @@
 
 use std::os::raw::c_int;
 
-#[cfg(target_vendor = "apple")]
-extern "C" {
-    /// `_setjmp(3)` — the fast, signal-state-skipping variant. The
-    /// Mach-O linker symbol is `__setjmp` (the leading `_` is the
-    /// C ABI prefix that Rust adds automatically on Apple). Verified
-    /// via `nm /usr/lib/system/libsystem_platform.dylib | grep setjmp`.
-    #[link_name = "_setjmp"]
-    pub fn setjmp(env: *mut c_int) -> c_int;
-}
 
-#[cfg(all(target_os = "windows", target_arch = "aarch64"))]
-#[link(name = "libvcruntime")]
-extern "C" {
-    /// MSVC implements ARM64 `setjmp` as a compiler intrinsic. Clang lowers
-    /// the public `_setjmp` spelling to `__intrinsic_setjmpex`, passing the
-    /// current frame as a hidden second argument. Rust does not perform that
-    /// lowering, so calling the ordinary CRT `setjmp` thunk leaves an
-    /// unresolved `__intrinsic_setjmp` reference when lld links the final PE.
-    ///
-    /// Perry deliberately uses the non-unwinding form of `longjmp` and clears
-    /// `_JUMP_BUFFER::Frame` before jumping (see the Windows caveat below).
-    /// Consequently the hidden frame argument is not observed: as on x64, its
-    /// unspecified register value is stored and then cleared before `longjmp`.
-    /// Linking the static VCRuntime implementation makes the intrinsic
-    /// available to Perry's manually linked executables.
-    #[link_name = "__intrinsic_setjmpex"]
-    pub fn setjmp(env: *mut c_int) -> c_int;
-}
 
-#[cfg(all(
-    not(target_vendor = "apple"),
-    not(all(target_os = "windows", target_arch = "aarch64"))
-))]
 extern "C" {
     /// `setjmp(3)`. On glibc Linux this already doesn't save the
     /// signal mask, so it's the same fast path we want.

@@ -467,7 +467,6 @@ fn pinned_inline_detach_retains_pages_until_the_last_unpin() {
     drop(first);
     assert_eq!(decommits(), before, "one pin still owns the inline pages");
     check(&second);
-    #[cfg(target_os = "linux")]
     let data = second.as_ptr();
     drop(second);
     assert_eq!(
@@ -475,7 +474,6 @@ fn pinned_inline_detach_retains_pages_until_the_last_unpin() {
         before + 1,
         "the last pin must release the pages"
     );
-    #[cfg(target_os = "linux")]
     unsafe {
         let page = libc::sysconf(libc::_SC_PAGESIZE) as usize;
         let middle = (data as usize + page * 2) & !(page - 1);

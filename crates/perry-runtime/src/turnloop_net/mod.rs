@@ -106,10 +106,6 @@ const OP_CLOSE: u64 = 6;
 const OP_RESOLVE: u64 = 7;
 /// P5: a subsystem-owned one-shot deadline (server timeouts).
 const OP_TIMER: u64 = 8;
-#[cfg(windows)]
-const OP_PIPE_DRAIN: u64 = 9;
-#[cfg(windows)]
-const OP_PIPE_EOF: u64 = 10;
 
 /// The low 56 bits of a token hold the Perry-side id.
 const ID_BITS: u32 = 56;
@@ -270,10 +266,6 @@ struct Entry {
     /// `close` was submitted; the entry survives until its `Closed` arrives.
     closing: bool,
     referenced: bool,
-    #[cfg(windows)]
-    pipe_drain: Option<OpId>,
-    #[cfg(windows)]
-    pipe_eof_timer: Option<Handle>,
     local: Option<SocketAddr>,
     peer: Option<SocketAddr>,
     /// Bound path of a local listener, so the caller can unlink it on close.
@@ -295,10 +287,6 @@ impl Entry {
             connecting: false,
             closing: false,
             referenced: true,
-            #[cfg(windows)]
-            pipe_drain: None,
-            #[cfg(windows)]
-            pipe_eof_timer: None,
             local: None,
             peer: None,
             path: None,
@@ -637,11 +625,7 @@ pub fn pipe_connect(id: i64, subsystem: u8, path: &Path) -> NetResult<()> {
 ///
 /// A file descriptor on Unix and a `SOCKET` on Windows — the two platforms
 /// whose turnloop backend can adopt a foreign transport.
-#[cfg(unix)]
 pub type AdoptedSocket = std::os::fd::OwnedFd;
-/// See the Unix definition.
-#[cfg(windows)]
-pub type AdoptedSocket = std::os::windows::io::OwnedSocket;
 
 /// Adopt an already-connected stream socket as a connected socket on this
 /// agent's loop, under the caller's `id`.
@@ -660,7 +644,6 @@ pub type AdoptedSocket = std::os::windows::io::OwnedSocket;
 /// this thread, a descriptor turnloop cannot classify, the handle ceiling —
 /// closes it rather than handing it back, so a caller never has to decide
 /// whether it still owns a descriptor.
-#[cfg(any(unix, windows))]
 pub fn adopt_stream(id: i64, subsystem: u8, socket: AdoptedSocket) -> NetResult<()> {
     if subsystem as usize >= sink::MAX_SUBSYSTEMS {
         return Err(map_error(Error::new(ErrorKind::InvalidInput), "adopt"));
@@ -673,10 +656,7 @@ pub fn adopt_stream(id: i64, subsystem: u8, socket: AdoptedSocket) -> NetResult<
         )
     };
     with_driver(move |driver| {
-        #[cfg(unix)]
         let detached = turnloop::Detached::from_fd(socket);
-        #[cfg(windows)]
-        let detached = turnloop::Detached::from_socket(socket);
         let detached = detached.map_err(|e| map_error(e, "adopt"))?;
         let handle = driver
             .attach(detached, token(OP_READ, id))
@@ -898,13 +878,6 @@ pub fn close(id: i64) -> NetResult<()> {
                 return Ok(());
             }
             entry.closing = true;
-            #[cfg(windows)]
-            {
-                windows_pipe::cancel_eof(driver, Name::Id(id), entry);
-                if let Some(op) = entry.pipe_drain.take() {
-                    driver.cancel(op);
-                }
-            }
             census::note_submit(OP_CLOSE);
             driver
                 .close(entry.handle, token(OP_CLOSE, id))
@@ -1025,76 +998,7 @@ pub(crate) fn dispatch(completion: Completion) {
         return;
     };
 
-    #[cfg(windows)]
-    if op_class == OP_PIPE_EOF {
-        let live = NET.with(|net| {
-            net.borrow()
-                .entries
-                .get(&id)
-                .is_some_and(|entry| !entry.closing && entry.pipe_eof_timer == _handle)
-        });
-        if live && matches!(result, OpResult::Timer) {
-            sink::emit(subsystem, NetCompletion::eof(id));
-            let _ = close(id);
-        }
-        return;
-    }
 
-    #[cfg(windows)]
-    if op_class == OP_PIPE_DRAIN {
-        let live = NET.with(|net| {
-            net.borrow()
-                .entries
-                .get(&id)
-                .is_some_and(|entry| !entry.closing && entry.pipe_drain == _op)
-        });
-        if !live {
-            return;
-        }
-        match result {
-            OpResult::Blocking(_) => {
-                let user = NET.with(|net| {
-                    write_queue::retire(&mut net.borrow_mut(), id, OP_SHUTDOWN)
-                        .first()
-                        .map_or(0, |r| r.0)
-                });
-                sink::emit(subsystem, NetCompletion::shutdown(id, user));
-                let armed = with_driver(|driver| {
-                    NET.with(|net| {
-                        let mut net = net.borrow_mut();
-                        let entry = net
-                            .entries
-                            .get_mut(&id)
-                            .ok_or_else(|| Error::new(ErrorKind::InvalidInput))?;
-                        windows_pipe::arm_eof(driver, Name::Id(id), entry).map(|_| ())
-                    })
-                });
-                if !matches!(armed, Some(Ok(()))) {
-                    sink::emit(subsystem, NetCompletion::eof(id));
-                    let _ = close(id);
-                }
-            }
-            OpResult::Err(error) => {
-                let users: Vec<_> = NET.with(|net| {
-                    write_queue::retire(&mut net.borrow_mut(), id, OP_SHUTDOWN)
-                        .into_iter()
-                        .map(|r| r.0)
-                        .collect()
-                });
-                write_queue::report_error(
-                    subsystem,
-                    id,
-                    &users,
-                    0,
-                    map_error(error, "shutdown"),
-                    true,
-                );
-                let _ = close(id);
-            }
-            _ => {}
-        }
-        return;
-    }
 
     if op_class == OP_RESOLVE {
         resolve_completed(subsystem, id, result);
@@ -1135,16 +1039,6 @@ pub(crate) fn dispatch(completion: Completion) {
             if terminal {
                 clear_op(id, op_class);
             }
-            #[cfg(windows)]
-            with_driver(|driver| {
-                NET.with(|net| {
-                    if let Some(entry) = net.borrow_mut().entries.get_mut(&id) {
-                        if entry.pipe_eof_timer.is_some() {
-                            let _ = windows_pipe::arm_eof(driver, Name::Id(id), entry);
-                        }
-                    }
-                })
-            });
             let bytes = lease.as_ref().map(|l| l.as_slice()).unwrap_or(&[]);
             debug_assert!(bytes.len() == n || lease.is_none());
             if n != 0 {
@@ -1156,14 +1050,6 @@ pub(crate) fn dispatch(completion: Completion) {
             drop(lease);
         }
         OpResult::Eof => {
-            #[cfg(windows)]
-            with_driver(|driver| {
-                NET.with(|net| {
-                    if let Some(entry) = net.borrow_mut().entries.get_mut(&id) {
-                        windows_pipe::cancel_eof(driver, Name::Id(id), entry);
-                    }
-                })
-            });
             let handle = NET.with(|net| {
                 let mut net = net.borrow_mut();
                 let entry = net.entries.get_mut(&id)?;

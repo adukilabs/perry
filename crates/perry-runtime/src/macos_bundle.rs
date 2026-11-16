@@ -18,16 +18,6 @@
 /// `Contents/Resources` so relative asset paths resolve.
 #[no_mangle]
 pub extern "C" fn perry_macos_bundle_chdir() {
-    #[cfg(target_os = "macos")]
-    {
-        if let Ok(exe) = std::env::current_exe() {
-            if let Some(resources) = bundle_resources_dir(&exe) {
-                if resources.is_dir() {
-                    let _ = std::env::set_current_dir(&resources);
-                }
-            }
-        }
-    }
 }
 
 /// Map an executable path `<App>.app/Contents/MacOS/<bin>` to its sibling

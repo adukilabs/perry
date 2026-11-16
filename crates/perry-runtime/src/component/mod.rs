@@ -11,7 +11,6 @@ mod guest;
 mod host;
 mod host_resource;
 mod http;
-#[cfg(not(target_arch = "wasm32"))]
 mod io;
 mod persistent;
 mod producer;

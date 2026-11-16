@@ -7,10 +7,7 @@ crate::perry_thread_local! {
     static RUNNING: Cell<bool> = const { Cell::new(false) };
 }
 unsafe extern "C" fn wake(agent: u64) {
-    #[cfg(not(target_arch = "wasm32"))]
     crate::event_pump::notify_agent_work(agent);
-    #[cfg(target_arch = "wasm32")]
-    let _ = agent;
 }
 fn retire(agent: crate::agent::AgentId) {
     if agent == crate::agent::current_agent() {

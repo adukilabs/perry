@@ -78,7 +78,6 @@ fn a_leaf_polled_outside_block_on_panics() {
     let _ = fut.as_mut().poll(&mut Context::from_waker(waker));
 }
 
-#[cfg(unix)]
 mod unix {
     use super::*;
 

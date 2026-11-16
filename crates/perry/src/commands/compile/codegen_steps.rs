@@ -98,19 +98,12 @@ pub(super) fn skip_from_env() -> bool {
 /// Build a shell command so full command strings (`node gen.mjs && …`)
 /// work as written. Perry's supported compile hosts are unix; Windows uses
 /// `cmd /C` for parity but is untested here.
-#[cfg(not(windows))]
 fn shell_command(cmd: &str) -> Command {
     let mut c = Command::new("sh");
     c.arg("-c").arg(cmd);
     c
 }
 
-#[cfg(windows)]
-fn shell_command(cmd: &str) -> Command {
-    let mut c = Command::new("cmd");
-    c.arg("/C").arg(cmd);
-    c
-}
 
 #[cfg(test)]
 mod tests {

@@ -1,15 +1,11 @@
 use super::*;
 use crate::value::JSValue;
 use serde::Deserialize;
-#[cfg(not(target_os = "wasi"))]
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;
-#[cfg(unix)]
 use std::ffi::CStr;
-#[cfg(any(unix, windows))]
 use std::ffi::CString;
 use std::ffi::{c_char, c_void};
-#[cfg(not(target_os = "wasi"))]
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
@@ -17,17 +13,13 @@ const MANIFEST_SCHEMA: u32 = 1;
 /// Native: the payloads ship next to the executable and load with the
 /// platform loader. WASI: the compiler links each addon into the program and
 /// embeds this manifest (`js_node_api_static_addons`).
-#[cfg(not(target_os = "wasi"))]
 const SHIPPING_MODEL: &str = "sidecar-v1";
-#[cfg(target_os = "wasi")]
-const SHIPPING_MODEL: &str = "static-v1";
 
 type VersionFn = unsafe extern "C" fn() -> i32;
 type RegisterFn = unsafe extern "C" fn(NapiEnv, NapiValue) -> NapiValue;
 
 /// The program's addon manifest and, for sidecar payloads, their root.
 struct ProgramManifest {
-    #[cfg_attr(target_os = "wasi", allow(dead_code))]
     root: PathBuf,
     data: SidecarManifest,
 }
@@ -118,7 +110,6 @@ mod legacy_storage {
 }
 use legacy_storage::KEY as LEGACY_CAPTURE;
 
-#[cfg(not(target_os = "wasi"))]
 fn sidecar_root() -> Result<PathBuf, String> {
     let executable = std::env::current_exe()
         .map_err(|error| format!("cannot locate the Perry executable: {error}"))?;
@@ -144,7 +135,6 @@ fn sidecar_root() -> Result<PathBuf, String> {
     Ok(executable.with_file_name(format!("{file_name}.perry-native")))
 }
 
-#[cfg(not(target_os = "wasi"))]
 fn program_manifest() -> Result<ProgramManifest, String> {
     let root = sidecar_root()?;
     let path = root.join("manifest.json");
@@ -158,60 +148,8 @@ fn program_manifest() -> Result<ProgramManifest, String> {
     Ok(ProgramManifest { root, data })
 }
 
-/// The manifest and entry points the compiler linked into this program,
-/// recorded at startup by the generated constructor.
-#[cfg(target_os = "wasi")]
-mod linked {
-    use super::{RegisterFn, VersionFn};
 
-    #[repr(C)]
-    #[derive(Clone, Copy)]
-    pub(super) struct Entry {
-        pub(super) register: Option<RegisterFn>,
-        pub(super) version: Option<VersionFn>,
-    }
 
-    pub(super) struct Linked {
-        pub(super) manifest: &'static [u8],
-        pub(super) entries: &'static [Entry],
-    }
-
-    pub(super) static LINKED: std::sync::OnceLock<Linked> = std::sync::OnceLock::new();
-}
-
-/// Called once, before `main`, by the registration object the compiler
-/// generates for a WASI program that links Node-API addons: `manifest` is the
-/// compile-time manifest (JSON) and `entries` holds each addon's
-/// `{register, version}` pair in manifest order. Both live in static data.
-#[cfg(target_os = "wasi")]
-#[no_mangle]
-pub unsafe extern "C" fn js_node_api_static_addons(
-    manifest: *const u8,
-    manifest_len: usize,
-    entries: *const c_void,
-    count: usize,
-) {
-    let linked = linked::Linked {
-        manifest: std::slice::from_raw_parts(manifest, manifest_len),
-        entries: std::slice::from_raw_parts(entries as *const linked::Entry, count),
-    };
-    let _ = linked::LINKED.set(linked);
-}
-
-#[cfg(target_os = "wasi")]
-fn program_manifest() -> Result<ProgramManifest, String> {
-    let linked = linked::LINKED
-        .get()
-        .ok_or_else(|| "this program links no Node-API addons".to_string())?;
-    let data = parse_manifest(linked.manifest, Path::new("<linked manifest>"))?;
-    if data.addons.len() != linked.entries.len() {
-        return Err("the linked Node-API manifest does not match its entry points".to_string());
-    }
-    Ok(ProgramManifest {
-        root: PathBuf::new(),
-        data,
-    })
-}
 
 fn parse_manifest(bytes: &[u8], path: &Path) -> Result<SidecarManifest, String> {
     let manifest: SidecarManifest = serde_json::from_slice(bytes).map_err(|error| {
@@ -317,17 +255,11 @@ pub fn resolve_addon_request(request: &str) -> Result<PathBuf, String> {
 
 /// The module filename of an addon: its verified sidecar file, or (linked
 /// into a WASI program, where no file exists) its logical id as a path.
-#[cfg(not(target_os = "wasi"))]
 fn payload_path(manifest: &ProgramManifest, addon: &ManifestAddon) -> Result<PathBuf, String> {
     safe_payload_path(&manifest.root, &addon.entry)
 }
 
-#[cfg(target_os = "wasi")]
-fn payload_path(_manifest: &ProgramManifest, addon: &ManifestAddon) -> Result<PathBuf, String> {
-    Ok(PathBuf::from(format!("/{}", addon.logical_id)))
-}
 
-#[cfg(not(target_os = "wasi"))]
 fn safe_payload_path(root: &Path, relative: &str) -> Result<PathBuf, String> {
     let candidate = root.join(relative);
     let root = root.canonicalize().map_err(|error| {
@@ -351,7 +283,6 @@ fn safe_payload_path(root: &Path, relative: &str) -> Result<PathBuf, String> {
     Ok(canonical)
 }
 
-#[cfg(not(target_os = "wasi"))]
 fn verify_addon_payload(root: &Path, addon: &ManifestAddon) -> Result<PathBuf, String> {
     if addon.files.is_empty() {
         return Err(format!(
@@ -425,7 +356,6 @@ fn verify_addon_payload(root: &Path, addon: &ManifestAddon) -> Result<PathBuf, S
     Ok(entry)
 }
 
-#[cfg(unix)]
 unsafe fn open_library(path: &Path, binding: SymbolBinding) -> Result<usize, String> {
     use std::os::unix::ffi::OsStrExt;
     let path = CString::new(path.as_os_str().as_bytes())
@@ -449,64 +379,20 @@ unsafe fn open_library(path: &Path, binding: SymbolBinding) -> Result<usize, Str
     }
 }
 
-#[cfg(unix)]
 unsafe fn find_symbol(handle: usize, name: &[u8]) -> Option<usize> {
     let name = CString::new(name).ok()?;
     let symbol = libc::dlsym(handle as *mut c_void, name.as_ptr());
     (!symbol.is_null()).then_some(symbol as usize)
 }
 
-#[cfg(unix)]
 unsafe fn close_library(handle: usize) {
     libc::dlclose(handle as *mut c_void);
 }
 
-#[cfg(windows)]
-unsafe fn open_library(path: &Path, _binding: SymbolBinding) -> Result<usize, String> {
-    use std::os::windows::ffi::OsStrExt;
-    use windows_sys::Win32::System::LibraryLoader::{
-        LoadLibraryExW, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR,
-    };
-    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
-    let handle = LoadLibraryExW(
-        wide.as_ptr(),
-        std::ptr::null_mut(),
-        LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS,
-    );
-    if handle.is_null() {
-        Err(format!(
-            "Windows loader error {}",
-            windows_sys::Win32::Foundation::GetLastError()
-        ))
-    } else {
-        Ok(handle as usize)
-    }
-}
 
-#[cfg(windows)]
-unsafe fn find_symbol(handle: usize, name: &[u8]) -> Option<usize> {
-    use windows_sys::Win32::System::LibraryLoader::GetProcAddress;
-    let name = CString::new(name).ok()?;
-    GetProcAddress(handle as *mut c_void, name.as_ptr() as *const u8).map(|symbol| symbol as usize)
-}
 
-#[cfg(windows)]
-unsafe fn close_library(handle: usize) {
-    windows_sys::Win32::Foundation::FreeLibrary(handle as *mut c_void);
-}
 
-#[cfg(not(any(unix, windows, target_os = "wasi")))]
-unsafe fn open_library(_path: &Path, _binding: SymbolBinding) -> Result<usize, String> {
-    Err("Node-API addons are supported only on desktop/server targets".to_string())
-}
-#[cfg(not(any(unix, windows, target_os = "wasi")))]
-unsafe fn find_symbol(_handle: usize, _name: &[u8]) -> Option<usize> {
-    None
-}
-#[cfg(not(any(unix, windows)))]
-unsafe fn close_library(_handle: usize) {}
 
-#[cfg(not(target_os = "wasi"))]
 fn begin_legacy_capture(path: &Path) -> Result<(), String> {
     LEGACY_CAPTURE.with(|capture| {
         let mut capture = capture.borrow_mut();
@@ -521,7 +407,6 @@ fn begin_legacy_capture(path: &Path) -> Result<(), String> {
     })
 }
 
-#[cfg(not(target_os = "wasi"))]
 fn end_legacy_capture() -> Result<Option<usize>, String> {
     LEGACY_CAPTURE.with(|capture| {
         let mut capture = capture.borrow_mut();
@@ -556,7 +441,6 @@ pub unsafe extern "C" fn napi_module_register(module: *mut NapiModule) {
 /// Open a verified sidecar payload and find its entry points: the
 /// `napi_register_module_v1` export, or the descriptor a legacy addon hands to
 /// `napi_module_register` while it loads.
-#[cfg(not(target_os = "wasi"))]
 unsafe fn open_addon(
     _manifest: &ProgramManifest,
     _addon: &ManifestAddon,
@@ -619,37 +503,6 @@ unsafe fn open_addon(
     })
 }
 
-/// The entry points the compiler linked in for `addon`: the generated
-/// registration object lists them in manifest order.
-#[cfg(target_os = "wasi")]
-unsafe fn open_addon(
-    manifest: &ProgramManifest,
-    addon: &ManifestAddon,
-    _path: &Path,
-    _binding: SymbolBinding,
-) -> Result<AddonEntries, String> {
-    let index = manifest
-        .data
-        .addons
-        .iter()
-        .position(|candidate| std::ptr::eq(candidate, addon))
-        .ok_or_else(|| "Node-API addon is not in the linked manifest".to_string())?;
-    let entry = linked::LINKED
-        .get()
-        .and_then(|linked| linked.entries.get(index).copied())
-        .ok_or_else(|| "this program links no Node-API addons".to_string())?;
-    let register = entry.register.ok_or_else(|| {
-        format!(
-            "Node-API addon `{}` was linked without napi_register_wasm_v1",
-            addon.logical_id
-        )
-    })?;
-    Ok(AddonEntries {
-        handle: 0,
-        register,
-        version: entry.version,
-    })
-}
 
 /// Run an addon's initializer, the same for loaded and linked addons.
 unsafe fn initialize_addon(
@@ -695,7 +548,6 @@ impl SymbolBinding {
     /// The binding `os.constants.dlopen` flags ask for; without `RTLD_NOW`
     /// the loader binds lazily, as Node does.
     fn from_dlopen_flags(flags: i64) -> Self {
-        #[cfg(unix)]
         if flags & libc::RTLD_NOW as i64 != 0 {
             return Self::Now;
         }
@@ -704,16 +556,10 @@ impl SymbolBinding {
     }
 }
 
-#[cfg(not(target_os = "wasi"))]
 fn verified_payload(manifest: &ProgramManifest, addon: &ManifestAddon) -> Result<PathBuf, String> {
     verify_addon_payload(&manifest.root, addon)
 }
 
-/// A linked addon has no file to verify: it is part of the program.
-#[cfg(target_os = "wasi")]
-fn verified_payload(manifest: &ProgramManifest, addon: &ManifestAddon) -> Result<PathBuf, String> {
-    payload_path(manifest, addon)
-}
 
 pub fn load_addon(request: &str) -> Result<f64, String> {
     load_addon_with_binding(request, SymbolBinding::Lazy)
@@ -863,7 +709,6 @@ mod request_tests {
         }
     }
 
-    #[cfg(not(target_os = "wasi"))]
     #[test]
     fn streaming_verification_checks_complete_payload_and_size() {
         let root = std::env::temp_dir().join(format!(

@@ -10,7 +10,6 @@
 //! stream (the runtime's listener lists) and literal `process.stdin.on` (the
 //! readline registry codegen lowers it to).
 
-#![cfg(unix)]
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};

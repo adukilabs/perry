@@ -4,7 +4,6 @@
 //! answer, so opentui (`config.stdout ?? process.stdout`) drew 80x24 in every
 //! terminal.
 
-#![cfg(unix)]
 
 use std::fs::File;
 use std::io::{BufRead, BufReader};

@@ -1,6 +1,5 @@
 //! End-to-end coverage for Bun.spawn and Bun.Terminal (#9601).
 
-#![cfg(unix)]
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

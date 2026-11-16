@@ -603,11 +603,7 @@ pub fn pipe_connect(id: i64, subsystem: u8, path: &str) -> Result<(), NetError> 
 
 /// An already-connected stream socket a binding hands to [`adopt_stream`]:
 /// a file descriptor on Unix, a `SOCKET` on Windows.
-#[cfg(unix)]
 pub type AdoptedSocket = std::os::fd::OwnedFd;
-/// See the Unix definition.
-#[cfg(windows)]
-pub type AdoptedSocket = std::os::windows::io::OwnedSocket;
 
 /// Adopt an already-connected stream socket — one some other transport
 /// opened — as a connected socket on this thread's loop, under `id`.
@@ -616,17 +612,10 @@ pub type AdoptedSocket = std::os::windows::io::OwnedSocket;
 /// loop connected itself; the caller starts reading with [`read_start`].
 /// `socket` is **consumed on every outcome**: a refusal (no loop on this
 /// thread, a descriptor turnloop cannot adopt) closes it.
-#[cfg(any(unix, windows))]
 pub fn adopt_stream(id: i64, subsystem: u8, socket: AdoptedSocket) -> Result<(), NetError> {
-    #[cfg(unix)]
     let raw = {
         use std::os::fd::IntoRawFd;
         socket.into_raw_fd() as i64
-    };
-    #[cfg(windows)]
-    let raw = {
-        use std::os::windows::io::IntoRawSocket;
-        socket.into_raw_socket() as i64
     };
     runtime_call!(
         {
@@ -979,11 +968,7 @@ pub fn peer_address(id: i64) -> Option<Endpoint> {
 
 /// Words of the opaque block that holds the runtime's transport state. Part of
 /// the ABI digest: a runtime with another block size refuses this binding.
-#[cfg(not(windows))]
 pub const TRANSPORT_CORE_WORDS: usize = 39;
-/// See the non-Windows definition.
-#[cfg(windows)]
-pub const TRANSPORT_CORE_WORDS: usize = 48;
 
 /// The runtime's transport state for one socket or listener, held inline in
 /// the binding's payload (one allocation per socket). Opaque: only the
@@ -1384,7 +1369,6 @@ pub fn link_pipe_connect(
 }
 
 /// Adopt an already-connected stream socket; consumed on every outcome.
-#[cfg(any(unix, windows))]
 pub fn link_adopt_stream(
     core: &mut TransportCore,
     link: OwnerLink,

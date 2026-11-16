@@ -5,7 +5,6 @@
 //! targets the accessors return 0 and the setters are no-ops.
 
 use super::format_out_of_range_number;
-#[cfg(unix)]
 use crate::string::StringHeader;
 use crate::value::JSValue;
 
@@ -16,13 +15,8 @@ pub extern "C" fn js_process_getuid() -> f64 {
     {
         return crate::snap_census::input_call("ids.uid", &format!("{:?}", ()), || {
             crate::effect!(host_read, ids);
-            #[cfg(unix)]
             unsafe {
                 libc::getuid() as f64
-            }
-            #[cfg(not(unix))]
-            {
-                0.0
             }
         });
     }
@@ -31,13 +25,8 @@ pub extern "C" fn js_process_getuid() -> f64 {
         #[cfg(not(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64")))]
         {
             crate::effect!(host_read, ids);
-            #[cfg(unix)]
             unsafe {
                 libc::getuid() as f64
-            }
-            #[cfg(not(unix))]
-            {
-                0.0
             }
         }
     }
@@ -48,13 +37,8 @@ pub extern "C" fn js_process_geteuid() -> f64 {
     {
         return crate::snap_census::input_call("ids.euid", &format!("{:?}", ()), || {
             crate::effect!(host_read, ids);
-            #[cfg(unix)]
             unsafe {
                 libc::geteuid() as f64
-            }
-            #[cfg(not(unix))]
-            {
-                0.0
             }
         });
     }
@@ -63,13 +47,8 @@ pub extern "C" fn js_process_geteuid() -> f64 {
         #[cfg(not(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64")))]
         {
             crate::effect!(host_read, ids);
-            #[cfg(unix)]
             unsafe {
                 libc::geteuid() as f64
-            }
-            #[cfg(not(unix))]
-            {
-                0.0
             }
         }
     }
@@ -80,13 +59,8 @@ pub extern "C" fn js_process_getgid() -> f64 {
     {
         return crate::snap_census::input_call("ids.gid", &format!("{:?}", ()), || {
             crate::effect!(host_read, ids);
-            #[cfg(unix)]
             unsafe {
                 libc::getgid() as f64
-            }
-            #[cfg(not(unix))]
-            {
-                0.0
             }
         });
     }
@@ -95,13 +69,8 @@ pub extern "C" fn js_process_getgid() -> f64 {
         #[cfg(not(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64")))]
         {
             crate::effect!(host_read, ids);
-            #[cfg(unix)]
             unsafe {
                 libc::getgid() as f64
-            }
-            #[cfg(not(unix))]
-            {
-                0.0
             }
         }
     }
@@ -112,13 +81,8 @@ pub extern "C" fn js_process_getegid() -> f64 {
     {
         return crate::snap_census::input_call("ids.egid", &format!("{:?}", ()), || {
             crate::effect!(host_read, ids);
-            #[cfg(unix)]
             unsafe {
                 libc::getegid() as f64
-            }
-            #[cfg(not(unix))]
-            {
-                0.0
             }
         });
     }
@@ -127,13 +91,8 @@ pub extern "C" fn js_process_getegid() -> f64 {
         #[cfg(not(all(perry_gc_instruments, target_os = "linux", target_arch = "x86_64")))]
         {
             crate::effect!(host_read, ids);
-            #[cfg(unix)]
             unsafe {
                 libc::getegid() as f64
-            }
-            #[cfg(not(unix))]
-            {
-                0.0
             }
         }
     }
@@ -212,7 +171,6 @@ fn validate_credential_id(value: f64) -> Option<u32> {
 pub extern "C" fn js_process_setuid(uid: f64) {
     crate::process::worker_restrictions::ensure_worker_operation_allowed("setuid");
     let id = validate_credential_id(uid);
-    #[cfg(unix)]
     {
         if let Some(id) = id {
             unsafe {
@@ -220,17 +178,12 @@ pub extern "C" fn js_process_setuid(uid: f64) {
             }
         }
     }
-    #[cfg(not(unix))]
-    {
-        let _ = id;
-    }
 }
 
 #[no_mangle]
 pub extern "C" fn js_process_seteuid(uid: f64) {
     crate::process::worker_restrictions::ensure_worker_operation_allowed("seteuid");
     let id = validate_credential_id(uid);
-    #[cfg(unix)]
     {
         if let Some(id) = id {
             unsafe {
@@ -238,17 +191,12 @@ pub extern "C" fn js_process_seteuid(uid: f64) {
             }
         }
     }
-    #[cfg(not(unix))]
-    {
-        let _ = id;
-    }
 }
 
 #[no_mangle]
 pub extern "C" fn js_process_setgid(gid: f64) {
     crate::process::worker_restrictions::ensure_worker_operation_allowed("setgid");
     let id = validate_credential_id(gid);
-    #[cfg(unix)]
     {
         if let Some(id) = id {
             unsafe {
@@ -256,27 +204,18 @@ pub extern "C" fn js_process_setgid(gid: f64) {
             }
         }
     }
-    #[cfg(not(unix))]
-    {
-        let _ = id;
-    }
 }
 
 #[no_mangle]
 pub extern "C" fn js_process_setegid(gid: f64) {
     crate::process::worker_restrictions::ensure_worker_operation_allowed("setegid");
     let id = validate_credential_id(gid);
-    #[cfg(unix)]
     {
         if let Some(id) = id {
             unsafe {
                 libc::setegid(id as libc::gid_t);
             }
         }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = id;
     }
 }
 
@@ -296,7 +235,6 @@ pub extern "C" fn js_process_setgroups(groups: f64) {
         return;
     }
     let len = crate::array::js_array_length(arr_ptr);
-    #[cfg(unix)]
     {
         let mut gids: Vec<libc::gid_t> = Vec::with_capacity(len as usize);
         for i in 0..len {
@@ -311,10 +249,6 @@ pub extern "C" fn js_process_setgroups(groups: f64) {
             }
         }
     }
-    #[cfg(not(unix))]
-    {
-        let _ = len;
-    }
 }
 
 /// `process.initgroups(user, extra_gid)` — initialize the supplementary
@@ -327,7 +261,6 @@ pub extern "C" fn js_process_setgroups(groups: f64) {
 #[no_mangle]
 pub extern "C" fn js_process_initgroups(user: f64, extra_gid: f64) {
     crate::process::worker_restrictions::ensure_worker_operation_allowed("initgroups");
-    #[cfg(unix)]
     {
         let user_jsval = JSValue::from_bits(user.to_bits());
         if !user_jsval.is_any_string() {
@@ -354,10 +287,6 @@ pub extern "C" fn js_process_initgroups(user: f64, extra_gid: f64) {
             libc::initgroups(cname.as_ptr(), extra as _);
         }
     }
-    #[cfg(not(unix))]
-    {
-        let _ = (user, extra_gid);
-    }
 }
 
 /// `process.getgroups()` — supplementary group IDs the process is a member
@@ -367,7 +296,6 @@ pub extern "C" fn js_process_initgroups(user: f64, extra_gid: f64) {
 /// Windows, so matching that shape keeps the surface consistent). #2135.
 #[no_mangle]
 pub extern "C" fn js_process_getgroups() -> f64 {
-    #[cfg(unix)]
     let gids: Vec<u32> = unsafe {
         let count = libc::getgroups(0, std::ptr::null_mut());
         if count <= 0 {
@@ -383,8 +311,6 @@ pub extern "C" fn js_process_getgroups() -> f64 {
             }
         }
     };
-    #[cfg(not(unix))]
-    let gids: Vec<u32> = Vec::new();
     let arr = crate::array::js_array_alloc(gids.len() as u32);
     for g in gids {
         crate::array::js_array_push_f64(arr, g as f64);

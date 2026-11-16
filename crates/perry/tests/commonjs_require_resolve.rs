@@ -82,7 +82,6 @@ try { require('./missing.js'); } catch (_) {}
 report('missing', './missing.js');
 "#,
     );
-    #[cfg(unix)]
     let source = {
         std::os::unix::fs::symlink("m.js", root.join("app/alias.js")).unwrap();
         source + "report('symlink', './alias.js');\n"

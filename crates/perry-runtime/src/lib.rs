@@ -29,8 +29,6 @@
 #![allow(internal_features)]
 #![allow(incomplete_features)]
 // WASI (#11377): `std::os::wasi::fs::symlink_path` for `fs.symlink`.
-#![cfg_attr(target_os = "wasi", feature(wasi_ext))]
-#![cfg_attr(all(target_os = "wasi", target_env = "p2"), feature(wasip2))]
 include!(concat!(env!("OUT_DIR"), "/realm-metadata.rs"));
 /// Issue #62: route every Rust heap allocation through mimalloc instead of
 /// the system `malloc`. `gc_malloc`, arena block allocation, Vec/HashMap
@@ -152,20 +150,16 @@ pub mod color_parse;
 #[cfg(perry_contract_checks)]
 pub(crate) mod contracts;
 pub mod date;
-#[cfg(any(not(target_arch = "wasm32"), target_os = "wasi"))]
 pub mod dgram;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod dgram_reactor;
 // A WASI guest has no turnloop: its dgram sockets are polled by the pump.
 pub mod async_module;
 pub mod disposable;
 pub mod dns;
 pub mod dns_resolver;
-#[cfg(not(windows))]
 pub mod eh;
 /// The GCC-format LSDA decoder both personalities share (#7354).
 pub(crate) mod eh_lsda;
-#[cfg(not(windows))]
 pub(crate) mod eh_walker;
 pub mod embedded;
 pub mod entry_contracts;
@@ -200,7 +194,6 @@ pub mod native_payload;
 pub mod native_payload_abi;
 pub mod native_payload_buffer;
 pub mod native_payload_stream_abi;
-#[cfg(any(target_os = "linux", target_os = "android"))]
 mod native_stack;
 pub mod native_value_profile;
 pub mod navigator;
@@ -289,17 +282,14 @@ pub mod typedarray_view;
 // (`turnloop_net/mod.rs`). Native targets only, matching the turnloop
 // dependency itself; the web/WASI targets keep their host integration until
 // their backends are wired per agent.
-#[cfg(not(target_arch = "wasm32"))]
 pub mod turnloop_net;
 // turnloop P2: child processes, their pipes, `process.stdin`, dgram sockets
 // and OS signals on turnloop handles (`turnloop_proc/mod.rs`). Same target
 // gate as P1 — the driver itself is a native-only dependency.
-#[cfg(not(target_arch = "wasm32"))]
 pub mod turnloop_proc;
 // turnloop P4: blocking and CPU-bound work on turnloop's shared bounded pool
 // (`turnloop_pool/mod.rs`). Same target gate as P1 and P2 — the driver itself
 // is a native-only dependency, and the pool it wraps is turnloop's.
-#[cfg(not(target_arch = "wasm32"))]
 pub mod turnloop_pool;
 // turnloop P10: run a host job on the loop of the agent this thread acts for
 // (`turnloop_post/mod.rs`). Same target gate as P1, P2 and P4. This is what a
@@ -307,7 +297,6 @@ pub mod turnloop_pool;
 // driver alive — the single decline reason behind most of the remaining tokio
 // edges in the binding crates.
 pub mod component;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod turnloop_post;
 pub mod url;
 pub mod v8;
@@ -330,11 +319,6 @@ pub mod webassembly;
 pub mod arkts_callbacks;
 pub mod geisterhand_registry;
 pub mod i18n;
-#[cfg(all(
-    any(target_os = "ios", target_os = "tvos", target_os = "visionos"),
-    feature = "ios-game-loop"
-))]
-pub mod ios_game_loop;
 pub mod json;
 pub mod json_tape;
 pub(crate) mod json_tape_store;
@@ -940,7 +924,6 @@ pub(crate) mod stdlib_pump {
         // already accounts for ref'd sockets and owed completions, including
         // Closed after destroy. Query the existing agent loop without creating
         // one, so a net-only program stays alive to deliver those completions.
-        #[cfg(not(target_arch = "wasm32"))]
         if crate::event_pump::agent_loop_has_outstanding_work() {
             return 1;
         }
@@ -957,7 +940,6 @@ pub(crate) mod stdlib_pump {
         // outlived a `perry_ffi_spawn_blocking` closure (#591). Process-wide
         // and one relaxed load; a program that never used the pool pays an
         // atomic read.
-        #[cfg(not(target_arch = "wasm32"))]
         if crate::turnloop_pool::has_pending_jobs() {
             return 1;
         }
@@ -968,7 +950,6 @@ pub(crate) mod stdlib_pump {
         }
         // #6563: a live pty keeps the event loop alive (its onData/onExit
         // handlers are still pending), like a live spawn-reactor child.
-        #[cfg(any(unix, windows))]
         if crate::pty::reactor::pty_reactor_has_live() {
             return 1;
         }
@@ -1205,7 +1186,6 @@ pub(crate) mod stdlib_pump {
 
         static HAS_ACTIVE_FLAG: AtomicI32 = AtomicI32::new(0);
 
-        #[cfg(not(target_arch = "wasm32"))]
         #[test]
         fn agent_driver_reference_keeps_the_generated_loop_alive_without_an_extension_map() {
             crate::test_isolation::in_own_process(|| {
@@ -1435,7 +1415,6 @@ mod node_test_hook_slots;
 pub mod temporal_hook_slots;
 mod temporal_layout;
 
-#[cfg(any(not(target_arch = "wasm32"), target_os = "wasi"))]
 mod dgram_registry_owner;
 
 mod wasm_hook_slots;

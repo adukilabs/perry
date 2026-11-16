@@ -873,30 +873,6 @@ pub fn select_linker_command(
         // Only the cross-compile block below mutates `c`; building on Linux
         // hands back a bare `cc`.
         let mut c = Command::new("cc");
-        #[cfg(not(target_os = "linux"))]
-        {
-            c.arg("-target").arg("x86_64-unknown-linux-gnu");
-            c.arg("-fuse-ld=lld");
-            if let Ok(sysroot) = std::env::var("PERRY_LINUX_SYSROOT") {
-                c.arg(format!("--sysroot={}", sysroot));
-                c.arg(format!("-L{}/usr/lib/x86_64-linux-gnu", sysroot));
-                c.arg(format!("-L{}/lib/x86_64-linux-gnu", sysroot));
-                let gcc_root = format!("{}/usr/lib/gcc/x86_64-linux-gnu", sysroot);
-                if let Ok(entries) = std::fs::read_dir(&gcc_root) {
-                    if let Some(version) = entries
-                        .filter_map(|e| e.ok())
-                        .map(|e| e.file_name().into_string().unwrap_or_default())
-                        .filter(|n| n.chars().all(|c| c.is_ascii_digit()))
-                        .max()
-                    {
-                        let gcc_dir = format!("{}/{}", gcc_root, version);
-                        c.arg(format!("-L{}", gcc_dir));
-                        c.arg(format!("-B{}", gcc_dir));
-                    }
-                }
-                c.arg("-Wl,-dynamic-linker=/lib64/ld-linux-x86-64.so.2");
-            }
-        }
         // Unresolved symbols are now link errors (not warnings). The
         // v0.5.0→0.5.18 Fastify/MySQL segfault (#28) was caused by
         // --warn-unresolved-symbols silently producing binaries with

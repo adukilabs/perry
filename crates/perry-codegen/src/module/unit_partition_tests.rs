@@ -312,18 +312,6 @@ fn mach_o_offset_alias_has_one_hidden_owner() {
     assert!(units
         .iter()
         .all(|unit| !unit.contains("@fnname = linkonce_odr")));
-    #[cfg(all(feature = "llvm-inprocess", target_os = "macos"))]
-    {
-        let _native = crate::codegen::helpers::NativeRootsPin::native();
-        let object = crate::native_emit::compile_module_units_native(
-            &mut fixture(),
-            2,
-            None,
-            "hidden_offset_alias",
-        )
-        .expect("hidden Mach-O offset aliases must survive the partial link");
-        assert!(!object.is_empty());
-    }
 }
 
 #[test]

@@ -364,31 +364,11 @@ pub unsafe extern "C" fn js_perry_net_adopt_stream(
     if socket < 0 {
         return finish(Err(super::errors::invalid_input("adopt")), err);
     }
-    #[cfg(unix)]
     {
         use std::os::fd::FromRawFd;
         // SAFETY: the caller transfers ownership of an open descriptor.
         let fd = unsafe { std::os::fd::OwnedFd::from_raw_fd(socket as i32) };
         finish(super::adopt_stream(id, subsystem.max(0) as u8, fd), err)
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::io::FromRawSocket;
-        // SAFETY: the caller transfers ownership of an open socket.
-        let sock = unsafe { std::os::windows::io::OwnedSocket::from_raw_socket(socket as u64) };
-        finish(super::adopt_stream(id, subsystem.max(0) as u8, sock), err)
-    }
-    #[cfg(target_os = "wasi")]
-    {
-        finish(
-            super::adopt_fd(id, subsystem.max(0) as u8, socket as i32),
-            err,
-        )
-    }
-    #[cfg(not(any(unix, windows, target_os = "wasi")))]
-    {
-        let _ = (id, subsystem);
-        finish(Err(super::errors::unsupported("adopt")), err)
     }
 }
 
@@ -889,7 +869,6 @@ pub unsafe extern "C" fn js_perry_net_link_adopt_stream(
     if socket < 0 {
         return finish(Err(super::errors::invalid_input("adopt")), err);
     }
-    #[cfg(unix)]
     {
         use std::os::fd::FromRawFd;
         // SAFETY: the caller transfers ownership of an open descriptor.
@@ -898,28 +877,6 @@ pub unsafe extern "C" fn js_perry_net_link_adopt_stream(
             unsafe { transport::adopt_stream(core.cast(), link_arg(link), fd) },
             err,
         )
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::io::FromRawSocket;
-        // SAFETY: the caller transfers ownership of an open socket.
-        let sock = unsafe { std::os::windows::io::OwnedSocket::from_raw_socket(socket as u64) };
-        finish(
-            unsafe { transport::adopt_stream(core.cast(), link_arg(link), sock) },
-            err,
-        )
-    }
-    #[cfg(target_os = "wasi")]
-    {
-        finish(
-            transport::adopt_stream(core.cast(), link_arg(link), socket as i32),
-            err,
-        )
-    }
-    #[cfg(not(any(unix, windows, target_os = "wasi")))]
-    {
-        let _ = (core, link);
-        finish(Err(super::errors::unsupported("adopt")), err)
     }
 }
 
@@ -936,17 +893,11 @@ pub unsafe extern "C" fn js_perry_net_link_adopt_descriptor(
     fd: i32,
     err: *mut PerryNetError,
 ) -> i32 {
-    #[cfg(any(unix, windows))]
     {
         finish(
             unsafe { transport::adopt_descriptor(core.cast(), link_arg(link), fd) },
             err,
         )
-    }
-    #[cfg(not(any(unix, windows)))]
-    {
-        let _ = (core, link, fd);
-        finish(Err(super::errors::unsupported("adopt")), err)
     }
 }
 

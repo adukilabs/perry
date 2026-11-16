@@ -22,18 +22,14 @@ use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
-#[cfg(unix)]
 use std::os::unix::process::CommandExt;
 
-#[cfg(unix)]
 unsafe extern "C" {
     fn kill(pid: i32, sig: i32) -> i32;
     fn setsid() -> i32;
 }
 
-#[cfg(unix)]
 const SIGTERM: i32 = 15;
-#[cfg(unix)]
 const SIGKILL: i32 = 9;
 
 // These stress binaries run under the slowest GC configuration —
@@ -80,7 +76,6 @@ fn compile_and_run(source: &str) -> std::process::Output {
 
 fn run_compiled_binary_with_timeout(mut command: Command, timeout: Duration) -> Output {
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
-    #[cfg(unix)]
     unsafe {
         command.pre_exec(|| {
             if setsid() == -1 {
@@ -100,7 +95,6 @@ fn run_compiled_binary_with_timeout(mut command: Command, timeout: Duration) -> 
                     .expect("collect compiled binary output")
             }
             None if start.elapsed() >= timeout => {
-                #[cfg(unix)]
                 unsafe {
                     let pgid = -(child.id() as i32);
                     kill(pgid, SIGTERM);
@@ -108,10 +102,6 @@ fn run_compiled_binary_with_timeout(mut command: Command, timeout: Duration) -> 
                     if child.try_wait().expect("poll after SIGTERM").is_none() {
                         kill(pgid, SIGKILL);
                     }
-                }
-                #[cfg(not(unix))]
-                {
-                    child.kill().expect("kill timed out compiled binary");
                 }
                 let output = child
                     .wait_with_output()

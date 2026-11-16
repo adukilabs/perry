@@ -30,10 +30,7 @@ fn real_tsgo_snapshot_handles_types_and_utf8_positions() {
     let dir = tempfile::tempdir().unwrap();
     let bin_dir = dir.path().join("node_modules/.bin");
     std::fs::create_dir_all(&bin_dir).unwrap();
-    #[cfg(unix)]
     std::os::unix::fs::symlink(&binary, bin_dir.join("tsgo")).unwrap();
-    #[cfg(not(unix))]
-    std::fs::copy(&binary, bin_dir.join("tsgo.exe")).unwrap();
     let config = dir.path().join("tsconfig.json");
     std::fs::write(
         &config,

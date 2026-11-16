@@ -82,15 +82,11 @@ pub(super) fn submit_bytes_eager(
 /// Non-blocking `send` until the socket would block. Any error stops it: the
 /// driver write of the remainder meets the same error and reports it. A
 /// descriptor that is not a socket (an adopted tty or FIFO) takes nothing here.
-#[cfg(unix)]
 fn try_send(driver: &turnloop::Loop, handle: Handle, bytes: &[u8]) -> usize {
     let Ok(turnloop::RawTransport::Fd(fd)) = driver.raw_transport(handle) else {
         return 0;
     };
-    #[cfg(any(target_os = "linux", target_os = "android"))]
     let flags = libc::MSG_DONTWAIT | libc::MSG_NOSIGNAL;
-    #[cfg(not(any(target_os = "linux", target_os = "android")))]
-    let flags = libc::MSG_DONTWAIT;
     let mut sent = 0;
     while sent < bytes.len() {
         // SAFETY: `fd` is the loop's live socket and the range is initialized.
@@ -107,10 +103,6 @@ fn try_send(driver: &turnloop::Loop, handle: Handle, bytes: &[u8]) -> usize {
     sent
 }
 
-#[cfg(not(unix))]
-fn try_send(_driver: &turnloop::Loop, _handle: Handle, _bytes: &[u8]) -> usize {
-    0
-}
 
 /// Submit the write-side shutdown. Returns whether it went to a Windows pipe
 /// drain job instead (a job, not a handle operation: a link route must hold a
@@ -121,15 +113,6 @@ pub(super) fn submit_shutdown(
     entry: &mut Entry,
     user: u64,
 ) -> Result<bool, Error> {
-    #[cfg(windows)]
-    let drain = if windows_pipe::is_pipe(driver, entry) {
-        windows_pipe::submit(driver, name, entry)?;
-        true
-    } else {
-        driver.shutdown(entry.handle, name.token(OP_SHUTDOWN))?;
-        false
-    };
-    #[cfg(not(windows))]
     let drain = {
         driver.shutdown(entry.handle, name.token(OP_SHUTDOWN))?;
         false
@@ -286,14 +269,6 @@ pub(super) fn flush(
                 });
             }
         }
-    }
-    #[cfg(windows)]
-    if failure.is_none()
-        && backlog.shutdown.is_some()
-        && entry.inflight > 0
-        && windows_pipe::is_pipe(driver, entry)
-    {
-        return None;
     }
     if failure.is_none() {
         if let Some(user) = backlog.shutdown.take() {

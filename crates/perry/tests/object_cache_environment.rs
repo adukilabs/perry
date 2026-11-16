@@ -1,7 +1,6 @@
 //! A recompile of unchanged sources reuses every cached module object whatever
 //! the job count, output path or PATH wrapper, while another `clang` on PATH
 //! still changes the key.
-#![cfg(target_os = "linux")]
 
 use serde_json::Value;
 use std::collections::BTreeSet;

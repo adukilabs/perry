@@ -166,10 +166,7 @@ pub(crate) unsafe fn retire_swept_object(header: usize, total_size: usize, kind:
         return;
     }
     if let Some((base, bytes)) = page_interior(start, len) {
-        #[cfg(unix)]
         let prot_none = libc::PROT_NONE;
-        #[cfg(not(unix))]
-        let prot_none = 0i32;
         if mprotect_range(base, bytes, prot_none) {
             BYTES_PROTECTED.fetch_add(bytes as u64, Ordering::Relaxed);
         }
@@ -187,16 +184,12 @@ fn release_retired_spans_in_freed_ranges(freed: &super::thread_exit::FreedRanges
         .retain(|span| !freed.contains(span.header));
 }
 
-#[cfg(not(unix))]
-fn install_fault_reporter() {}
 
 /// The SIGSEGV and SIGBUS actions installed before ours. The reporter hands
 /// every fault back to them, so the stack-overflow guard and the other
 /// instruments' reporters still see their own faults.
-#[cfg(unix)]
 static PREVIOUS_ACTIONS: std::sync::OnceLock<[libc::sigaction; 2]> = std::sync::OnceLock::new();
 
-#[cfg(unix)]
 fn install_fault_reporter() {
     // SAFETY: standard `sigaction` install with a `SA_SIGINFO` handler; the
     // previous actions are read into zeroed storage first.
@@ -240,7 +233,6 @@ fn describe(what: &str, value: usize, span: RetiredSpan) {
 /// faults again and is handled as it would have been. A fault that touches no
 /// freed object is passed on silently. This is a debug path that runs once,
 /// on the way down, so it may allocate.
-#[cfg(unix)]
 extern "C" fn sweep_fault_handler(
     signum: libc::c_int,
     info: *mut libc::siginfo_t,

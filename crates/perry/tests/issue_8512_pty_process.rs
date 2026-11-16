@@ -1,6 +1,5 @@
 //! Compiled TypeScript reaches the shared native PTY through bun-pty, including
 //! on headless Windows runners where the compiler's stdin is redirected.
-#![cfg(any(unix, windows))]
 
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};

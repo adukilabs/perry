@@ -8,7 +8,6 @@
 //! path. The timeout is set via `PERRY_CONTAINER_OP_TIMEOUT_SECS=1` and
 //! the sleep duration is longer, guaranteeing the timeout arm fires.
 
-#![cfg(unix)]
 
 use perry_container_compose::backend::{
     CliBackend, CliProtocol, ContainerBackend, SecurityProfile,

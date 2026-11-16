@@ -101,13 +101,6 @@ pub(crate) const fn platform_supported() -> bool {
     ))
 }
 
-#[cfg(target_vendor = "apple")]
-macro_rules! call_symbol {
-    ($name:literal) => {
-        concat!("_", $name)
-    };
-}
-#[cfg(not(target_vendor = "apple"))]
 macro_rules! call_symbol {
     ($name:literal) => {
         $name
@@ -434,19 +427,7 @@ unsafe fn value_to_cstring_arg(v: f64, temps: &mut Vec<Vec<u8>>) -> usize {
     value_to_pointer_arg(v)
 }
 
-#[cfg(all(target_vendor = "apple", target_arch = "aarch64"))]
-fn stack_size_align(ty: u8) -> (usize, usize) {
-    // Apple's arm64 ABI compacts stack arguments at their natural C size
-    // (unlike generic AAPCS64 and SysV's eight-byte scalar slots).
-    match ty {
-        T_BOOL | T_CHAR | T_I8 | T_U8 => (1, 1),
-        T_I16 | T_U16 => (2, 2),
-        T_I32 | T_U32 | T_F32 => (4, 4),
-        _ => (8, 8),
-    }
-}
 
-#[cfg(not(all(target_vendor = "apple", target_arch = "aarch64")))]
 fn stack_size_align(_ty: u8) -> (usize, usize) {
     (8, 8)
 }

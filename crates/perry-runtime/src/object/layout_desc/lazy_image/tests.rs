@@ -115,8 +115,6 @@ struct PrototypeCell {
     closure: crate::closure::ClosureHeader,
 }
 #[used]
-#[cfg_attr(target_vendor = "apple", link_section = "__DATA,__perry_realm")]
-#[cfg_attr(target_os = "windows", link_section = ".perryrealm$m")]
 #[cfg_attr(
     not(any(target_vendor = "apple", target_os = "windows", target_family = "wasm")),
     link_section = "perry_realm"

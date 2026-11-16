@@ -491,7 +491,6 @@ pub extern "C" fn js_bun_wrap_ansi(input: f64, columns: f64, options: f64) -> f6
     boxed_str(output.as_bytes())
 }
 
-#[cfg(unix)]
 fn is_executable(path: &std::path::Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     std::fs::metadata(path)
@@ -499,19 +498,7 @@ fn is_executable(path: &std::path::Path) -> bool {
         .unwrap_or(false)
 }
 
-#[cfg(windows)]
-fn is_executable(path: &std::path::Path) -> bool {
-    std::fs::metadata(path)
-        .map(|metadata| metadata.is_file())
-        .unwrap_or(false)
-}
 
-/// WASI (#11377) cannot run a program and has no execute bit, so nothing is
-/// executable and `Bun.which` finds nothing.
-#[cfg(target_os = "wasi")]
-fn is_executable(_path: &std::path::Path) -> bool {
-    false
-}
 
 #[no_mangle]
 pub extern "C" fn js_bun_which(command: f64, options: f64) -> f64 {
@@ -533,23 +520,10 @@ pub extern "C" fn js_bun_which(command: f64, options: f64) -> f64 {
         .map(value_to_string)
         .or_else(|| std::env::var("PATH").ok())
         .unwrap_or_default();
-    #[cfg(windows)]
-    let extensions: Vec<String> = std::env::var("PATHEXT")
-        .unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".to_string())
-        .split(';')
-        .map(str::to_string)
-        .collect();
     for directory in std::env::split_paths(&path) {
         let candidate = directory.join(&command);
         if is_executable(&candidate) {
             return boxed_str(candidate.to_string_lossy().as_bytes());
-        }
-        #[cfg(windows)]
-        for extension in &extensions {
-            let candidate = directory.join(format!("{command}{extension}"));
-            if is_executable(&candidate) {
-                return boxed_str(candidate.to_string_lossy().as_bytes());
-            }
         }
     }
     null_value()

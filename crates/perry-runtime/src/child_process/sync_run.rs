@@ -1,7 +1,4 @@
-#[cfg(windows)]
-use super::windows_child::Child;
 use std::io::{Read, Write};
-#[cfg(not(windows))]
 use std::process::Child;
 use std::process::{Command, ExitStatus, Stdio};
 use std::sync::mpsc::{self, Sender};
@@ -24,12 +21,6 @@ pub(crate) struct CpRunOptions {
     kill_signal: i32,
     pub(super) max_buffer: usize,
     stdio: [CpStdio; 3],
-    #[cfg(windows)]
-    pub(super) argv0: Option<String>,
-    #[cfg(windows)]
-    pub(super) clear_environment: bool,
-    #[cfg(windows)]
-    pub(super) detached: bool,
 }
 
 impl CpRunOptions {
@@ -54,12 +45,6 @@ impl Default for CpRunOptions {
             kill_signal: CP_SIGTERM,
             max_buffer: CP_DEFAULT_MAX_BUFFER,
             stdio: [CpStdio::Pipe; 3],
-            #[cfg(windows)]
-            argv0: None,
-            #[cfg(windows)]
-            clear_environment: false,
-            #[cfg(windows)]
-            detached: false,
         }
     }
 }
@@ -167,21 +152,11 @@ pub(super) fn cp_read_async_run_options(opts_val: f64) -> CpRunOptions {
     }
     cp_read_timing_and_buffer_options(opts_val, &mut options);
     // Node's buffered exec/execFile APIs do not forward argv0 to spawn.
-    #[cfg(windows)]
-    {
-        options.argv0 = None;
-    }
     options
 }
 
 fn cp_read_timing_and_buffer_options(opts_val: f64, options: &mut CpRunOptions) {
     options.kill_signal = cp_read_kill_signal(opts_val);
-    #[cfg(windows)]
-    {
-        options.argv0 = super::options::cp_read_argv0(opts_val);
-        options.clear_environment = cp_object_ptr(cp_get_field(opts_val, b"env")).is_some();
-        options.detached = cp_get_field(opts_val, b"detached").to_bits() == crate::value::TAG_TRUE;
-    }
 
     if let Some(timeout) = cp_read_option_number(opts_val, b"timeout") {
         if timeout > 0.0 {
@@ -261,22 +236,7 @@ pub(super) fn cp_run_to_completion(mut command: Command, options: &CpRunOptions)
         CpStdio::Inherit => Stdio::inherit(),
         CpStdio::Fd(fd) => super::cp_stdio_from_fd(fd),
     });
-    #[cfg(not(windows))]
     let launch = command.spawn();
-    #[cfg(windows)]
-    let launch = {
-        let mut stdio = options.stdio;
-        if !stdin_piped && matches!(stdio[0], CpStdio::Pipe) {
-            stdio[0] = CpStdio::Ignore;
-        }
-        super::windows_child::spawn(
-            &mut command,
-            &stdio,
-            options.argv0.as_deref(),
-            options.clear_environment,
-            options.detached,
-        )
-    };
     match launch {
         Ok(mut child) => {
             let pid = child.id();
@@ -354,7 +314,6 @@ fn cp_read_piped_output<R: Read + Send + 'static>(
     limit_tx: Sender<()>,
 ) -> Option<JoinHandle<Vec<u8>>> {
     let max_buffer = options.max_buffer;
-    #[cfg(unix)]
     let kill_signal = options.kill_signal;
     reader.map(|mut reader| {
         std::thread::spawn(move || {
@@ -370,7 +329,6 @@ fn cp_read_piped_output<R: Read + Send + 'static>(
                             // Signal at the read that crosses the limit. Going
                             // through the parent's polling loop here leaves a
                             // fast child enough time to exit before the signal.
-                            #[cfg(unix)]
                             unsafe {
                                 let _ = libc::kill(_pid as i32, kill_signal);
                             }
@@ -427,12 +385,7 @@ fn cp_wait_for_buffered_child(
 }
 
 fn cp_terminate_child(child: &mut Child, _kill_signal: i32) {
-    #[cfg(unix)]
     unsafe {
         let _ = libc::kill(child.id() as i32, _kill_signal);
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = child.kill();
     }
 }

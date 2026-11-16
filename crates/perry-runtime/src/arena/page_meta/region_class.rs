@@ -3,7 +3,6 @@ use super::*;
 
 #[inline(always)]
 pub(crate) fn classify_heap_generation(addr: usize) -> HeapGeneration {
-    #[cfg(target_os = "linux")]
     {
         if let Some(generation) = crate::arena::region::reservation::owned_generation(addr) {
             return generation;
@@ -23,7 +22,6 @@ pub(crate) fn classify_heap_generation(addr: usize) -> HeapGeneration {
 
 #[inline(always)]
 pub(crate) fn classify_heap_space_in_range(addr: usize) -> Option<(HeapSpace, usize, *mut u64)> {
-    #[cfg(target_os = "linux")]
     {
         if let Some(space) = crate::arena::region::reservation::owned_space(addr) {
             return Some(space);
@@ -47,7 +45,6 @@ pub(crate) fn classify_heap_space_in_range(addr: usize) -> Option<(HeapSpace, us
 /// which can prove only `Current`.
 #[inline(always)]
 pub(crate) fn classify_region_ownership(addr: usize) -> RegionOwnership {
-    #[cfg(target_os = "linux")]
     {
         if let Some(ownership) = crate::arena::region::reservation::region_ownership(addr) {
             return ownership;
@@ -69,7 +66,6 @@ pub(crate) fn classify_region_ownership(addr: usize) -> RegionOwnership {
 }
 
 pub(crate) fn uniform_heap_generation(base: usize, end: usize) -> Option<HeapGeneration> {
-    #[cfg(target_os = "linux")]
     {
         if let Some(generation) =
             crate::arena::region::reservation::owned_uniform_generation(base, end)
@@ -94,7 +90,6 @@ pub(crate) fn uniform_heap_generation(base: usize, end: usize) -> Option<HeapGen
 pub(crate) fn classify_heap_storage_in_range(
     addr: usize,
 ) -> Option<(HeapSpace, usize, *mut u64, bool)> {
-    #[cfg(target_os = "linux")]
     if let Some(found) = crate::arena::region::reservation::owned_storage(addr) {
         return Some(found);
     }

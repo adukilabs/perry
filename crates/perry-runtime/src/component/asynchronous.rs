@@ -29,10 +29,7 @@ crate::perry_thread_local! {
     static PUMPING: Cell<bool> = const { Cell::new(false) };
 }
 unsafe extern "C" fn wake(agent: u64) {
-    #[cfg(not(target_arch = "wasm32"))]
     crate::event_pump::notify_agent_work(agent);
-    #[cfg(target_arch = "wasm32")]
-    let _ = agent;
 }
 fn native<'a>(owner: f64) -> &'a mut Operation {
     unsafe { payload::payload_mut::<Operation>(owner, &OPERATION) }.expect("live component call")

@@ -49,7 +49,6 @@
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fs;
-#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -57,9 +56,6 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-#[cfg(target_os = "macos")]
-use super::watch_fsevents::NativeInstance;
-#[cfg(not(target_os = "macos"))]
 use native::NativeInstance;
 
 /// Lower bound of the fallback poller's cadence — the pre-#9591 fixed rate,
@@ -109,14 +105,7 @@ fn metadata_time_ns(time: std::io::Result<std::time::SystemTime>) -> i128 {
 
 fn watch_entry_from_metadata(meta: &fs::Metadata) -> WatchEntry {
     let ft = meta.file_type();
-    #[cfg(unix)]
     let mode = meta.permissions().mode();
-    #[cfg(not(unix))]
-    let mode = if meta.permissions().readonly() {
-        0o444
-    } else {
-        0o666
-    };
     WatchEntry {
         is_file: ft.is_file(),
         is_dir: ft.is_dir(),
@@ -210,9 +199,6 @@ pub(super) fn diff_watch_snapshots(
 pub(super) enum EventClass {
     Rename,
     Change,
-    /// FSEvents can retain creation together with a later write across a stream rebuild.
-    #[cfg(target_os = "macos")]
-    FileCreatedAndChanged,
 }
 
 impl EventClass {
@@ -220,16 +206,10 @@ impl EventClass {
         match self {
             EventClass::Rename => "rename",
             EventClass::Change => "change",
-            #[cfg(target_os = "macos")]
-            EventClass::FileCreatedAndChanged => "rename",
         }
     }
 
     pub(super) fn node_name_for_target(self, exact_root: bool) -> &'static str {
-        #[cfg(target_os = "macos")]
-        if exact_root && matches!(self, Self::FileCreatedAndChanged) {
-            return "change";
-        }
         let _ = exact_root;
         self.node_name()
     }
@@ -290,7 +270,6 @@ pub(super) enum RawEvent {
     /// Constructed only by the `notify` backend — on macOS the FSEvents driver
     /// reports failures at construction time instead, so the variant is
     /// consumption-only there.
-    #[cfg_attr(target_os = "macos", allow(dead_code))]
     Error {
         source: Source,
         paths: Vec<PathBuf>,
@@ -377,7 +356,6 @@ pub(super) fn drain_queue() -> Vec<RawEvent> {
 // Native instances — `notify` everywhere but macOS (see `watch_fsevents`).
 // ============================================================================
 
-#[cfg(not(target_os = "macos"))]
 mod native {
     use super::*;
     use notify::event::ModifyKind;
@@ -409,14 +387,8 @@ mod native {
             .collect()
     }
 
-    #[cfg(unix)]
     const ENOENT_CODE: i32 = libc::ENOENT;
-    #[cfg(not(unix))]
-    const ENOENT_CODE: i32 = 2;
-    #[cfg(unix)]
     const ENOSPC_CODE: i32 = libc::ENOSPC;
-    #[cfg(not(unix))]
-    const ENOSPC_CODE: i32 = 28;
 
     fn errno_error(code: i32) -> WatchError {
         WatchError {

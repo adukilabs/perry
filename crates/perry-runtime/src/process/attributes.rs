@@ -48,20 +48,14 @@ pub extern "C" fn js_process_resource_usage() -> f64 {
     #[allow(unused_mut)]
     let mut ivcsw: f64 = 0.0;
 
-    #[cfg(unix)]
     {
         let mut usage: libc::rusage = unsafe { std::mem::zeroed() };
         if unsafe { libc::getrusage(libc::RUSAGE_SELF, &mut usage) } == 0 {
             user_cpu = (usage.ru_utime.tv_sec as f64) * 1_000_000.0 + usage.ru_utime.tv_usec as f64;
             system_cpu =
                 (usage.ru_stime.tv_sec as f64) * 1_000_000.0 + usage.ru_stime.tv_usec as f64;
-            #[cfg(target_os = "linux")]
             {
                 max_rss = (usage.ru_maxrss as f64) * 1024.0;
-            }
-            #[cfg(not(target_os = "linux"))]
-            {
-                max_rss = usage.ru_maxrss as f64;
             }
             shared_mem = usage.ru_ixrss as f64;
             unshared_data = usage.ru_idrss as f64;
@@ -125,7 +119,6 @@ pub extern "C" fn js_process_set_title(value: f64) {
             String::from_utf8_lossy(std::slice::from_raw_parts(data, len)).into_owned()
         }
     };
-    #[cfg(target_os = "linux")]
     if !super::worker_restrictions::in_node_worker() {
         let mut buf = [0i8; 16];
         let src = s.as_bytes();
@@ -145,15 +138,10 @@ pub extern "C" fn js_process_set_title(value: f64) {
 /// we set the mask to 0, capture the previous value, then restore it.
 #[no_mangle]
 pub extern "C" fn js_process_umask() -> f64 {
-    #[cfg(unix)]
     unsafe {
         let prev = libc::umask(0);
         libc::umask(prev);
         prev as f64
-    }
-    #[cfg(not(unix))]
-    {
-        0.0
     }
 }
 
@@ -185,14 +173,8 @@ pub extern "C" fn js_process_umask_set(mask: f64) -> f64 {
     }
     super::worker_restrictions::ensure_worker_operation_allowed("umask");
     let parsed = parse_umask_mask(mask);
-    #[cfg(unix)]
     unsafe {
         libc::umask(parsed as libc::mode_t) as f64
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = parsed;
-        0.0
     }
 }
 

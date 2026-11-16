@@ -9,7 +9,6 @@
 //! The fixture spawns one child from a worker and one from the main thread at
 //! the same time; each side must see its own child's full lifecycle and output.
 
-#![cfg(unix)]
 
 use std::path::Path;
 use std::process::{Command, Stdio};

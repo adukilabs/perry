@@ -348,7 +348,6 @@ connectError:true,close:true,reject:true\n"
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn unix_socket_round_trip_uses_the_unix_option() {
     let dir = tempfile::tempdir().expect("socket tempdir");

@@ -33,36 +33,11 @@ thread_local! {
 }
 
 /// `(lowest usable address, size)` of the calling thread's stack.
-#[cfg(any(target_os = "linux", target_os = "android"))]
 fn stack_bounds() -> Option<(usize, usize)> {
     crate::native_stack::stack_bounds()
 }
 
-/// `(lowest usable address, size)` of the calling thread's stack.
-#[cfg(target_vendor = "apple")]
-fn stack_bounds() -> Option<(usize, usize)> {
-    // #11625: call `libc`'s own declarations of these two Darwin extensions
-    // instead of redeclaring them locally — a second, independently hand-
-    // rolled `extern "C"` block for `pthread_get_stackaddr_np` in
-    // `error_stack_frames.rs` typed the parameter as `*mut c_void` rather
-    // than `libc::pthread_t` (`uintptr_t`/`usize` on Apple targets), and
-    // `-D warnings` promotes the resulting `clashing_extern_declarations`
-    // into a hard build failure.
-    // SAFETY: plain queries about the calling thread.
-    let (top, size) = unsafe {
-        let me = libc::pthread_self();
-        (
-            libc::pthread_get_stackaddr_np(me) as usize,
-            libc::pthread_get_stacksize_np(me),
-        )
-    };
-    (top != 0 && size != 0 && top > size).then(|| (top - size, size))
-}
 
-#[cfg(not(any(target_os = "linux", target_os = "android", target_vendor = "apple")))]
-fn stack_bounds() -> Option<(usize, usize)> {
-    None
-}
 
 /// Publish this thread's stack limit. Idempotent; a thread whose bounds are
 /// unknown keeps the null slot and is never checked.
@@ -127,7 +102,6 @@ mod tests {
         assert_eq!(super::reserve(8 << 20), 1 << 20);
     }
 
-    #[cfg(any(target_os = "linux", target_os = "android", target_vendor = "apple"))]
     #[test]
     fn published_limit_is_below_the_current_frame() {
         std::thread::spawn(|| {

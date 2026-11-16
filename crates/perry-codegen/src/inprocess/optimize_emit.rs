@@ -42,8 +42,6 @@ pub(super) fn optimize_and_emit(
     } else {
         None
     };
-    #[cfg(feature = "target-wasi")]
-    crate::wasi_toolchain::check_linked(effective_target)?;
     global_init(mllvm);
     announce();
 
@@ -92,15 +90,6 @@ pub(super) fn optimize_and_emit(
             CodeModel::Default,
         )
         .ok_or_else(|| anyhow!("failed to create TargetMachine for `{effective_target}`"))?;
-    #[cfg(feature = "target-wasi")]
-    if effective_target.starts_with("wasm32") {
-        extern "C" {
-            fn perry_llvm_enable_wasm_eh(machine: *mut core::ffi::c_void);
-        }
-        unsafe {
-            perry_llvm_enable_wasm_eh(tm.as_mut_ptr().cast());
-        }
-    }
     // One input section per function and per global (`-ffunction-sections
     // -fdata-sections`), so the link drops every one nothing references (DCE
     // layer 0). wasm-ld already links per function and keeps its own data

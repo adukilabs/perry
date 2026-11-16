@@ -193,74 +193,6 @@ unsafe extern "C" fn call_all_f64_aarch64(
     )
 }
 
-/// Windows ARM64 keeps the previous shape: an `asm!` block inside an ordinary
-/// Rust function. Unwinding there is SEH (`js_throw` raises with
-/// `RaiseException`; the runtime walks no native frames — shadow frames), and
-/// SEH reads `.pdata`/`.xdata` unwind codes that the COMPILER emits for the
-/// prologue it generates — a frame-chained one on this ABI, so the dynamic
-/// `sp` adjustment below is already invisible to it. A naked function would
-/// have to hand-write those codes with nothing in this tree able to test
-/// them, and would be treated as a leaf until it did — the callee's `blr`
-/// has overwritten `x30`, so a throw through it could not find its handler.
-#[cfg(all(target_arch = "aarch64", target_os = "windows"))]
-#[inline(never)]
-unsafe extern "C" fn call_all_f64_aarch64(
-    func_ptr: usize,
-    reg: *const f64,
-    stacked: *const f64,
-    stacked_count: usize,
-    stack_bytes: usize,
-) -> f64 {
-    use core::arch::asm;
-
-    let reg: [f64; 8] = unsafe { *reg.cast::<[f64; 8]>() };
-    let ret: f64;
-    asm!(
-        // Stash the pre-adjust sp in a CALLEE-SAVED register (x20, declared as
-        // a clobber so the compiler saves/restores it around this asm): it
-        // survives the callee, unlike anything caller-saved.
-        "mov x20, sp",
-        "sub sp, sp, {stack_bytes}",
-        "mov {i}, xzr",
-        "cbz {cnt}, 3f",
-        "2:",
-        "ldr {tmp}, [{src}, {i}, lsl #3]",
-        "str {tmp}, [sp, {i}, lsl #3]",
-        "add {i}, {i}, #1",
-        "cmp {i}, {cnt}",
-        "b.lo 2b",
-        "3:",
-        "blr {func}",
-        "mov sp, x20",
-        func = in(reg) func_ptr,
-        src = in(reg) stacked,
-        cnt = in(reg) stacked_count,
-        stack_bytes = in(reg) stack_bytes,
-        i = out(reg) _,
-        tmp = out(reg) _,
-        out("x20") _,
-        inout("d0") reg[0] => ret,
-        inout("d1") reg[1] => _,
-        inout("d2") reg[2] => _,
-        inout("d3") reg[3] => _,
-        inout("d4") reg[4] => _,
-        inout("d5") reg[5] => _,
-        inout("d6") reg[6] => _,
-        inout("d7") reg[7] => _,
-        // Caller-saved registers the callee may clobber (AAPCS64): x0–x17,
-        // x30 (lr), and the caller-saved vector registers v16–v31.
-        lateout("x0") _, lateout("x1") _, lateout("x2") _, lateout("x3") _,
-        lateout("x4") _, lateout("x5") _, lateout("x6") _, lateout("x7") _,
-        lateout("x8") _, lateout("x9") _, lateout("x10") _, lateout("x11") _,
-        lateout("x12") _, lateout("x13") _, lateout("x14") _, lateout("x15") _,
-        lateout("x16") _, lateout("x17") _, lateout("x30") _,
-        lateout("v16") _, lateout("v17") _, lateout("v18") _, lateout("v19") _,
-        lateout("v20") _, lateout("v21") _, lateout("v22") _, lateout("v23") _,
-        lateout("v24") _, lateout("v25") _, lateout("v26") _, lateout("v27") _,
-        lateout("v28") _, lateout("v29") _, lateout("v30") _, lateout("v31") _,
-    );
-    ret
-}
 
 /// SysV x86-64: `rdi` = callee, `rsi` = the eight register args, `rdx`/`rcx` =
 /// the spilled args and their count, `r8` = the 16-byte-rounded spill area
@@ -364,24 +296,6 @@ unsafe fn call_all_f64_fallback(func_ptr: usize, args: &[f64]) -> f64 {
     // index list one element at a time (`$done` are the indices below `$next`,
     // so `$next` completes an arity of `$done.len() + 1`). The list is the
     // single place that sets the cap; when it runs out the call fails closed.
-    #[cfg(target_family = "wasm")]
-    macro_rules! wasm_exact_arity {
-        ($len:expr; [$($done:tt)*]) => {
-            panic!(
-                "abi_trampoline: unsupported arity {} on this target \
-                 (no asm trampoline; wasm fallback caps at {} f64 args)",
-                $len,
-                [$(stringify!($done)),*].len()
-            )
-        };
-        ($len:expr; [$($done:tt)*] $next:tt $($rest:tt)*) => {
-            if $len == [$(stringify!($done),)* stringify!($next)].len() {
-                arm!($($done,)* $next)
-            } else {
-                wasm_exact_arity!($len; [$($done)* $next] $($rest)*)
-            }
-        };
-    }
     // args already includes `this` as element 0.
     match args.len() {
         0 => 0.0,
@@ -402,19 +316,10 @@ unsafe fn call_all_f64_fallback(func_ptr: usize, args: &[f64]) -> f64 {
         15 => arm!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14),
         16 => arm!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15),
         // wasm: exact-arity calls for 17..=64 (the index list below is the cap).
-        #[cfg(target_family = "wasm")]
-        n => wasm_exact_arity!(
-            n;
-            [0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15]
-            16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31
-            32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47
-            48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63
-        ),
         // FAIL CLOSED: do NOT transmute a >16-arg call to a 16-arg signature —
         // the extra params would read register/stack garbage (#5437). This
         // target has no asm trampoline; high-arity dynamic dispatch is
         // unsupported here.
-        #[cfg(not(target_family = "wasm"))]
         n => panic!(
             "abi_trampoline: unsupported arity {n} on this target \
              (no asm trampoline; portable fallback caps at 16 f64 args)"

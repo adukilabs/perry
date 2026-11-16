@@ -66,12 +66,7 @@ pub use value_call::{
 /// the surplus arguments (#11379).
 #[inline(always)]
 pub(crate) const fn arity_needs_dispatch(declared: u32, n: u32) -> bool {
-    #[cfg(not(target_os = "wasi"))]
     {
         declared > n
-    }
-    #[cfg(target_os = "wasi")]
-    {
-        declared != n
     }
 }

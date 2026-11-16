@@ -186,20 +186,9 @@ fn adopt_on_loop(id: u64, udp: &UdpSocket) -> Option<u64> {
     if !crate::turnloop_proc::available() {
         return None;
     }
-    #[cfg(unix)]
     let transport = {
         use std::os::fd::AsFd;
         crate::turnloop_proc::adopt::duplicate_fd(udp.as_fd()).ok()?
-    };
-    #[cfg(windows)]
-    let transport = {
-        use std::os::windows::io::AsSocket;
-        crate::turnloop_proc::adopt::duplicate_socket(udp.as_socket()).ok()?
-    };
-    #[cfg(not(any(unix, windows)))]
-    let transport = {
-        let _ = udp;
-        return None;
     };
 
     let proc_id =

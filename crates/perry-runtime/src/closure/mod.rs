@@ -109,7 +109,6 @@ pub use dynamic_props::{
 pub(crate) use props::bag_own_key_names_bytes;
 
 // v8_stubs re-exports the AOT stubs + non-macOS Rust V8-interop stubs.
-#[cfg(not(target_os = "macos"))]
 pub use v8_stubs::{
     js_await_js_promise, js_call_function, js_create_callback, js_get_export, js_load_module,
     js_new_from_handle, js_new_instance, js_runtime_init, js_set_property,

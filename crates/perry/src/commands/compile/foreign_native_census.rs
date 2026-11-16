@@ -50,8 +50,6 @@ mod tests {
                     ship_package_payload: false,
                     reach: Default::default(),
                     node_api_imports: Default::default(),
-                    #[cfg(feature = "target-wasi")]
-                    wasm_archives: Vec::new(),
                 },
             );
         }

@@ -1640,10 +1640,6 @@ pub struct NativeAddonModule {
     pub reach: BTreeSet<perry_runtime_manifest::NodeApiReach>,
     /// The Node-API symbols the addon imports (`napi_*`, `node_api_*`).
     pub node_api_imports: BTreeSet<String>,
-    /// WASI: the addon's wasm32 archives, linked into the program; empty for
-    /// a loaded (sidecar) addon.
-    #[cfg(feature = "target-wasi")]
-    pub wasm_archives: Vec<PathBuf>,
 }
 
 /// External native library manifest parsed from package.json `perry.nativeLibrary` field

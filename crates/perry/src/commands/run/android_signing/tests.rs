@@ -88,7 +88,6 @@ fn unix_sdk_keeps_extensionless_tools() {
     );
 }
 
-#[cfg(unix)]
 fn script(path: &Path, body: &str) {
     use std::os::unix::fs::PermissionsExt;
     std::fs::write(path, format!("#!/bin/sh\n{body}\n")).unwrap();
@@ -96,7 +95,6 @@ fn script(path: &Path, body: &str) {
 }
 
 #[test]
-#[cfg(unix)]
 fn zipalign_uses_distinct_arguments_and_replaces_the_apk() {
     let temp = tempfile::tempdir().unwrap();
     let apk = temp.path().join("app & sample.apk");
@@ -108,7 +106,6 @@ fn zipalign_uses_distinct_arguments_and_replaces_the_apk() {
 }
 
 #[test]
-#[cfg(unix)]
 fn failed_zipalign_preserves_original_apk_and_reports_failure() {
     let temp = tempfile::tempdir().unwrap();
     let apk = temp.path().join("app.apk");
@@ -122,7 +119,6 @@ fn failed_zipalign_preserves_original_apk_and_reports_failure() {
     assert_eq!(std::fs::read(apk).unwrap(), b"original");
 }
 
-#[cfg(unix)]
 fn windows_sdk_fixture(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
     let home = root.join("Developer Home");
     let sdk = root.join("SDK & tools");
@@ -143,7 +139,6 @@ fn windows_sdk_fixture(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
 }
 
 #[test]
-#[cfg(unix)]
 fn sdk_pipeline_uses_discovered_windows_tools_and_signs_aligned_input() {
     let temp = tempfile::tempdir().unwrap();
     let (home, sdk, apk) = windows_sdk_fixture(temp.path());
@@ -158,7 +153,6 @@ fn sdk_pipeline_uses_discovered_windows_tools_and_signs_aligned_input() {
 }
 
 #[test]
-#[cfg(unix)]
 fn sdk_pipeline_does_not_sign_after_failed_or_missing_alignment() {
     let temp = tempfile::tempdir().unwrap();
     let (home, sdk, apk) = windows_sdk_fixture(temp.path());
@@ -181,21 +175,3 @@ fn sdk_pipeline_does_not_sign_after_failed_or_missing_alignment() {
     assert_eq!(std::fs::read(apk).unwrap(), b"original");
 }
 
-#[test]
-#[cfg(windows)]
-fn apksigner_batch_launch_preserves_paths_with_spaces_and_ampersands() {
-    let temp = tempfile::tempdir().unwrap();
-    let signer = temp.path().join("fake apksigner.bat");
-    let key = temp.path().join("debug & test.keystore");
-    let apk = temp.path().join("app & sample.apk");
-    std::fs::write(&key, b"key").unwrap();
-    std::fs::write(&apk, b"apk").unwrap();
-    // The APK is argument 10; shift to it without interpolating a command line.
-    let batch = format!("@echo off\r\nif not \"%~1\"==\"sign\" exit /b 2\r\nif not exist \"%~3\" exit /b 3\r\n{}copy /y \"%~1\" \"%~1.signed\" >nul\r\n", "shift\r\n".repeat(9));
-    std::fs::write(&signer, batch).unwrap();
-    sign_with_apksigner(&apk, &key, &signer).unwrap();
-    assert_eq!(
-        std::fs::read(apk.with_extension("apk.signed")).unwrap(),
-        b"apk"
-    );
-}

@@ -12,7 +12,6 @@ use crate::string::js_string_from_bytes;
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::fs;
-#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::Once;
@@ -253,14 +252,7 @@ fn remove_abort_listener(signal: f64, listener: f64) {
 fn stat_snapshot(path: &str) -> Option<StatSnapshot> {
     let meta = fs::metadata(path).ok()?;
     let ft = meta.file_type();
-    #[cfg(unix)]
     let mode = meta.permissions().mode();
-    #[cfg(not(unix))]
-    let mode = if meta.permissions().readonly() {
-        0o444
-    } else {
-        0o666
-    };
     let (uid, gid) = metadata_owner_ids(&meta);
     let nlink = metadata_nlink(&meta);
     let (atime_ms, mtime_ms, ctime_ms, birthtime_ms) = metadata_times_ms(&meta);

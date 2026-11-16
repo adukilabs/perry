@@ -234,7 +234,6 @@ mod win32_normalize_tests {
 
     /// POSIX host: the cwd is driveless, so a drive-relative input grafts
     /// its drive onto the cwd (historical Perry behavior).
-    #[cfg(not(windows))]
     #[test]
     fn resolve_drive_relative_uses_posix_cwd_as_drive_cwd() {
         let cwd = posix_cwd_as_win32_path();
@@ -250,39 +249,6 @@ mod win32_normalize_tests {
         );
     }
 
-    /// Windows host: the cwd already carries a drive. Same-drive inputs
-    /// resolve against the cwd; different-drive inputs fall back to that
-    /// drive's root (never the pre-fix `C:C:\...` graft).
-    #[cfg(windows)]
-    #[test]
-    fn resolve_drive_relative_uses_host_cwd_drive() {
-        let cwd = posix_cwd_as_win32_path();
-        let cwd_drive = &cwd[..2]; // e.g. "C:"
-        assert!(cwd_drive.ends_with(':'), "cwd {cwd:?} has no drive prefix");
-
-        let same_drive_input = format!("{}foo", cwd_drive);
-        assert_eq!(
-            win32_resolve_inner(&same_drive_input),
-            normalize_win32_str(&join_win32_paths(&cwd, "foo"))
-        );
-        assert!(!win32_resolve_inner(&same_drive_input).contains(":\\C:"));
-
-        // A drive that is NOT the cwd's drive resolves from its root.
-        let other = if cwd_drive.eq_ignore_ascii_case("q:") {
-            "z:"
-        } else {
-            "q:"
-        };
-        assert_eq!(
-            win32_resolve_inner(&format!("{}foo", other)),
-            format!("{}\\foo", other)
-        );
-
-        assert_eq!(
-            win32_resolve_inner("foo"),
-            normalize_win32_str(&join_win32_paths(&cwd, "foo"))
-        );
-    }
 
     #[test]
     fn to_namespaced_path_resolves_but_only_namespaces_drive_and_unc() {
@@ -445,47 +411,7 @@ mod platform_default_tests {
         unsafe { string_from_header(ptr) }.unwrap_or_default()
     }
 
-    #[cfg(windows)]
-    #[test]
-    fn defaults_use_win32_semantics_on_windows() {
-        assert_eq!(read(js_path_sep_get()), "\\");
-        assert_eq!(read(js_path_delimiter_get()), ";");
 
-        assert_eq!(read(js_path_join(s("a"), s("b"))), "a\\b");
-        assert_eq!(read(js_path_join(s("C:\\a"), s("..\\b"))), "C:\\b");
-        assert_eq!(read(js_path_normalize(s("C:/a/b/../c"))), "C:\\a\\c");
-        assert_eq!(read(js_path_dirname(s("C:\\a\\b"))), "C:\\a");
-        assert_eq!(read(js_path_basename(s("C:\\a\\b.txt"))), "b.txt");
-        assert_eq!(read(js_path_extname(s("C:\\a\\b.txt"))), ".txt");
-
-        assert_eq!(js_path_is_absolute(s("C:\\x")), 1);
-        assert_eq!(js_path_is_absolute(s("\\x")), 1);
-        assert_eq!(js_path_is_absolute(s("C:x")), 0);
-        assert_eq!(js_path_is_absolute(s("x")), 0);
-
-        assert_eq!(read(js_path_resolve(s("C:\\a\\..\\b"))), "C:\\b");
-        assert_eq!(
-            read(js_path_relative(s("C:\\a\\b"), s("C:\\a\\c"))),
-            "..\\c"
-        );
-
-        let parsed = js_path_parse(s("C:\\dir\\file.txt"));
-        assert_eq!(obj_field(parsed, "root"), "C:\\");
-        assert_eq!(obj_field(parsed, "dir"), "C:\\dir");
-        assert_eq!(obj_field(parsed, "base"), "file.txt");
-        assert_eq!(obj_field(parsed, "ext"), ".txt");
-        assert_eq!(obj_field(parsed, "name"), "file");
-
-        let value = f64::from_bits(crate::value::JSValue::string_ptr(s("C:\\foo")).bits());
-        let out = js_path_to_namespaced_path_value(value);
-        let out_ptr = crate::string::js_string_materialize_to_heap(out);
-        assert_eq!(
-            unsafe { string_from_header(out_ptr) }.as_deref(),
-            Some("\\\\?\\C:\\foo")
-        );
-    }
-
-    #[cfg(not(windows))]
     #[test]
     fn defaults_use_posix_semantics_elsewhere() {
         assert_eq!(read(js_path_sep_get()), "/");

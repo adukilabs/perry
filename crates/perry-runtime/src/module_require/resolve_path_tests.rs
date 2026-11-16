@@ -72,7 +72,6 @@ fn require_resolve_relative_files_use_the_requesting_module_directory() {
     assert_eq!(resolve(&base, ""), None);
 }
 
-#[cfg(unix)]
 #[test]
 fn require_resolve_relative_files_canonicalize_symlinks() {
     let fixture = Fixture::new();
@@ -141,7 +140,6 @@ extern "C" fn verbatim_key_test_init() {}
 /// The compiler emits each module's key already canonical, so registration
 /// stores it verbatim and never asks the filesystem; only run-time spellings
 /// canonicalize, and they meet the same key.
-#[cfg(unix)]
 #[test]
 fn registered_keys_are_verbatim_and_runtime_spellings_meet_them() {
     let _lock = crate::gc::global_side_table_test_lock();

@@ -163,7 +163,6 @@ fn first_difference(got: &[u8], want: &[u8]) -> Option<String> {
 /// Run `case` with a NON-BLOCKING socket as fd 1 and a reader that dawdles, so
 /// the child is guaranteed to see `EAGAIN` many times inside one `write()`.
 /// `O_NONBLOCK` lives on the open file description, which the child shares.
-#[cfg(unix)]
 fn run_case_on_non_blocking_stdout(binary: &Path, case: &str) -> Vec<u8> {
     use std::io::Read;
     use std::os::fd::OwnedFd;
@@ -273,7 +272,6 @@ fn binary_chunks_and_encoded_strings_reach_the_fd_byte_for_byte() {
     let (stdout, _) = run_case(&binary, "huge");
     report("huge stdout", huge_mismatch(&stdout));
 
-    #[cfg(unix)]
     {
         let stdout = run_case_on_non_blocking_stdout(&binary, "large");
         report(

@@ -25,17 +25,13 @@
 //! The primary discovers a free port by binding port 0 once and closing it
 //! (the `listen(0)` shared-ephemeral-port round-trip itself is #4962).
 
-#[cfg(all(unix, not(target_os = "macos")))]
 use std::path::PathBuf;
-#[cfg(all(unix, not(target_os = "macos")))]
 use std::process::Command;
 
-#[cfg(all(unix, not(target_os = "macos")))]
 fn perry_bin() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_perry"))
 }
 
-#[cfg(all(unix, not(target_os = "macos")))]
 fn compile_and_run(dir: &std::path::Path, source: &str) -> String {
     let entry = dir.join("main.ts");
     let output = dir.join("main_bin");
@@ -83,7 +79,6 @@ fn compile_and_run(dir: &std::path::Path, source: &str) -> String {
 // shared-port semantics the test asserts (it fails deterministically there),
 // so exclude it from the gate entirely — running `--ignored` on macOS would
 // only produce a guaranteed platform failure, not a useful signal.
-#[cfg(all(unix, not(target_os = "macos")))]
 #[test]
 #[ignore = "flaky: real cluster/SO_REUSEPORT networking, unreliable in sandboxed CI; run with --ignored on Linux"]
 fn two_workers_share_one_port() {

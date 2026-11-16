@@ -87,24 +87,7 @@ extern "C" {
 // Unwind-table self-check.
 // ---------------------------------------------------------------------------
 
-/// The exception transport requires the unwinder to step *through* runtime
-/// Rust frames, which requires those frames to carry unwind tables. The
-/// runtime is built `panic=abort` (no tables by default) plus
-/// `-C force-unwind-tables=yes` — and that flag rides on RUSTFLAGS, which a
-/// stray environment override silently drops. A runtime built that way
-/// strands EVERY throw that crosses a helper frame, and since a handler is
-/// found by the walk alone, a stranded throw would look uncaught. This check
-/// runs once, on the first `js_throw` of the process: `_Unwind_Backtrace`
-/// uses the same CFI the raise path does, so if it cannot see past this
-/// module's own nested Rust frames, the raise path is broken too — abort
-/// loudly instead of reporting an uncaught exception.
-///
-/// WASI has no unwinder to check yet: `try` blocks lower to plain calls and a
-/// throw ends the program (#11378), so there is nothing to verify.
-#[cfg(target_os = "wasi")]
-pub(crate) fn verify_unwind_tables_once() {}
 
-#[cfg(not(target_os = "wasi"))]
 pub(crate) fn verify_unwind_tables_once() {
     use std::sync::Once;
     static ONCE: Once = Once::new();
@@ -126,13 +109,11 @@ pub(crate) fn verify_unwind_tables_once() {
     });
 }
 
-#[cfg(not(target_os = "wasi"))]
 #[inline(never)]
 fn selfcheck_frame_a() -> usize {
     std::hint::black_box(selfcheck_frame_b()) + usize::from(std::hint::black_box(false))
 }
 
-#[cfg(not(target_os = "wasi"))]
 #[inline(never)]
 fn selfcheck_frame_b() -> usize {
     unsafe extern "C" fn count(
@@ -157,7 +138,6 @@ fn selfcheck_frame_b() -> usize {
 /// stepped and why it stopped (`5` = it reached the outermost frame), and
 /// names the raw status the raise itself returned (see
 /// [`raise_found_no_handler`] for why that one is only reported, not used).
-#[cfg(not(target_os = "wasi"))]
 pub(crate) fn diagnose_end_of_stack(raise_status: UnwindReasonCode) {
     if !eh_trace_enabled() {
         return;
@@ -193,8 +173,6 @@ const UNWIND_DATA_REG: (c_int, c_int) = (0, 1); // R0/X0, R1/X1
 const UNWIND_DATA_REG: (c_int, c_int) = (0, 2); // EAX, EDX
                                                 // WASI (#11377): clang's `__builtin_eh_return_data_regno` is 0/1 on
                                                 // WebAssembly, the pair wasm libunwind's `_Unwind_SetGR` understands.
-#[cfg(all(target_arch = "wasm32", target_os = "wasi"))]
-const UNWIND_DATA_REG: (c_int, c_int) = (0, 1);
 
 /// `PERRYJS\0` — vendor-tagged exception class. The personality is
 /// class-agnostic (every Perry landing pad is a catch-all), but the tag keeps
@@ -228,22 +206,17 @@ pub(crate) fn exception_object_addr() -> u64 {
 /// What the personality concluded about the raise in progress. A search that
 /// walks the whole stack without any personality accepting leaves it at
 /// [`VERDICT_NONE`].
-#[cfg(not(target_os = "wasi"))]
 const VERDICT_NONE: u8 = 0;
 /// Phase 1 accepted a handler (`_URC_HANDLER_FOUND`): a raise that then
 /// returns lost the handler between the two phases.
-#[cfg(not(target_os = "wasi"))]
 const VERDICT_HANDLER_FOUND: u8 = 1;
 /// The personality could not decode a frame's LSDA (`_URC_FATAL_PHASE1_ERROR`).
-#[cfg(not(target_os = "wasi"))]
 const VERDICT_PHASE1_ERROR: u8 = 2;
 
-#[cfg(not(target_os = "wasi"))]
 crate::perry_thread_local! {
     static RAISE_VERDICT: std::cell::Cell<u8> = const { std::cell::Cell::new(VERDICT_NONE) };
 }
 
-#[cfg(not(target_os = "wasi"))]
 #[inline]
 fn record_verdict(verdict: u8) {
     RAISE_VERDICT.with(|v| v.set(verdict));
@@ -264,7 +237,6 @@ fn record_verdict(verdict: u8) {
 /// uncaught report and status 1. The personality's verdicts are ours, so they
 /// are the only thing a caller may trust: no handler accepted and no LSDA
 /// failed means the search ended at the outermost frame.
-#[cfg(not(target_os = "wasi"))]
 pub(crate) fn raise_found_no_handler() -> bool {
     RAISE_VERDICT.with(|v| v.get()) == VERDICT_NONE
 }
@@ -278,7 +250,6 @@ pub(crate) fn raise_found_no_handler() -> bool {
 /// classify the outcome with [`raise_found_no_handler`].
 pub(crate) fn raise_perry_exception() -> UnwindReasonCode {
     crate::gc::allocation_pacing::forbid_throw_in_collection();
-    #[cfg(not(target_os = "wasi"))]
     record_verdict(VERDICT_NONE);
     let exc = EXC_OBJECT.with(|c| c.get());
     unsafe {
@@ -349,7 +320,6 @@ pub unsafe extern "C" fn perry_eh_personality(
     }
     // A worker-base handoff (`exception::hand_to_worker_base`) passes every
     // handler but the base trap's shim.
-    #[cfg(not(target_os = "wasi"))]
     if crate::exception::worker_base_handoff_pending()
         && _Unwind_GetRegionStart(context) != crate::exception::worker_base_shim_addr()
     {
@@ -365,7 +335,6 @@ pub unsafe extern "C" fn perry_eh_personality(
                     _Unwind_GetRegionStart(context),
                 );
             }
-            #[cfg(not(target_os = "wasi"))]
             record_verdict(VERDICT_PHASE1_ERROR);
             return _URC_FATAL_PHASE1_ERROR;
         }
@@ -374,7 +343,6 @@ pub unsafe extern "C" fn perry_eh_personality(
         let mut before: c_int = 0;
         let ip = _Unwind_GetIPInfo(context, &mut before);
         let region = _Unwind_GetRegionStart(context);
-        #[cfg(not(target_os = "wasi"))]
         let name = {
             let mut info: libc::Dl_info = std::mem::zeroed();
             if libc::dladdr(region as *const libc::c_void, &mut info) != 0
@@ -388,8 +356,6 @@ pub unsafe extern "C" fn perry_eh_personality(
             }
         };
         // WASI has no `dladdr` (#11377).
-        #[cfg(target_os = "wasi")]
-        let name = String::from("?");
         eprintln!(
             "[perry-eh] personality actions={:#x} region={:#x} ({name}) ip=+{:#x} lpad={:?}",
             actions,
@@ -401,7 +367,6 @@ pub unsafe extern "C" fn perry_eh_personality(
     if actions & _UA_SEARCH_PHASE != 0 {
         match lpad {
             Some(_) => {
-                #[cfg(not(target_os = "wasi"))]
                 record_verdict(VERDICT_HANDLER_FOUND);
                 _URC_HANDLER_FOUND
             }
@@ -456,51 +421,4 @@ static _KEEP_PERSONALITY: unsafe extern "C" fn(
     *mut UnwindContext,
 ) -> UnwindReasonCode = perry_eh_personality;
 
-/// Allocation-free tag-0 transport; the payload remains in rooted TLS.
-#[cfg(target_os = "wasi")]
-pub(crate) fn raise_wasm_exception() -> ! {
-    extern "C-unwind" {
-        fn perry_wasm_throw_header(object: *mut UnwindException) -> !;
-    }
-    EXC_OBJECT.with(|object| unsafe { perry_wasm_throw_header(object.get()) })
-}
 
-/// The wasm32-wasip2 unit-test binary links every `#[no_mangle]` symbol of
-/// the runtime, including [`perry_eh_personality`], which names the Itanium
-/// unwinder entry points. WASI has no unwinder (it throws with the wasm EH
-/// proposal; linking libunwind would define `__cpp_exception` a second time),
-/// and nothing calls the personality there, so the test binary gets
-/// definitions that abort if the premise ever fails.
-#[cfg(all(test, target_os = "wasi"))]
-mod wasi_test_unwinder_stubs {
-    use super::{c_int, UnwindContext};
-
-    fn never_called() -> ! {
-        std::process::abort()
-    }
-
-    #[no_mangle]
-    extern "C" fn _Unwind_GetLanguageSpecificData(_ctx: *mut UnwindContext) -> *const u8 {
-        never_called()
-    }
-    #[no_mangle]
-    extern "C" fn _Unwind_GetIPInfo(_ctx: *mut UnwindContext, _before: *mut c_int) -> usize {
-        never_called()
-    }
-    #[no_mangle]
-    extern "C" fn _Unwind_GetRegionStart(_ctx: *mut UnwindContext) -> usize {
-        never_called()
-    }
-    #[no_mangle]
-    extern "C" fn _Unwind_GetCFA(_ctx: *mut UnwindContext) -> usize {
-        never_called()
-    }
-    #[no_mangle]
-    extern "C" fn _Unwind_SetGR(_ctx: *mut UnwindContext, _reg: c_int, _value: usize) {
-        never_called()
-    }
-    #[no_mangle]
-    extern "C" fn _Unwind_SetIP(_ctx: *mut UnwindContext, _value: usize) {
-        never_called()
-    }
-}

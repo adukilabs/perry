@@ -22,20 +22,6 @@ pub(crate) type Classified = (String, String, String, i64);
 /// host errno, so no value here was right. Windows values read from the pinned
 /// oracle: `node -e "require('util').getSystemErrorMap()"` on 26.5.1.
 fn fallback_errno(code: &str) -> i64 {
-    #[cfg(windows)]
-    {
-        return match code {
-            "ECONNREFUSED" => -4078,
-            "ETIMEDOUT" => -4039,
-            "ECONNABORTED" => -4079,
-            "ECONNRESET" => -4077,
-            "EADDRNOTAVAIL" => -4090,
-            "EHOSTUNREACH" => -4073,
-            "ENETUNREACH" => -4062,
-            _ => 0,
-        };
-    }
-    #[cfg(not(windows))]
     {
         match code {
             "ECONNREFUSED" => {
@@ -99,12 +85,6 @@ fn fallback_errno(code: &str) -> i64 {
 /// `-4xxx` space — so there the code name is authoritative and the raw Winsock
 /// number is discarded.
 fn libuv_errno(code: &str, raw: Option<i32>) -> i64 {
-    #[cfg(windows)]
-    {
-        let _ = raw;
-        return fallback_errno(code);
-    }
-    #[cfg(not(windows))]
     {
         raw.map(|n| -(n as i64))
             .filter(|n| *n != 0)

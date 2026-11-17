@@ -220,7 +220,14 @@ pub fn new_builtin_ns(m: &mut Model, ns: BuiltinNs, call: CallId) {
             if !buffer {
                 let fresh = (what == "TypedArray").then(|| site_tmpl(m, call, "ArrayBuffer"));
                 match m.calls[call as usize].arg(0).copied() {
-                    Some(src) => m.cons(src, Cons::ViewedBuffer { view: o, fresh, share: false }),
+                    Some(src) => m.cons(
+                        src,
+                        Cons::ViewedBuffer {
+                            view: o,
+                            fresh,
+                            share: false,
+                        },
+                    ),
                     None => {
                         if let Some(ab) = fresh {
                             let f = viewed_buffer(m, o);
@@ -299,6 +306,9 @@ pub fn new_builtin_ns(m: &mut Model, ns: BuiltinNs, call: CallId) {
 
 /// `new Name(...)` where `Name` is not a program class: a builtin by name.
 pub fn construct_named(m: &mut Model, name: &str, call: CallId) {
+    if matches!(name, "TextEncoderStream" | "TextDecoderStream") {
+        super::native_protocol::global_any_disable(m);
+    }
     crate::family_reach::global(m, name);
     m.diagnostic_builtin(call, |_| format!("new {name}"));
     if let Some(ns) = ns_by_name(name) {

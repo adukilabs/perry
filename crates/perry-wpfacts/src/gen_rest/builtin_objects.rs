@@ -152,7 +152,7 @@ impl<'a> Gen<'a> {
                 };
                 match self.for_in_key_of(mi, k).filter(|_| key.is_none()) {
                     Some(kp) => self.define_keyed(fx, on, kp, dn, r, accessor, own),
-                    None => self.define_property(fx, on, key, dn, r, accessor, own),
+                    None => self.define_property(fx, on, key, dn, r, accessor, own, Some(kn)),
                 }
                 on
             }
@@ -174,7 +174,15 @@ impl<'a> Gen<'a> {
                 let descs = self.tmp("own-descriptors");
                 let reads = self.descriptor_reads(descs);
                 let site = self.store_site(fx.module, fx.f, "defineProperty".into(), None, false);
-                crate::builtins::object_statics::define_all(&mut self.m, on, pn, descs, reads, site, r);
+                crate::builtins::object_statics::define_all(
+                    &mut self.m,
+                    on,
+                    pn,
+                    descs,
+                    reads,
+                    site,
+                    r,
+                );
                 on
             }
             Expr::ObjectGetOwnPropertyDescriptor(o, k)
@@ -234,7 +242,7 @@ impl<'a> Gen<'a> {
                 if let Some(props) = props {
                     let pv = self.expr(fx, props);
                     let descs = self.load(pv, Key::any());
-                    self.define_property(fx, n, None, descs, r, false, [None, None]);
+                    self.define_property(fx, n, None, descs, r, false, [None, None], None);
                 }
                 n
             }
@@ -773,9 +781,73 @@ impl<'a> Gen<'a> {
             | Expr::ReflectGetMetadataKeys { .. }
             | Expr::ReflectGetOwnMetadataKeys { .. }
             | Expr::ReflectDeleteMetadata { .. }
-            | Expr::WorkerNew { .. } => {
+            | Expr::WorkerNew { is_eval: true, .. } => {
                 let name = variant_name(e);
                 self.fail_closed(fx, e, &name)
+            }
+            // `new Worker(filename, options)` (node:worker_threads Worker;
+            // an eval-mode Worker runs JS SOURCE and stays unmodeled above:
+            // CLOSED-WORLD PREMISE: no eval / dynamic code). The worker
+            // module is a program module run in its own agent with its own
+            // realm; the construct shares no value with it: the filename is
+            // converted to a string (a URL: ToString, its href), each option
+            // is read by [[Get]] (getters run), workerData / argv / env are
+            // cloned (StructuredSerialize reads their values recursively,
+            // getters run; argv and env values are string-coerced),
+            // transferList items are detached. The result is a fresh host
+            // Worker object: no program alias, never a realm global; its
+            // members are host members the model does not describe.
+            Expr::WorkerNew {
+                filename,
+                options,
+                is_eval: false,
+                ..
+            } => {
+                let f = self.expr(fx, filename);
+                let rf = self.m.reason("Worker filename");
+                self.m.cons(
+                    f,
+                    Cons::Implicit {
+                        reason: rf,
+                        proto: Protocol::ToPrimitive,
+                    },
+                );
+                if let Some(o) = options {
+                    let o = self.expr(fx, o);
+                    let opt = self.load(o, Key::any());
+                    let rc = self.m.reason("Worker option cloned");
+                    self.m.cons(
+                        opt,
+                        Cons::Implicit {
+                            reason: rc,
+                            proto: Protocol::Clone,
+                        },
+                    );
+                    let item = self.load(opt, Key::any());
+                    let rs = self.m.reason("Worker argv/env value");
+                    self.m.cons(
+                        item,
+                        Cons::Implicit {
+                            reason: rs,
+                            proto: Protocol::ToPrimitive,
+                        },
+                    );
+                    let rb = self.m.reason("B3 transfer list");
+                    self.m.cons(
+                        item,
+                        Cons::Hard {
+                            kind: Hard::B3Transfer,
+                            reason: rb,
+                        },
+                    );
+                }
+                // The host holds the Worker: it calls the listeners stored
+                // on it (`onmessage`, `on`, `addEventListener`) with events
+                // of its own making, so what the program stores into it or
+                // passes to its members is given to the host.
+                let (_, n) = self.bobj(mi, "Worker");
+                self.to_sink(n, "host Worker object: the runtime calls its listeners");
+                n
             }
             Expr::BoxedPrimitiveNew { kind, .. } => {
                 let _ = self.prim_kids(fx, e, prim::ALL, "boxed primitive", Protocol::ToPrimitive);
@@ -800,9 +872,10 @@ impl<'a> Gen<'a> {
                         self.m.regexp_class_of.insert(tm, mk);
                     }
                 }
-                if let (&TokKind::Obj(tm, _), Some(tail)) =
-                    (&self.m.toks[t as usize], crate::builtins::regex_tail::analyse(pattern, flags))
-                {
+                if let (&TokKind::Obj(tm, _), Some(tail)) = (
+                    &self.m.toks[t as usize],
+                    crate::builtins::regex_tail::analyse(pattern, flags),
+                ) {
                     let i = self.m.regexp_tails.len() as u32;
                     self.m.regexp_tails.push(tail);
                     self.m.regexp_tail_of.insert(tm, i);
@@ -952,7 +1025,11 @@ impl<'a> Gen<'a> {
     /// define handles that as before).
     fn birth_define_owner(&self, fx: &Fx, e: &Expr, o: &Expr) -> Option<TmplId> {
         let tm = self.phase_owner(fx, e, o)?;
-        let ks = self.ctor_phase.get(&tm)?.birth_defines.get(&(e as *const Expr as usize))?;
+        let ks = self
+            .ctor_phase
+            .get(&tm)?
+            .birth_defines
+            .get(&(e as *const Expr as usize))?;
         let mut cur = Some(tm);
         let mut own = true;
         while let Some(c) = cur {

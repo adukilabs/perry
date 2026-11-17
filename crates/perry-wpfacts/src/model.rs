@@ -347,6 +347,9 @@ pub enum TokKind {
     Func(FnIdx, CallId),
     /// `f.bind(t, ...)` result: index into `Model::bound`.
     Bound(u32),
+    /// A Proxy exotic object `new Proxy( t, h )` makes (ECMA-262 10.5.14):
+    /// index into `Model::proxies`. Only `solve/proxy.rs` reads it.
+    Proxy(u32),
     /// The class constructor value of a class template.
     ClassObj(TmplId),
     /// The prototype object of a class / constructor-function template.
@@ -775,6 +778,20 @@ pub struct FuncInfo {
     pub ret_param: Option<u32>,
 }
 
+/// GLOBK3: one `Object.defineProperty(o, key, d)` under a computed key
+/// (`Cons::DefineAnyKey`).
+#[derive(Clone, Copy, Debug)]
+pub struct DefineAny {
+    pub o: NodeId,
+    pub key: NodeId,
+    pub value: NodeId,
+    pub get: NodeId,
+    pub set: NodeId,
+    pub site: SiteId,
+    pub reason: u32,
+    pub accessor: bool,
+}
+
 #[derive(Clone, Debug)]
 pub enum ThisArg {
     Undef,
@@ -877,6 +894,15 @@ pub type StrSet = u32;
 pub const STRS_NONE: StrSet = 0;
 pub const STRS_TOP: StrSet = 1;
 pub const STRS_SET0: StrSet = 2;
+/// Provenance beside the atoms (rule LITSTR-RUN): a finite set with this
+/// bit may hold a String a solver rule made (a concatenation, a case
+/// mapping, a replace, a substring, a for-in key, a summary constant):
+/// at run time such a String is born then, a heap string, whatever its
+/// text. A set without it holds only copies of program string literals
+/// (`literal_strings`). A join keeps the bit of either side, a copy
+/// hands the set on with it, and none and any string never carry it.
+/// `Model::str_atoms` reads the atoms without it.
+pub const STRS_RUN: StrSet = 1 << 31;
 /// Past this many constants a node holds any string. Constant sets are
 /// exact (tsc-src holds ~200 option names in one key): interned sets keep
 /// the join cheap, priced on tsc-src and three.js (SEED2).
@@ -1378,7 +1404,8 @@ pub struct Node {
     /// The string constants the node may hold (`StrSet`): `STRS_NONE`
     /// without a string, `STRS_TOP` for any string, else an interned set of
     /// at most `STRS_K` atoms (`Model::str_sets`). Nonzero exactly when
-    /// `prim` has `prim::STR`. It only grows.
+    /// `prim` has `prim::STR`. It only grows. `STRS_RUN` marks a set that
+    /// may hold a String a rule made (no literal's own value).
     pub strs: StrSet,
     /// `strs` grew since the node was last popped.
     pub dstrs: bool,
@@ -1640,6 +1667,11 @@ pub struct Model {
     /// store sources it applied to (`true`: a store), reported with the
     /// solve profile.
     pub json_key_fired: Vec<(bool, NodeId)>,
+    /// `FactsConfig::native_externs` (ASSUMED, owner 2026-11-16).
+    pub native_externs: std::collections::BTreeMap<String, crate::NativeResult>,
+    /// The extern calls the native-extern assumption modeled: (module,
+    /// byte offset), reported as `ProgramFacts::native_extern_sites`.
+    pub native_extern_fired: Vec<(u32, u32)>,
     /// −0 tolerance (RFC §10.3 as amended, PR D; `zero_sign`): the interval
     /// rules give `0 * negative`, `-x` and `%` their integer hull with the
     /// `-0` bit, and a node may keep an integer interval while it may hold
@@ -2342,6 +2374,13 @@ pub struct Model {
     /// 23.1.3.36 step 3): a callee without [[Call]] is no throw there, the
     /// result is the String of Object.prototype.toString (20.1.3.6).
     pub tostring_join_calls: crate::pts::FxHashSet<CallId>,
+    /// What `Array.prototype.<name>` does to a receiver `t` that is no
+    /// array beyond its indices (`non_array_this`): it reads only `t`
+    /// (`length`, ToPrimitive of it, the length store, an index delete,
+    /// `@@isConcatSpreadable`), never the call, so one model per
+    /// (receiver, method) serves every call site (`array_like_this`);
+    /// `toString`'s `join` call is the call's own.
+    pub array_like_this: crate::pts::FxHashMap<(Tok, crate::model::Atom), NodeId>,
     /// The template a `GetIterator` site makes for the iterator object its
     /// source's `@@iterator` may return (`[iterator#n]`), with the node of
     /// that source (`gen_sources`: a source whose `@@iterator` returns the
@@ -2524,10 +2563,25 @@ pub struct Model {
     /// through its contract (DECISIONS 120, `Model::escape`).
     pub interp_free: bool,
     pub bound_index: FxHashMap<(CallId, Tok), u32>,
+    /// PROXY2: the Proxy objects, one per birth context of a `new Proxy`.
+    pub proxies: Vec<crate::solve::proxy::ProxyRec>,
+    pub proxy_index: FxHashMap<CallId, u32>,
     /// Calls the solver makes through a bound value's target (`call_bound`,
     /// `construct`): a bound target reached by one of them goes through
     /// that bound value's one merged call (`Model::bound_merged`).
     pub bound_synth: crate::pts::FxHashSet<CallId>,
+    /// MATHB1B: the generic-arm call of a namespace pair
+    /// `NamespacePatched(N) ? N.m(…) : <intrinsic>` and the member (N, m)
+    /// it names (`Gen::namespace_pair`). The pair's intrinsic arm is walked
+    /// for the original member's effect; this call binds every callee but
+    /// that original (`call_tok`).
+    pub ns_pair_calls: crate::pts::FxHashMap<CallId, (BuiltinNs, Atom)>,
+    /// The namespace pairs are the knob's (`FactsConfig::namespace_pairs`):
+    /// every direct namespace call is one, walked as one call
+    /// (`Gen::namespace_pair`). Off, a pair is main's shadow-bit guard of a
+    /// program with dynamic code or a `globalThis[k] = v` store, walked as a
+    /// conditional of its two arms.
+    pub ns_pairs: bool,
     /// Calls `Model::solver_call` made (`Stats::solver_calls`).
     pub solver_made: u64,
     /// (bound value, `new`) → its merged call.
@@ -2553,7 +2607,17 @@ pub struct Model {
     /// they run under that root (`Model::chain_call`).
     /// The value: (the call, its own target node, which every run's
     /// callee node flows into and the callee constraint sits on).
-    pub chain_calls: FxHashMap<(CallId, &'static std::panic::Location<'static>, u32, u32, u32, bool), (CallId, NodeId)>,
+    pub chain_calls: FxHashMap<
+        (
+            CallId,
+            &'static std::panic::Location<'static>,
+            u32,
+            u32,
+            u32,
+            bool,
+        ),
+        (CallId, NodeId),
+    >,
     /// A call -> the root-level native-made call it descends from (the call
     /// a native made while it ran for a call that is not itself under such
     /// a root): the chain root of `chain_calls`' keys.
@@ -2765,16 +2829,65 @@ pub struct Model {
     pub cjs_ext: NodeId,
     pub cjs_main: NodeId,
     /// The keys of `process` the realm declares as host arrays of strings
-    /// (`argv`, `execArgv`): per key, what the property holds (the one array
-    /// the runtime makes before the program runs, an "arraybox", or what the
-    /// program stores there) and that array.
+    /// (`argv`, `execArgv`) or a host object of strings (`env`): per key,
+    /// what the property holds (the one array / object the runtime makes,
+    /// an "arraybox" / "stringrecord", or what the program stores there) and
+    /// that object.
     pub process_arrays: Vec<(Atom, NodeId, Tok)>,
     /// Fields of the global object under program-owned keys.
     pub global_fields: Vec<(Atom, NodeId)>,
+    /// GLOBS1: the computed reads of the global object under a known key
+    /// shape (the global object's token, the key, the destination): a
+    /// global named later that the shape can spell is read into each.
+    pub global_shaped_reads: Vec<(Tok, Key, NodeId)>,
+    /// GLOBK G2: the global object's one field under any string key: what
+    /// the program stores there under a key proven a String it cannot name
+    /// (ECMA-262 7.1.19, 10.1.9). Made by the first such store; every
+    /// global binding read takes it (`global_any_reads` until then).
+    pub global_any: Option<NodeId>,
+    /// G2: the global binding reads made before `global_any` exists.
+    pub global_any_reads: Vec<NodeId>,
+    /// G2: the `new K(...)` calls of a literal global name made before
+    /// `global_any` exists.
+    pub global_any_news: Vec<u32>,
+    /// G2: the realm navigator's [[Prototype]] was linked to what the
+    /// any-key stores' `prototype` holds (perry-runtime navigator.rs:119
+    /// reads the live `Navigator` at the first `navigator` read).
+    pub global_any_nav: bool,
+    /// G2 off: a native the model does not follow reads a global by name
+    /// (a text-encoding stream's `.constructor`, class_meta): the any-key
+    /// stores take the realm sink again (`global_any_stores` replayed).
+    pub global_any_off: bool,
+    /// G2: the any-key stores taken, for that replay.
+    pub global_any_stores: Vec<(Tok, Key, NodeId, u32)>,
+    /// GLOBK3: the global object's field of what `defineProperty` under a
+    /// computed key defines there (`DefineAny`): it flows into the any-key
+    /// field and, as a define may replace the configurable accessor
+    /// `navigator` (which a store cannot), into the navigator reads.
+    pub global_def: Option<NodeId>,
+    /// GLOBK3: the navigator reads made before `global_def` exists.
+    pub global_def_navs: Vec<NodeId>,
+    /// GLOBK3: the computed-key defines taken onto the global object (by
+    /// key node), replayed onto the old path when G2 turns off.
+    pub global_defs: Vec<(DefineAny, Tok)>,
+    pub global_def_done: crate::pts::FxHashSet<NodeId>,
+    /// GLOBK3: the holder node of a computed-key define's old path (E5
+    /// HARD), by key node.
+    pub define_any_old: crate::pts::FxHashMap<NodeId, NodeId>,
+    /// ToPropertyKey (7.1.19): the result node of ToPrimitive on a token
+    /// (`implicit`); a computed key's object value stores under what its
+    /// ToPrimitive returns (`Cons::StoreIndexed` on that node).
+    pub to_prim_ret: crate::pts::FxHashMap<Tok, NodeId>,
+    pub to_prim_ret_nodes: crate::pts::FxHashSet<NodeId>,
+    pub to_prim_key_done: crate::pts::FxHashSet<(NodeId, NodeId, u32)>,
     /// A ⊤ value may be the global object: it reached unmodeled code, or
     /// dynamic code may hand it out (`Function('return this')()`). Until
     /// then a store into ⊤ cannot write a global.
     pub global_in_top: bool,
+    /// Per module: a Worker of the program may run it (`Gen::worker_side`):
+    /// it is reachable from a Worker entry module, or some Worker's entry
+    /// is not named. A module past the end counts as one (unknown).
+    pub worker_side: Vec<bool>,
     /// Explain: builtin function values minted, by the arm that minted them.
     pub bf_mints: FxHashMap<&'static str, u32>,
     /// Per unit (design §17.16 (b)): the global object's program-owned
@@ -3349,8 +3462,8 @@ pub const SUPER_BIT: Tok = 1 << 31;
 mod key_shape;
 #[path = "model/operations.rs"]
 mod operations;
-pub(crate) use operations::why_act;
 pub use key_shape::KeyShape;
+pub(crate) use operations::why_act;
 
 /// A property key as one whitespace-free token for the dump and the
 /// relations (`scripts/wpfacts_recompute.py` `unesc` is the inverse):
@@ -3412,6 +3525,11 @@ pub const MARK_TOUCHES: u8 = MARK_TOUCH
 mod token_values;
 
 impl Model {
+    /// A Worker of the program may run module `mi` (`worker_side`).
+    pub(crate) fn worker_side_module(&self, mi: u32) -> bool {
+        self.worker_side.get(mi as usize).copied().unwrap_or(true)
+    }
+
     pub(crate) fn charge_work(&self, amount: u64) {
         self.work.set(self.work.get() + amount);
     }

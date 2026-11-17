@@ -318,7 +318,6 @@ fn query_owned_rows(
                     let columns = names.get_or_insert_with(|| {
                         row.as_ref()
                             .column_names()
-                            .into_iter()
                             .map(str::to_owned)
                             .collect::<Vec<_>>()
                     });
@@ -333,13 +332,8 @@ fn query_owned_rows(
                 }
             }
             // Empty completion also steps and may update the statement metadata.
-            let names = names.unwrap_or_else(|| {
-                prepared
-                    .column_names()
-                    .into_iter()
-                    .map(str::to_owned)
-                    .collect()
-            });
+            let names =
+                names.unwrap_or_else(|| prepared.column_names().map(str::to_owned).collect());
             Some((names, values))
         })
         .flatten()

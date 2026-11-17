@@ -434,48 +434,8 @@ extern "C" fn cp_disconnect_emit_thunk(
 }
 
 
-/// Complete a stdin `end()`: set `writableFinished`, emit `finish`, then mark
-/// the stream destroyed and closed and emit `close`, as Node's autoDestroy does.
-#[cfg(not(unix))]
-pub(crate) fn cp_stdin_finish(stream: f64) {
-    let scope = crate::gc::RuntimeHandleScope::new();
-    let stream = scope.root_nanbox_f64(stream);
-    if cp_get_field(stream.get_nanbox_f64(), b"writableFinished").to_bits()
-        == TAG_TRUE_F64.to_bits()
-    {
-        return;
-    }
-    cp_set_field(stream.get_nanbox_f64(), b"writableFinished", TAG_TRUE_F64);
-    cp_emit(stream.get_nanbox_f64(), "finish", &[]);
-    cp_set_field(stream.get_nanbox_f64(), b"destroyed", TAG_TRUE_F64);
-    cp_set_field(stream.get_nanbox_f64(), b"closed", TAG_TRUE_F64);
-    cp_emit(stream.get_nanbox_f64(), "close", &[]);
-}
 
-#[cfg(not(unix))]
-fn cp_defer_stdin_finish(stream: f64) {
-    let scope = crate::gc::RuntimeHandleScope::new();
-    let stream = scope.root_nanbox_f64(stream);
-    let deferred = scope.root_raw_mut_ptr(js_closure_alloc(
-        crate::fn_info!(cp_stdin_finish_thunk, 0; with_declared(0)),
-        1,
-    ));
-    deferred.with_mut_ptr(|deferred: *mut ClosureHeader| {
-        js_closure_set_capture_ptr(deferred, 0, stream.get_nanbox_f64().to_bits() as i64);
-    });
-    deferred.with_mut_ptr(|deferred: *mut ClosureHeader| {
-        crate::timer::js_set_immediate_callback(deferred as i64);
-    });
-}
 
-#[cfg(not(unix))]
-extern "C" fn cp_stdin_finish_thunk(
-    closure: *const ClosureHeader,
-    _this: crate::closure::JsThis,
-) -> f64 {
-    cp_stdin_finish(f64::from_bits(js_closure_get_capture_ptr(closure, 0) as u64));
-    cp_undefined()
-}
 
 /// Read the reactor registry key (`__cpHandle`) off a ChildProcess / stdio
 /// sub-object, set by `spawn`. `None` when absent (e.g. a buffered child).

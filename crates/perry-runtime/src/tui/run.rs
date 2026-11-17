@@ -22,7 +22,6 @@ use super::state::STATE_DIRTY;
 /// during construction or input dispatch skips the idle sleep.
 fn run_frames(mut frame: impl FnMut()) {
     while !EXIT_FLAG.load(Ordering::Acquire) {
-        #[cfg(not(target_arch = "wasm32"))]
         crate::event_pump::js_loop_turn_bounded(0);
         crate::event_pump::perry_poll();
         if EXIT_FLAG.load(Ordering::Acquire) {
@@ -179,7 +178,6 @@ mod tests {
         });
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn native_io_completions_progress_without_input() {
         let _serial = crate::event_pump::tests::serial();

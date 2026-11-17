@@ -64,7 +64,6 @@ fn observer(scope: &TransientRootScope, label: f64) -> f64 {
     p::boxed_addr(callback.get())
 }
 
-#[cfg(unix)]
 fn adopted_stream_end_callbacks(peer_closed: bool) {
     use std::os::fd::IntoRawFd;
     let _serial = crate::test_serial();
@@ -134,19 +133,16 @@ fn adopted_stream_end_callbacks(peer_closed: bool) {
     .unwrap();
 }
 
-#[cfg(unix)]
 #[test]
 fn adopted_stream_closed_peer_finishes_repeated_end_callbacks_without_error() {
     adopted_stream_end_callbacks(true);
 }
 
-#[cfg(unix)]
 #[test]
 fn adopted_stream_connected_peer_preserves_end_callback_order() {
     adopted_stream_end_callbacks(false);
 }
 
-#[cfg(unix)]
 #[test]
 fn shutdown_completion_preserves_other_errors_and_stale_events() {
     use perry_ffi::turnloop_net as tl;

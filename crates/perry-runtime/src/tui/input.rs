@@ -10,8 +10,6 @@
 //! Mode toggle is process-wide and reversible — the cooked-mode
 //! termios is saved on enable so disable can restore.
 
-#[cfg(not(unix))]
-use std::io::Read;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::Mutex;
 
@@ -25,18 +23,10 @@ use crate::value::JSValue;
 
 /// Bytes waiting for the main thread to dispatch.
 static PENDING_BYTES: Mutex<Vec<u8>> = Mutex::new(Vec::new());
-#[cfg(unix)]
 #[path = "input/reader_unix.rs"]
 mod reader_unix;
-#[cfg(unix)]
 static READER: Mutex<Option<reader_unix::Reader>> = Mutex::new(None);
 
-/// Whether the reader thread has been spawned.
-#[cfg(not(unix))]
-static READER_STARTED: AtomicBool = AtomicBool::new(false);
-/// Whether the non-Unix reader should continue after its current read.
-#[cfg(not(unix))]
-static READING: AtomicBool = AtomicBool::new(false);
 /// Registered useInput handler — at most one for v1. Multiple-handler
 /// dispatch lands in Phase 2.5. Stored as the raw closure pointer.
 ///
@@ -116,7 +106,6 @@ mod termios_impl {
 
 /// Enable raw mode + spawn the reader thread (idempotent). Called from
 /// the render-loop entry.
-#[cfg(unix)]
 pub fn enable_raw_mode() {
     let mut reader = READER.lock().unwrap();
     if reader.as_ref().is_some_and(|reader| !reader.is_finished()) {
@@ -132,35 +121,7 @@ pub fn enable_raw_mode() {
     }
 }
 
-#[cfg(not(unix))]
-pub fn enable_raw_mode() {
-    let _ = termios_impl::enable();
-    // WASI cannot spawn the reader thread: no terminal input.
-    READING.store(true, Ordering::Release);
-    if READER_STARTED
-        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-        .is_ok()
-    {
-        std::thread::spawn(move || {
-            let stdin = std::io::stdin();
-            let mut handle = stdin.lock();
-            let mut byte = [0u8; 1];
-            while READING.load(Ordering::Acquire) {
-                match handle.read(&mut byte) {
-                    Ok(0) => break, // EOF
-                    Ok(_) => {
-                        if let Ok(mut q) = PENDING_BYTES.lock() {
-                            q.push(byte[0]);
-                        }
-                    }
-                    Err(_) => break,
-                }
-            }
-        });
-    }
-}
 
-#[cfg(unix)]
 pub fn disable_raw_mode() {
     let mut reader = READER.lock().unwrap();
     drop(reader.take());
@@ -168,11 +129,6 @@ pub fn disable_raw_mode() {
     let _ = termios_impl::disable();
 }
 
-#[cfg(not(unix))]
-pub fn disable_raw_mode() {
-    let _ = termios_impl::disable();
-    READING.store(false, Ordering::Release);
-}
 
 /// Root + rewrite the registered `useInput` handler closure.
 ///

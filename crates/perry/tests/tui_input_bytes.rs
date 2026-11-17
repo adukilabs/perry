@@ -1,4 +1,3 @@
-#![cfg(unix)]
 
 use std::error::Error;
 use std::fs::File;

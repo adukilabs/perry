@@ -160,7 +160,7 @@ pub(super) fn rust_target_triple(target: Option<&str>) -> Option<&'static str> {
 
 #[cfg(test)]
 mod app_metadata_tests {
-    use super::{read_app_metadata, rust_target_triple, target_bundle_section};
+    use super::{read_app_metadata};
 
     fn parse(src: &str) -> toml::Table {
         src.parse::<toml::Table>().unwrap()

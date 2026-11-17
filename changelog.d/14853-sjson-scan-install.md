@@ -1,1 +1,0 @@
-Programs that only serialize JSON can omit the JSON parser and lazy-tape materializers. Formatting keeps its GC cache roots, while dynamic JSON access and native JSON-producing paths retain parsing support.

@@ -1,1 +1,0 @@
-`--target web`: `obj.message` reads the property on any object (a parsed JSON object, an object literal, a class field or getter, a thrown plain object) instead of `""`, and a class extending a built-in Error keeps the message its `super(msg)` passed (`""` when none).

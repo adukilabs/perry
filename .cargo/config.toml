@@ -25,8 +25,16 @@ global-min-publish-age = "7 days"
 # ~500 KB of `__eh_frame` in every macOS binary. Synchronous tables encode
 # compactly and `eh_walker` decodes compact FRAME/FRAMELESS entries directly.
 # Nightly-only, like the rest of this toolchain (rust-toolchain.toml).
+#
+# `getrandom_backend="linux_getrandom"`: the `getrandom` package otherwise
+# looks the C library's function up with `dlsym` on glibc, and reads
+# `/dev/random` when that finds nothing. In a static glibc program it finds
+# nothing, and a confined host that grants no files aborted at start-up
+# (`getrandom::fill() failed`, error 13). This backend makes the system call
+# itself. Every kernel the fork supports has it. A musl build links the
+# function statically and is not affected either way.
 [build]
-rustflags = ["-C", "force-unwind-tables=yes", "-Z", "use-sync-unwind=yes"]
+rustflags = ["-C", "force-unwind-tables=yes", "-Z", "use-sync-unwind=yes", "--cfg", "getrandom_backend=\"linux_getrandom\""]
 
 # No `force-frame-pointers`. #9486 once set it for x86_64 because
 # `Error.stack` walked the `rbp` chain, which runtime Rust frames on

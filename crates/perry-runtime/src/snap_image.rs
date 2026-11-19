@@ -18,7 +18,15 @@ use format::{Cell, Image, Stop, Val, Word};
 use std::sync::atomic::{AtomicPtr, Ordering::Relaxed};
 
 unsafe extern "C" {
-    static __data_start: u8;
+    /// The start of the image's writable data. glibc's start-up object defines
+    /// it and musl's does not, so the reference is weak: the value is the
+    /// symbol's address, or null where there is none. The runtime did not link
+    /// for musl with a strong reference.
+    #[linkage = "extern_weak"]
+    static __data_start: *const u8;
+}
+
+unsafe extern "C" {
     static _end: u8;
     static __executable_start: u8;
     static __start_perry_strings: u8;
@@ -98,7 +106,11 @@ pub extern "C" fn js_snap_image_begin(
     unsafe { libc::syscall(libc::SYS_arch_prctl, 0x1003, &mut fs as *mut usize) };
     let (memsz, align) = executable_tls_size();
     let (tls_lo, tls_len) = tls_window(fs, memsz, align);
-    let lo = std::ptr::addr_of!(__data_start) as usize;
+    let lo = unsafe { __data_start } as usize;
+    if lo == 0 {
+        eprintln!("perry: the execution-prefix image needs __data_start, which this C library does not define");
+        return;
+    }
     let hi = std::ptr::addr_of!(_end) as usize;
     let pre_data = vec![0u8; hi - lo];
     let pre_tls = vec![0u8; tls_len];
@@ -116,7 +128,10 @@ pub extern "C" fn js_snap_image_begin(
     BASELINE.store(Box::into_raw(b), Relaxed);
 }
 
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+// `target_env = "gnu"`: the entry macro exists only there
+// (`gc/roots/walk_origin.rs`), and the runtime did not build for musl without
+// this. The compiler emits a call to the cut only under its own knob.
+#[cfg(all(target_os = "linux", target_arch = "x86_64", target_env = "gnu"))]
 #[unsafe(naked)]
 #[no_mangle]
 pub extern "C" fn js_snap_image_cut() {
@@ -124,7 +139,7 @@ pub extern "C" fn js_snap_image_cut() {
 }
 
 /// The cut entry offers its caller's frame to the root walk, as `gc()` does.
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[cfg(all(target_os = "linux", target_arch = "x86_64", target_env = "gnu"))]
 extern "C" fn js_snap_image_cut_from(pc: usize, sp: usize, fp: usize) {
     // First, before the offer below writes the walk origin and before any
     // other code of the capture: the words as the program left them.

@@ -168,7 +168,7 @@ static mut PROBE: u64 = 0x1234_5678;
 fn a_changed_data_word_naming_a_cell_is_a_root_word() {
     let text = b"root word probe string, long enough to stay a heap cell!!";
     let s = crate::string::js_string_from_bytes(text.as_ptr(), text.len() as u32);
-    let lo = std::ptr::addr_of!(__data_start) as usize;
+    let lo = unsafe { __data_start } as usize;
     let hi = std::ptr::addr_of!(_end) as usize;
     let base = Baseline {
         data: copy(lo, hi),
@@ -267,7 +267,7 @@ static PROBE_TLS: std::cell::Cell<u64> = std::cell::Cell::new(0x77);
 
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn probe_baseline() -> (Baseline, usize) {
-    let lo = std::ptr::addr_of!(__data_start) as usize;
+    let lo = unsafe { __data_start } as usize;
     let hi = std::ptr::addr_of!(_end) as usize;
     let mut fs = 0usize;
     // SAFETY: ARCH_GET_FS stores the thread pointer.
@@ -313,7 +313,7 @@ fn a_runtime_thread_local_word_written_after_the_baseline_is_a_root_word() {
 #[test]
 fn a_word_the_capture_writes_after_the_first_copy_is_not_a_root_word() {
     let probe = std::ptr::addr_of_mut!(PROBE);
-    let lo = std::ptr::addr_of!(__data_start) as usize;
+    let lo = unsafe { __data_start } as usize;
     let (mut base, _) = probe_baseline();
     let want = (probe as usize - lo) as u64;
     // SAFETY: a test-owned static, written by the tests that use it.

@@ -156,6 +156,12 @@ pub(crate) fn publish(slot: usize, ptr: *const u8) {
     PERRY_AGENT_PTRS.0[slot].set(ptr);
 }
 
+/// The address of this thread's `slot`, for a writer that is not this thread's
+/// ordinary code (`host::js_host_stop`).
+pub(crate) fn slot_addr(slot: usize) -> *mut *const u8 {
+    PERRY_AGENT_PTRS.0[slot].as_ptr()
+}
+
 /// Read one of this agent's pointers.
 #[inline]
 pub(crate) fn read(slot: usize) -> *const u8 {

@@ -38,6 +38,11 @@ pub(crate) fn array_holes_are_absent(arr: *const ArrayHeader) -> bool {
 /// Spec `[[HasProperty]]`(O, ToString(index)) for an ordinary Array receiver:
 /// own property OR inherited indexed property from `Array.prototype`.
 pub(crate) fn array_spec_has_index(arr: *const ArrayHeader, index: u32) -> bool {
+    // A walk over a sparse array asks this once per index, up to 2^32 times in
+    // one runtime call (`a.length = 4294967295; a.indexOf(1)` ran for over a
+    // minute). A proxy trap or a getter can throw from here already, so a
+    // host's stop (`host.rs`) may end the call here.
+    crate::host::stop_here();
     let arr = clean_arr_ptr(arr);
     if arr.is_null() {
         return false;
@@ -275,6 +280,8 @@ unsafe fn array_object_proto_index_has(proto_bits: u64, index: u32) -> bool {
 /// Spec `[[Get]]` for an ordinary Array. Own data, own accessors and the
 /// actual prototype chain share the same rooted indexed walk.
 pub(crate) fn array_spec_get(arr: *const ArrayHeader, index: u32) -> f64 {
+    // As `array_spec_has_index`: a getter can throw from here already.
+    crate::host::stop_here();
     let arr = clean_arr_ptr(arr);
     if arr.is_null() {
         return f64::from_bits(crate::value::TAG_UNDEFINED);

@@ -79,19 +79,86 @@ unsafe fn typed_array_sort_default_in_place(ta: *mut TypedArrayHeader) {
     match crate::typedarray::element_kind(ta) {
         KIND_BIGINT64 => {
             let base = data_ptr_mut(ta) as *mut i64;
-            std::slice::from_raw_parts_mut(base, len).sort_unstable();
+            bounded(std::slice::from_raw_parts_mut(base, len), i64::cmp);
         }
         KIND_BIGUINT64 => {
             let base = data_ptr_mut(ta) as *mut u64;
-            std::slice::from_raw_parts_mut(base, len).sort_unstable();
+            bounded(std::slice::from_raw_parts_mut(base, len), u64::cmp);
         }
         _ => {
             let mut buf: Vec<f64> = (0..len).map(|i| load_at(ta, i)).collect();
-            buf.sort_by(typed_array_default_number_cmp);
+            bounded(&mut buf, typed_array_default_number_cmp);
             for (i, v) in buf.into_iter().enumerate() {
                 store_at(ta, i, v);
             }
         }
+    }
+}
+
+/// Sort `items`, in a form a host can stop (`host.rs`). Outside a host call it
+/// is the library's unstable sort. Inside one, a sort of 8 million numbers ran
+/// for seconds without a point to stop at, so runs of [`RUN`] items are sorted
+/// one at a time and merged through one scratch copy, and the stop is asked
+/// for between them. A stopped sort leaves `items` a permutation of what it
+/// held, as a comparator that throws does.
+fn bounded<T: Copy>(items: &mut [T], order: fn(&T, &T) -> std::cmp::Ordering) {
+    const RUN: usize = 1 << 16;
+    let len = items.len();
+    if !crate::host::calling() || len <= RUN {
+        items.sort_unstable_by(order);
+        return;
+    }
+    for run in items.chunks_mut(RUN) {
+        run.sort_unstable_by(order);
+        if crate::host::due() {
+            crate::host::stop_now();
+        }
+    }
+    let mut scratch = items.to_vec();
+    let mut sorted = true;
+    let mut width = RUN;
+    while width < len {
+        // `sorted`: the merged runs are in `items`, and this pass reads them
+        // from there into `scratch`. Otherwise the other way round.
+        let (from, into): (&[T], &mut [T]) = if sorted {
+            (&*items, &mut scratch)
+        } else {
+            (&scratch, &mut *items)
+        };
+        let mut start = 0;
+        while start < len {
+            let middle = (start + width).min(len);
+            let end = (start + 2 * width).min(len);
+            let (mut left, mut right) = (start, middle);
+            for slot in &mut into[start..end] {
+                let take =
+                    right == end || (left < middle && order(&from[left], &from[right]).is_le());
+                if take {
+                    *slot = from[left];
+                    left += 1;
+                } else {
+                    *slot = from[right];
+                    right += 1;
+                }
+            }
+            start = end;
+            if crate::host::due() {
+                // The pass is part done: `into` is not whole. Keep `items`
+                // a permutation by giving it the whole side.
+                if sorted {
+                    drop(scratch);
+                } else {
+                    items.copy_from_slice(&scratch);
+                    drop(scratch);
+                }
+                crate::host::stop_now();
+            }
+        }
+        sorted = !sorted;
+        width *= 2;
+    }
+    if !sorted {
+        items.copy_from_slice(&scratch);
     }
 }
 

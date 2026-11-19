@@ -93,7 +93,7 @@ pub extern "C" fn js_bigint_pow(
         let Some(exp) = b.to_u32() else {
             throw_bigint_overflow();
         };
-        if (a.bits() - 1).saturating_mul(exp as u64) >= MAX_BIGINT_BITS {
+        if (a.bits() - 1).saturating_mul(exp as u64) >= max_bits() {
             throw_bigint_overflow();
         }
         a.pow(exp)

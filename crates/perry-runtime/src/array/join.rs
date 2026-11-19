@@ -724,6 +724,12 @@ fn join_values(
     let mut result = DirectJoinBuilder::new(&scope, initial_capacity);
 
     for index in 0..length as usize {
+        // An element's ToString can throw below, so a host's stop (`host.rs`)
+        // may end the call here. `a.length = 200000000; a.join("")` ran for
+        // over a minute.
+        if index & 4095 == 0 {
+            crate::host::stop_here();
+        }
         if index > 0 {
             if let Some(separator) = separator_handle {
                 result.append_separator(separator);

@@ -12,6 +12,18 @@ pub(super) fn allocate(total: usize, align: usize) -> *mut u8 {
     crate::gc::gc_check_trigger();
     crate::gc::allocation_pacing::finish_cycle_before_large_birth();
     let size = extent_size(total);
+    // A host's memory allowance (`host.rs`), as `block::try_alloc_block`
+    // holds for ordinary blocks: collect before going over it, and ask the
+    // call to stop when that was not enough. Without this a program that kept
+    // 64 KB strings reached 300 MB under an allowance of 128 MB.
+    crate::host::arena(super::arena_total_bytes());
+    if crate::host::over(size) {
+        crate::gc::gc_try_emergency_reclaim();
+        crate::host::arena(super::arena_total_bytes());
+        if crate::host::over(size) {
+            crate::host::refuse(size);
+        }
+    }
     let data = super::block::block_pool_take(size).unwrap_or_else(|| unsafe {
         let data = super::region::map(Kind::LargeObject, size);
         if data.is_null() {
@@ -34,6 +46,12 @@ pub(super) fn allocate(total: usize, align: usize) -> *mut u8 {
 /// collecting. The pressure is paid at the next precise poll.
 pub(super) fn allocate_no_collect(total: usize, align: usize) -> *mut u8 {
     let size = extent_size(total);
+    // This path may not collect, so over a host's allowance it only asks the
+    // call to stop.
+    crate::host::arena(super::arena_total_bytes());
+    if crate::host::over(size) {
+        crate::host::refuse(size);
+    }
     let data = super::block::block_pool_take(size)
         .unwrap_or_else(|| unsafe { super::region::map(Kind::LargeObject, size) });
     if data.is_null() {
@@ -81,6 +99,7 @@ fn publish(data: *mut u8, size: usize, total: usize, align: usize) -> *mut u8 {
         install(arena, block);
     });
     ARENA_TOTAL_BYTES.with(|bytes| bytes.set(bytes.get().saturating_add(size)));
+    crate::host::arena(super::arena_total_bytes());
     super::from_space::invalidate_sealed_young_bytes();
     crate::gc::trigger_watermark::retire_trigger_watermark();
     raw

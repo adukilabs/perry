@@ -327,6 +327,20 @@ fn store_alloc_cell(brand: u8, len: u32, init: Init<'_>) -> *mut BufferHeader {
         .unwrap_or_else(|| {
             crate::typedarray_hook_slots::throw_range_error(b"Array buffer allocation failed")
         });
+    // A host's memory allowance (`host.rs`): a store that would go over it is
+    // refused before its bytes are taken, after one collection. Not a copy:
+    // its source can be bytes the collection would move.
+    if matches!(init, Init::Zero | Init::Uninit) && crate::host::over(byte_len) {
+        if crate::gc::gc_try_emergency_reclaim() {
+            crate::host::arena(crate::arena::arena_total_bytes());
+        }
+        if crate::host::over(byte_len) {
+            crate::host::note(byte_len);
+            crate::typedarray_hook_slots::throw_range_error(
+                b"Array buffer allocation failed: over the memory allowance",
+            );
+        }
+    }
     let placement = crate::gc::byte_store_placement(brand, &init, byte_len);
     #[cfg(test)]
     let placement = if super::bytes::native_copy_fixture() {

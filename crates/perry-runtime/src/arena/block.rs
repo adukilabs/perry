@@ -375,6 +375,17 @@ fn try_alloc_block(
     }
     #[cfg(not(test))]
     let _ = injectable;
+    // A host's memory allowance (`host.rs`). The first ask of the mutator path
+    // is refused like an OS refusal, so its caller collects and asks again.
+    // The second ask, and the paths that may not collect, take the block and
+    // ask the call to stop.
+    crate::host::arena(super::arena_total_bytes());
+    if crate::host::over(size) {
+        if injectable {
+            return None;
+        }
+        crate::host::refuse(size);
+    }
     let kind = super::region::kind_for(generation, size);
     if let Some(data) = block_pool_take(size) {
         unsafe { super::region::advise(data, size, kind) };
@@ -438,6 +449,7 @@ fn reserve_arena_block_for(min_size: usize, generation: HeapGeneration) -> Arena
     }
     note_gc_trigger_arena_borrow_depth();
     crate::gc::gc_try_emergency_reclaim();
+    crate::host::arena(super::arena_total_bytes());
     if let Some(block) = try_alloc_block(min_size, false, generation) {
         return block;
     }

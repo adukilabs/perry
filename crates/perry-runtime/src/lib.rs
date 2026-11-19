@@ -51,14 +51,14 @@ include!(concat!(env!("OUT_DIR"), "/realm-metadata.rs"));
     not(feature = "alloc-census")
 ))]
 #[global_allocator]
-static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+static GLOBAL: host::Metered<mimalloc::MiMalloc> = host::Metered(mimalloc::MiMalloc);
 #[cfg(all(
     not(all(target_pointer_width = "64", feature = "alloc-mimalloc")),
     not(wasm_discard),
     not(feature = "alloc-census")
 ))]
 #[global_allocator]
-static GLOBAL: std::alloc::System = std::alloc::System;
+static GLOBAL: host::Metered<std::alloc::System> = host::Metered(std::alloc::System);
 // wasip1 with `wasm-discard`: the system allocator plus a discard of each large
 // free's pages, so a host that provides `perry_host.discard_pages` gets them
 // back (`wasm_discard.rs`).
@@ -174,6 +174,7 @@ pub mod frame;
 pub mod fs;
 pub mod function_order;
 pub mod gc;
+pub mod host;
 pub mod hot_diag;
 pub mod intl;
 pub mod iter_result;

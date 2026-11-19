@@ -12,7 +12,7 @@ fn shift(a: *const BigIntHeader, b: *const BigIntHeader, left: bool) -> *mut Big
         let Some(count) = count else {
             throw_bigint_overflow();
         };
-        if count.saturating_add(a.bits()) > MAX_BIGINT_BITS {
+        if count.saturating_add(a.bits()) > max_bits() {
             throw_bigint_overflow();
         }
         a << count as usize
@@ -60,7 +60,7 @@ fn as_n(bits: u32, a: *const BigIntHeader, signed: bool) -> *mut BigIntHeader {
     if (signed || !value.is_negative()) && (bits as u64) > value.bits() {
         return bigint_alloc_integer(value);
     }
-    if bits as u64 > MAX_BIGINT_BITS {
+    if bits as u64 > max_bits() {
         throw_bigint_overflow();
     }
     let modulus = BigInt::from(1) << bits as usize;

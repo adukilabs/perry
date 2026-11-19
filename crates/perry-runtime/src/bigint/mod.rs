@@ -44,8 +44,12 @@ fn throw_bigint_syntax_error(message: &str) -> ! {
     crate::exception::throw_core(crate::error::CoreError::syntax_error(msg))
 }
 
-/// Match V8's implementation limit, rather than the old signed i1024 limit.
-const MAX_BIGINT_BITS: u64 = 1 << 30;
+/// The largest BigInt in bits: V8's implementation limit of 2^30, or what a
+/// host lowered it to (`host::js_host_bigint_limit`).
+#[inline]
+fn max_bits() -> u64 {
+    crate::host::bigint()
+}
 
 #[cold]
 #[optimize(size)]
@@ -108,7 +112,7 @@ fn integer_from_limbs(limbs: &[u64]) -> BigInt {
 }
 
 fn integer_limbs(value: &BigInt) -> Vec<u64> {
-    if value.bits() > MAX_BIGINT_BITS {
+    if value.bits() > max_bits() {
         throw_bigint_overflow();
     }
     let mut bytes = value.to_signed_bytes_le();

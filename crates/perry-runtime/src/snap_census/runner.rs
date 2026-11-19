@@ -5320,10 +5320,71 @@ pub unsafe extern "C" fn unsetenv(name: *const libc::c_char) -> libc::c_int {
         host(Effect::HostWrite, "env");
     }
     let next = libc::dlsym(libc::RTLD_NEXT, c"unsetenv".as_ptr());
-    assert!(!next.is_null(), "libc unsetenv missing");
+    if next.is_null() {
+        return own_setenv(name, None, saved_errno);
+    }
     let call: unsafe extern "C" fn(*const libc::c_char) -> libc::c_int = std::mem::transmute(next);
     *libc::__errno_location() = saved_errno;
     call(name)
+}
+
+/// `setenv` (`Some((value, overwrite))`) and `unsetenv` (`None`) on `environ`
+/// itself, for a statically linked program. There the definitions in this
+/// file are the only ones: the linker never takes the C library's, so there is
+/// no next one to look up, and the runtime panicked at start-up ("libc setenv
+/// missing") in every static program built from a debug-profile archive.
+/// What is replaced is not freed: `environ` may hold strings this did not make.
+unsafe fn own_setenv(
+    name: *const libc::c_char,
+    value: Option<(*const libc::c_char, libc::c_int)>,
+    saved_errno: libc::c_int,
+) -> libc::c_int {
+    let key = if name.is_null() {
+        b"".as_slice()
+    } else {
+        std::ffi::CStr::from_ptr(name).to_bytes()
+    };
+    if key.is_empty() || key.contains(&b'=') {
+        *libc::__errno_location() = libc::EINVAL;
+        return -1;
+    }
+    let names = |entry: *const libc::c_char| {
+        let entry = std::ffi::CStr::from_ptr(entry).to_bytes();
+        entry.len() > key.len() && entry.starts_with(key) && entry[key.len()] == b'='
+    };
+    let mut kept: Vec<*const libc::c_char> = Vec::new();
+    let mut found = false;
+    let mut e = environ;
+    while !e.is_null() && !(*e).is_null() {
+        if names(*e) {
+            found = true;
+        } else {
+            kept.push(*e);
+        }
+        e = e.add(1);
+    }
+    *libc::__errno_location() = saved_errno;
+    match value {
+        Some((_, 0)) if found => return 0,
+        None if !found => return 0,
+        Some((value, _)) => {
+            let value = if value.is_null() {
+                b"".as_slice()
+            } else {
+                std::ffi::CStr::from_ptr(value).to_bytes()
+            };
+            let mut entry = Vec::with_capacity(key.len() + value.len() + 2);
+            entry.extend_from_slice(key);
+            entry.push(b'=');
+            entry.extend_from_slice(value);
+            entry.push(0);
+            kept.push(Box::leak(entry.into_boxed_slice()).as_ptr().cast());
+        }
+        None => {}
+    }
+    kept.push(std::ptr::null());
+    environ = Box::leak(kept.into_boxed_slice()).as_ptr();
+    0
 }
 
 #[no_mangle]
@@ -5364,7 +5425,9 @@ pub unsafe extern "C" fn setenv(
         host(Effect::HostWrite, "env");
     }
     let next = libc::dlsym(libc::RTLD_NEXT, c"setenv".as_ptr());
-    assert!(!next.is_null(), "libc setenv missing");
+    if next.is_null() {
+        return own_setenv(name, Some((value, overwrite)), saved_errno);
+    }
     let call: unsafe extern "C" fn(
         *const libc::c_char,
         *const libc::c_char,

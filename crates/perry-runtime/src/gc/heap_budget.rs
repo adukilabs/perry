@@ -42,6 +42,12 @@ pub(crate) fn gc_heap_budget_bytes() -> Option<usize> {
         // The heap budget is the collector's own sizing (first asked by an
         // allocation slow path, outside any collection).
         crate::snap_funnel!(Gc);
+        // A host that set an allowance (`host::js_host_memory_limit`) is the
+        // deployer, and its figure is exact.
+        let host = crate::host::limit();
+        if host > 0 {
+            return Some(host);
+        }
         if let Ok(v) = std::env::var("PERRY_GC_HEAP_LIMIT") {
             if let Ok(mb) = v.trim().parse::<u64>() {
                 if mb > 0 {

@@ -252,6 +252,12 @@ unsafe fn sort_default_rooted(vals: &RootedArrayElems<'_>, n: usize) {
     }
     let mut keys: Vec<String> = Vec::with_capacity(n);
     for i in 0..n {
+        // ToString can throw here, so a host's stop (`host.rs`) may end the
+        // call here. The keys are this function's own and are freed first.
+        if i & 1023 == 0 && crate::host::due() {
+            drop(keys);
+            crate::host::stop_now();
+        }
         keys.push(sort_key_string(vals.get(i)));
     }
     let mut order: Vec<u32> = (0..n as u32).collect();

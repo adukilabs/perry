@@ -53,6 +53,12 @@ pub(crate) fn publish_stack_limit() {
     publish(AGENT_PTR_STACK_LIMIT, limit as *const u8);
 }
 
+/// The limit this thread armed, or 0 before it published one. A host's stop
+/// request raises the published slot above it (`host.rs`) and puts this back.
+pub(crate) fn limit() -> usize {
+    LIMITS.with(|l| l.get()).0
+}
+
 /// A compiled prologue's stack check, for a runtime entry that a cycle of
 /// runtime frames alone can re-enter (a builtin that dispatches by name back
 /// into the same lookup) and that no compiled body's check would bound.
@@ -80,6 +86,10 @@ pub(crate) fn check_native_stack() {
 #[optimize(size)]
 #[inline(never)]
 pub extern "C-unwind" fn js_stack_overflow() -> ! {
+    // A host's stop request makes every check take this arm (`host.rs`). It
+    // ends the call here and does not return; with none outstanding it
+    // returns at once.
+    crate::host::stop_here();
     let (limit, relaxed) = LIMITS.with(|l| l.get());
     let armed = crate::agent_ptrs::read(AGENT_PTR_STACK_LIMIT) as usize;
     if limit == 0 || armed != limit {

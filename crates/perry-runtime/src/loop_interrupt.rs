@@ -129,6 +129,8 @@ pub fn current_termination_requested() -> bool {
 /// runtime loops that run JS callbacks back to back (microtask drains).
 #[no_mangle]
 pub extern "C" fn js_loop_interrupt() {
+    // A host's bounded call (`host.rs`) stops here too.
+    crate::host::stop_here();
     if !current_termination_requested() {
         return;
     }

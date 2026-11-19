@@ -609,6 +609,7 @@ fn lower_module(
     set_full_outline_ic(decide_full_outline_ic(module_callable_count(hir)));
     // Initial-exec TLS only in an image that is never `dlopen`ed.
     crate::expr::agent_ptr::set_output_is_executable(opts.output_type == "executable");
+    crate::expr::agent_ptr::set_output_is_staticlib(opts.output_type == "staticlib");
     // #8595: report the module-entry outlining analysis when asked. Pure
     // diagnostic — no transform yet (see codegen/entry_outline.rs).
     if !collect_births {

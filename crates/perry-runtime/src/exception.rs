@@ -298,6 +298,17 @@ pub fn run_worker_body_caught<R>(f: impl FnOnce() -> R) -> Result<R, Caught> {
     }
 }
 
+/// Run `body(ctx)` under the base trap for a host's bounded call (`host.rs`).
+/// `true`: it returned. `false`: a throw or a stop landed, and the thrown
+/// value is still in the exception slot.
+pub(crate) unsafe fn trap_base(body: TrapBody, ctx: *mut core::ffi::c_void) -> bool {
+    let outer = IN_WORKER_BASE.with(|d| d.replace(true));
+    let returned = trap_raw::<true>(body, ctx);
+    IN_WORKER_BASE.with(|d| d.set(outer));
+    with_exception_state(|s| unsafe { (*s).to_worker_base = false });
+    returned
+}
+
 /// On a worker thread, hand an uncaught exception to the worker's base trap
 /// (see [`run_worker_body`]); this does not return. On any other thread it
 /// returns and the caller ends the process.

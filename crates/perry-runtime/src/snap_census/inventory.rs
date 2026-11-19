@@ -40,7 +40,15 @@ use std::io::Write;
 use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering::Relaxed};
 
 unsafe extern "C" {
-    static __data_start: u8;
+    /// The start of the image's writable data. glibc's start-up object defines
+    /// it and musl's does not, so the reference is weak: the value is the
+    /// symbol's address, or null where there is none. The runtime did not link
+    /// for musl with a strong reference.
+    #[linkage = "extern_weak"]
+    static __data_start: *const u8;
+}
+
+unsafe extern "C" {
     static _end: u8;
     static __executable_start: u8;
     static __start_perry_strings: u8;
@@ -124,7 +132,11 @@ pub(super) fn start(anchor: (usize, usize), tls_block: (usize, usize), program_t
         TRANS.lock().unwrap_or_else(|e| e.into_inner()).owner = Some(std::thread::current().id());
         LIVE_ON.store(true, Relaxed);
     }
-    let lo = std::ptr::addr_of!(__data_start) as usize;
+    let lo = unsafe { __data_start } as usize;
+    if lo == 0 {
+        eprintln!("perry: the snapshot inventory needs __data_start, which this C library does not define");
+        return;
+    }
     let hi = std::ptr::addr_of!(_end) as usize;
     let own = std::ptr::addr_of!(BASELINE) as usize;
     let b = Box::new(Baseline {

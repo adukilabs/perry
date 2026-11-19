@@ -70,10 +70,42 @@ thread_local! {
     /// module by `codegen::compile_module`); anything else must not assume
     /// a fixed thread-pointer offset (local-exec TLS).
     static OUTPUT_IS_EXECUTABLE: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+    /// Whether the module being compiled is `staticlib` output: an archive a
+    /// host program links into its own image at build time.
+    static OUTPUT_IS_STATICLIB: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 pub(crate) fn set_output_is_executable(executable: bool) {
     OUTPUT_IS_EXECUTABLE.with(|c| c.set(executable));
+}
+
+pub(crate) fn set_output_is_staticlib(staticlib: bool) {
+    OUTPUT_IS_STATICLIB.with(|c| c.set(staticlib));
+}
+
+pub(crate) fn output_is_staticlib() -> bool {
+    OUTPUT_IS_STATICLIB.with(|c| c.get())
+}
+
+/// Whether a body of this compile reads its stack limit straight from the
+/// per-agent block although the image is not an executable: `staticlib`
+/// output for an ELF target.
+///
+/// The block is declared initial-exec (`runtime_decls/objects.rs`). An archive
+/// is linked into the host's image when that image is built, so the block is
+/// in the static TLS area and the model holds; linked into an executable the
+/// linker relaxes it to local-exec. A `dylib` can be `dlopen`ed and keeps
+/// having no check. A host that puts the archive into a shared object it
+/// loads with `dlopen` must build with `PERRY_AGENT_PTR_ACCESS=call`, which
+/// turns this off.
+///
+/// Without it a host cannot bound such code: unbounded recursion faulted, and
+/// code that recursed without a loop had no point at which it could be
+/// stopped (`perry-runtime/src/host.rs`).
+pub(crate) fn staticlib_reads_stack_limit(triple: &str) -> bool {
+    elf_executable_target(triple)
+        && output_is_staticlib()
+        && std::env::var("PERRY_AGENT_PTR_ACCESS").as_deref() != Ok("call")
 }
 
 /// Whether thread-locals of an `output_type` image for `triple` may be

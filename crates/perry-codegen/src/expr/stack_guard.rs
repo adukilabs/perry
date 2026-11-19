@@ -502,6 +502,16 @@ fn emit_check(ctx: &mut FnCtx<'_>, arm: Arm) -> Option<()> {
     let slot_off = (AGENT_PTR_STACK_LIMIT * 8).to_string();
     let ok_idx;
     let limit = match agent_ptr_access(ctx) {
+        // `staticlib` output for ELF: the same read as an executable's, through
+        // the block's initial-exec declaration.
+        AgentPtrAccess::Call
+            if super::agent_ptr::staticlib_reads_stack_limit(ctx.target_triple) =>
+        {
+            ok_idx = ctx.new_block("stack_guard.ok");
+            let at =
+                super::agent_ptr::emit_slot_addr(ctx, AgentPtrAccess::ExecutableTls, &slot_off);
+            ctx.block().load(PTR, &at)
+        }
         AgentPtrAccess::Call => return None,
         // The runtime publishes no stack limit on Windows (`stack_bounds` is
         // `None` there), so the slot stays 0 and a check could never fire:

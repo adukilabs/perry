@@ -304,6 +304,11 @@ pub fn gc_malloc(size: usize, obj_type: u8) -> *mut u8 {
     // Running before means the fresh allocation simply doesn't exist yet
     // during the GC cycle.
     super::policy::gc_check_trigger_inlined();
+    // A host's memory allowance (`host.rs`): collect before going over it.
+    // What is still over after that is asked to stop by the allocator's count.
+    if crate::host::over(total) && super::gc_try_emergency_reclaim() {
+        crate::host::arena(crate::arena::arena_total_bytes());
+    }
 
     unsafe {
         let mut raw = alloc(layout);

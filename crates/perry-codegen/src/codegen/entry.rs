@@ -787,7 +787,19 @@ pub(super) fn compile_module_entry(
             // ordinary programs AND installs the async_hooks surface at every
             // program's entry (the native-ABI proof workload's write-barrier
             // budget went 8 → 7921 on exactly that).
-            if !nextjs_path_inits.is_empty() {
+            //
+            // Fork: the list also holds every `perry.compilePackages` and
+            // native-library package module, which says nothing about
+            // Next.js. A program with one native binding package was seeded,
+            // and the seed asks for the global object, which populates every
+            // built-in the realm declares: about two thirds of that
+            // program's start-up (sampled 2026-11-20). Only a real
+            // `.next/server/**` module asks for the seed now.
+            let nextjs = cross_module
+                .nextjs_path_init_modules
+                .iter()
+                .any(|(path, _)| path.replace('\\', "/").contains("/.next/server/"));
+            if nextjs {
                 blk.call_void("js_globalthis_seed_async_local_storage", &[]);
             }
             // #8040: record the path->init addresses BEFORE the eager init

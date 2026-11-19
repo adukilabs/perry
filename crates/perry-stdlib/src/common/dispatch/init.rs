@@ -138,7 +138,12 @@ pub unsafe extern "C" fn js_stdlib_init_dispatch() {
     js_register_handle_own_property_names_dispatch(js_handle_own_property_names_dispatch);
     js_register_handle_prototype_dispatch(js_handle_prototype_dispatch);
     js_register_native_property_bag_dispatch(native_property_bag_dispatch);
-    crate::string_decoder::string_decoder_prototype_value();
+    // Fork: the StringDecoder prototype is not built here. Building it asked
+    // for the global object, and that populated every built-in the realm
+    // declares: two thirds of the start-up of a program that uses none of
+    // them (measured by sampling, 2026-11-20). The prototype is built by its
+    // first reader instead (`js_handle_prototype_dispatch`, the
+    // `string_decoder` namespace).
     // Dynamic `new <bound async_hooks ctor>()` -> real handle. Next.js does
     // `globalThis.AsyncLocalStorage = AsyncLocalStorage` then
     // `new maybeGlobalAsyncLocalStorage()`; the dynamic callee misses the static

@@ -179,11 +179,47 @@ pub(crate) fn try_lower_proven_setter(
     };
     with_class_store_operands(ctx, object, value, |ctx, recv_box, val_double| {
         super::store_census::bump(ctx, super::store_census::CFIELD_SETTER);
+        // The proof is over the object receivers. A `null` or `undefined`
+        // base may sit beside them (rule N in `perry-wpfacts`), and PutValue
+        // throws for it: any value that is not a heap pointer takes the
+        // complete [[Set]], which does.
+        let hit = ctx.new_block("proven_setter.object");
+        let miss = ctx.new_block("proven_setter.other");
+        let merge = ctx.new_block("proven_setter.merge");
+        let (hit_label, miss_label, merge_label) = (
+            ctx.block_label(hit),
+            ctx.block_label(miss),
+            ctx.block_label(merge),
+        );
+        let bits = ctx.block().bitcast_double_to_i64(&recv_box);
+        let top = ctx.block().lshr(I64, &bits, "48");
+        let object_tag = (crate::nanbox::POINTER_TAG >> 48).to_string();
+        let is_object = ctx.block().icmp_eq(I64, &top, &object_tag);
+        ctx.block().cond_br(&is_object, &hit_label, &miss_label);
+        ctx.current_block = hit;
         let _ = ctx.block().call(
             DOUBLE,
             &fn_name,
             &[(DOUBLE, &recv_box), (DOUBLE, &val_double)],
         );
+        ctx.block().br(&merge_label);
+        ctx.current_block = miss;
+        let index = ctx.strings.intern(property);
+        let global = format!("@{}", ctx.strings.entry(index).handle_global);
+        let key = ctx.block().load(DOUBLE, &global);
+        let _ = ctx.block().call(
+            DOUBLE,
+            "js_put_value_set",
+            &[
+                (DOUBLE, &recv_box),
+                (DOUBLE, &key),
+                (DOUBLE, &val_double),
+                (DOUBLE, &recv_box),
+                (I32, "1"),
+            ],
+        );
+        ctx.block().br(&merge_label);
+        ctx.current_block = merge;
         Ok(val_double)
     })
     .map(Some)
@@ -525,6 +561,20 @@ fn lower_store(ctx: &mut FnCtx<'_>, expr: &Expr, assignment_strict: bool) -> Res
                             }
                         }
                     }
+                }
+            }
+            // ACCBUILD2 P3, the store twin of `try_lower_proven_getter`: a
+            // plain `o.k = v` the facts prove calls one setter is that
+            // setter's direct call. Only the compound form above consumed
+            // the proof, so a store through a receiver that is not a local
+            // with a class proof (a module-level `const e: C | null`) took
+            // the generic keyed store and its prototype walk: about 1000 ns
+            // where the read of the same accessor took 3.
+            if *byte_offset != 0 {
+                if let Some(v) =
+                    try_lower_proven_setter(ctx, object, property, value, *byte_offset)?
+                {
+                    return Ok(v);
                 }
             }
             // A receiver the wpfacts lowering proves takes the elided read

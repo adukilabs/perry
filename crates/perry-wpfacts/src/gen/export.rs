@@ -212,6 +212,46 @@ impl<'a> Gen<'a> {
         }
     }
 
+    /// Fork: a library's host calls what the root modules export. The host
+    /// is native code, not script: it passes numbers and strings and runs
+    /// no script of its own. So an exported function is active, each of its
+    /// parameters holds any primitive, and what it returns leaves the
+    /// program. It is not handed to unknown script code, which would make
+    /// every global and every object the program holds unknown too.
+    /// Without this the reach follows the program's own calls only, calls
+    /// the exported function inactive, and every site behind it (a listener
+    /// stored earlier, the functions that listener calls) keeps the generic
+    /// path. A re-export is matched by its name, which can only name more
+    /// functions than the host calls.
+    pub(crate) fn host_exports(&mut self) {
+        let r = self.m.reason("returned from a library to its host");
+        let names: crate::pts::FxHashSet<Atom> = self
+            .exports
+            .keys()
+            .filter(|(mi, _)| {
+                let path = self.modules[*mi as usize].0;
+                self.roots.iter().any(|root| root == path)
+            })
+            .map(|&(_, a)| a)
+            .collect();
+        let mut fns: Vec<FnIdx> = self
+            .export_fn
+            .iter()
+            .filter(|((_, a), _)| names.contains(a))
+            .map(|(_, &f)| f)
+            .collect();
+        fns.sort_unstable();
+        fns.dedup();
+        for f in fns {
+            self.m.activate(f, "host");
+            let fi = self.m.funcs[f as usize].clone();
+            for p in fi.params {
+                self.m.add_prim(p, prim::ALL);
+            }
+            self.m.sink_node(fi.ret, r);
+        }
+    }
+
     /// Per-unit mode: these modules are one unit of a larger program, and
     /// every other unit is unknown compiled code. What the unit publishes
     /// (exports, namespaces, CommonJS records, thrown values, the global

@@ -290,6 +290,7 @@ pub(crate) fn run(
                 .into()
         }),
         unit: false,
+        library,
         // Decision 32: the one unit-jobs setting (`PERRY_CODEGEN_UNIT_JOBS`,
         // else the budget's CPU slots, else cores bounded by memory).
         jobs: perry_codegen::workers::unit_workers(),
@@ -1527,6 +1528,7 @@ pub(crate) fn activation(
     interpreted_sources: bool,
     dynamic_code_reach: &perry_hir::dynamic_code::DynamicCodeReach,
     roots: Vec<String>,
+    library: bool,
 ) -> Option<perry_wpfacts::Activation> {
     if !perry_wpfacts::enabled_from_env() {
         return None;
@@ -1534,6 +1536,7 @@ pub(crate) fn activation(
     let cfg = perry_wpfacts::FactsConfig {
         namespace_pairs: namespace_pairs_on(),
         roots,
+        library,
         // The facts' negative controls act on this pass (it is theirs).
         no_int_ranges: matches!(
             std::env::var("PERRY_FACTS_INT_RANGES").as_deref(),

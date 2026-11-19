@@ -25,6 +25,7 @@ use super::CompilationContext;
 pub(super) fn prune(
     ctx: &mut CompilationContext,
     roots: &[PathBuf],
+    library: bool,
 ) -> Result<Option<perry_wpfacts::Activation>> {
     if matches!(
         std::env::var("PERRY_DYNAMIC_REACH").as_deref(),
@@ -55,6 +56,7 @@ pub(super) fn prune(
         interpreted_sources,
         &ctx.patched_builtins.dynamic_code_reach,
         roots.iter().map(|p| p.display().to_string()).collect(),
+        library,
     ) else {
         return Ok(None);
     };

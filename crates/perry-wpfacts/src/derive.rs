@@ -3286,6 +3286,17 @@ fn judge_store(
             receivers.extend(prim_throw_arms(prim));
             v
         }
+        // Rule N for a setter: `null` / `undefined` beside receivers whose
+        // chain ends at one setter. PutValue throws for the nullish base
+        // (6.2.5.6 step 3.a) and calls the setter for every other. Codegen
+        // tests the receiver and sends a non-object to the complete [[Set]]
+        // (`try_lower_proven_setter`), as a slot store does. Without this a
+        // store through `const e: C | null` was refused while the read of the
+        // same accessor on the same receiver was proven.
+        v @ Verdict::AccessorSet if nullish_beside && prim_obj == 0 => {
+            receivers.extend(prim_throw_arms(prim));
+            v
+        }
         Verdict::No(w) => Verdict::No(w),
         _ if nullish_beside => Verdict::No("store: primitive receiver".into()),
         v => v,

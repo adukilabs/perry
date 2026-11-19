@@ -109,15 +109,38 @@ pub(crate) unsafe fn default_species_is_certain(original: f64) -> bool {
     crate::gc_type_is_array!((*hdr).obj_type)
         && (*hdr)._reserved & crate::gc::GC_ARRAY_CUSTOM_PROTO == 0
         && !super::named_props::array_named_property_has_by_name(arr, "constructor")
-        && crate::object::get_accessor_descriptor(
-            crate::array::array_prototype_addr_if_resolved(),
-            "constructor",
-        )
-        .is_none()
-        && !crate::object::descriptor_state::owner_key_is_accessor(
-            crate::array::object_prototype_addr_if_resolved(),
-            b"constructor",
-        )
+        && prototypes_keep_constructor()
+}
+
+thread_local! {
+    /// The last answer of [`prototypes_keep_constructor`] and what it was
+    /// computed from: the semantic property epoch and the two prototypes.
+    static CONSTRUCTOR_PLAIN: std::cell::Cell<(u64, usize, usize, bool)> =
+        const { std::cell::Cell::new((0, 0, 0, false)) };
+}
+
+/// Whether `constructor` is still a data property on `Array.prototype` and on
+/// `Object.prototype`. The answer is a fact about those two objects, not
+/// about the receiver, and it changes only when a descriptor is installed,
+/// which bumps the semantic property epoch
+/// (`prop_plan::prop_plan_epoch_bump_for_owner`). It was computed again by two
+/// keyed lookups on every `slice`, `map`, `filter`, `concat` and `splice`:
+/// most of the 78 ns an empty `slice()` took.
+#[inline]
+fn prototypes_keep_constructor() -> bool {
+    let epoch = crate::object::prop_plan::prop_plan_semantic_epoch();
+    let array = crate::array::array_prototype_addr_if_resolved();
+    let object = crate::array::object_prototype_addr_if_resolved();
+    let (seen, seen_array, seen_object, answer) = CONSTRUCTOR_PLAIN.with(std::cell::Cell::get);
+    if seen == epoch && seen_array == array && seen_object == object {
+        return answer;
+    }
+    let answer = crate::object::get_accessor_descriptor(array, "constructor").is_none()
+        && !unsafe {
+            crate::object::descriptor_state::owner_key_is_accessor(object, b"constructor")
+        };
+    CONSTRUCTOR_PLAIN.with(|c| c.set((epoch, array, object, answer)));
+    answer
 }
 
 /// `SpeciesConstructor` portion of `ArraySpeciesCreate`: resolve the result

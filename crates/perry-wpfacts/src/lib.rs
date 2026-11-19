@@ -216,6 +216,9 @@ pub struct FactsConfig {
     /// The modules are one unit of a larger program: every other unit is
     /// unknown compiled code (`Gen::unit_boundary`).
     pub unit: bool,
+    /// Fork: the output is a library. What its root modules export is
+    /// called by a host this compile never sees (`Gen::host_exports`).
+    pub library: bool,
     /// Decision 32: threads for the per-unit driver's dependency levels
     /// (0 and 1 solve on the calling thread). The facts are the same at
     /// every count.
@@ -611,6 +614,9 @@ fn generate<'a>(
     g.link_exports();
     g.walk_all();
     g.feed_parent_values();
+    if cfg.library && !cfg.unit {
+        g.host_exports();
+    }
     if cfg.unit {
         // The closed contracts first (decision 19): publishing a closed
         // function is no escape only once its contract is known.

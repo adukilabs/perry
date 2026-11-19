@@ -1146,7 +1146,7 @@ pub fn run_with_parse_cache(
                 roots.push(entry_path.canonicalize().unwrap_or(entry_path));
             }
         }
-        let activation = super::dynamic_reach::prune(&mut ctx, &roots)?;
+        let activation = super::dynamic_reach::prune(&mut ctx, &roots, args.output_type != "executable")?;
         (activation, roots)
     };
 

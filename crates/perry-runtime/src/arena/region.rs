@@ -64,7 +64,15 @@ pub(super) unsafe fn advise(data: *mut u8, len: usize, kind: Kind) {
     {
         let mapped = mapped_len(len).expect("invalid region extent");
         let _ = kind;
-        let dense = len / ALIGN * ALIGN;
+        // Fork: a program held to a memory allowance by its host is a small
+        // one, and a huge page makes the first byte written to a 2 MB unit
+        // cost 2 MB of resident memory. Measured on a counter app: 8 MB of
+        // its 20 MB were four such pages, mostly unused. Base pages there.
+        let dense = if crate::host::limit() != 0 {
+            0
+        } else {
+            len / ALIGN * ALIGN
+        };
         if dense != 0 {
             advise_thp(data.cast(), dense, libc::MADV_HUGEPAGE);
         }

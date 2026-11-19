@@ -230,6 +230,34 @@ pub extern "C" fn js_host_memory_used() -> usize {
     HEAP.load(Ordering::Relaxed) + ARENA.load(Ordering::Relaxed)
 }
 
+/// The host is between two calls and has time: collect the young generation
+/// if the program has filled more than `young` bytes of it since the last
+/// collection. Returns the bytes freed, 0 when nothing ran.
+///
+/// Without this the collector runs when an allocation crosses its own
+/// threshold, which is inside whichever call happens to cross it. For a
+/// program driven by input events that is a pause inside one event handler:
+/// measured on a counter app, one click in 20 000 took 70 to 1400 us where
+/// the others took 1 us. Called after each event, with a threshold well under
+/// the collector's own, the collection happens after the handler has
+/// returned and its result is on screen, and the handler never meets one.
+/// It also bounds what the young generation holds between events to `young`
+/// plus what one event allocates.
+///
+/// Must not be called from inside a [`js_host_call`]: it scans no native
+/// frames, because between calls none hold program values.
+#[no_mangle]
+pub extern "C" fn js_host_idle(young: usize) -> u64 {
+    if IN_CALL.with(Cell::get) {
+        return 0;
+    }
+    let (used, _) = crate::arena::copying_from_space_in_use_bytes_and_leaf_free();
+    if used < young {
+        return 0;
+    }
+    crate::gc::gc_collect_minor()
+}
+
 /// The allowance, for the collector's budget.
 pub(crate) fn limit() -> usize {
     LIMIT.load(Ordering::Relaxed)
@@ -335,3 +363,5 @@ static KEEP_HOST_MEMORY_LIMIT: extern "C" fn(usize) = js_host_memory_limit;
 static KEEP_HOST_MEMORY_USED: extern "C" fn() -> usize = js_host_memory_used;
 #[used(compiler)]
 static KEEP_HOST_MEMORY_REFUSED: extern "C" fn() -> usize = js_host_memory_refused;
+#[used(compiler)]
+static KEEP_HOST_IDLE: extern "C" fn(usize) -> u64 = js_host_idle;

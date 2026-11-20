@@ -2946,7 +2946,15 @@ pub fn run_with_parse_cache(
     // Android UI also calls the perry-ffi async shims, even when the TS
     // program imports only perry/ui. Decide this before optimized-library
     // selection and the undefined-symbol scan, not just at the final link.
-    if !ctx.native_libraries.is_empty() {
+    // Platform fork: only a library with a promise-returning function needs
+    // those shims. A library of plain synchronous calls links the runtime
+    // alone, which keeps the whole standard library out of the program.
+    let promises = ctx
+        .native_libraries
+        .iter()
+        .flat_map(|lib| lib.functions.iter())
+        .any(|function| function.returns.promise_result().is_some());
+    if promises {
         ctx.needs_stdlib = true;
     }
 

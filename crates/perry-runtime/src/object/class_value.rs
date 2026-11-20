@@ -423,8 +423,16 @@ fn class_value_mint(class_id: u32) -> *mut ClosureHeader {
     // its computed members now, before the prototype is born from them.
     super::class_registry::inherited_evaluation::replay_inherited_evaluation(class_id);
     // The class owns this edge. It is never mirrored in the property-state bag.
-    unsafe {
-        constructor_parent_bits(ptr);
+    // Fork: a class that extends nothing has `%Function.prototype%` as its
+    // parent, and asking for that builds the whole realm: every built-in the
+    // language declares, about 2 ms, for a program that may never look at
+    // the edge. Its slot stays undefined, and the first reader resolves it
+    // (`constructor_parent_bits`). A class with a declared parent is resolved
+    // here as before: compiled `super` guards load its slot directly.
+    if !parent_is_default(class_id) {
+        unsafe {
+            constructor_parent_bits(ptr);
+        }
     }
     // MakeConstructor: `prototype` { !w, !e, !c } is created with the class,
     // after `length` and `name` and before every ClassBody static, so the own
@@ -1182,6 +1190,21 @@ pub(crate) fn class_prototype_addr(class_id: u32) -> usize {
 /// The definition's parent is used only to initialize the object and to tell
 /// legacy static-chain consumers when its current edge equals that definition.
 /// The current edge itself lives solely in the class function's capture word.
+/// Whether [`definition_parent_value`] would answer `%Function.prototype%`:
+/// the class names no parent of any kind. Allocates nothing.
+fn parent_is_default(class_id: u32) -> bool {
+    if let Some(value) = super::class_registry::stashed_dynamic_parent_value(class_id) {
+        let bits = value.to_bits();
+        if bits != crate::value::TAG_UNDEFINED && bits != crate::value::TAG_NULL {
+            return false;
+        }
+    }
+    if super::get_parent_class_id(class_id).is_some_and(|p| p != 0 && p != class_id) {
+        return false;
+    }
+    super::class_registry::class_parent_closure(class_id).is_none()
+}
+
 pub(crate) fn definition_parent_value(class_id: u32) -> f64 {
     if let Some(value) = super::class_registry::stashed_dynamic_parent_value(class_id) {
         let bits = value.to_bits();
